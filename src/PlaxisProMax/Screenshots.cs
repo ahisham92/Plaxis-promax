@@ -46,8 +46,59 @@ internal static class Screenshots
         Shoot(new SettingsWindow(null), Path.Combine(folder, "11-settings-crew.png"), w => ((SettingsWindow)w).ScrollTo("Crew"));
         var auto = new ChatWindow(link, new PlaxisInstall.StartArgs(null, null, null, false), () => null!, sample: true);
         Shoot(auto, Path.Combine(folder, "12-autopilot.png"), w => ((ChatWindow)w).ShowSampleAutopilot());
+        More(link, folder);
         app.Shutdown();
         return 0;
+    }
+
+    /// <summary>The Menu's parts, with a few sample chats, notes and routines kept in a folder of their own.</summary>
+    private static void More(PlaxisLink link, string folder)
+    {
+        var temp = Path.Combine(Path.GetTempPath(), "ppm-shots-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(temp);
+        ChatStore.RootOverride = Path.Combine(temp, "chats");
+        MemoryNotes.FileOverride = Path.Combine(temp, "memory.md");
+        Crew.FolderOverride = temp;
+        var now = DateTime.UtcNow;
+        void Chat(string name, string type, TimeSpan ago, bool pinned, string key = ChatScope.Unsaved, string title = "Quay wall")
+        {
+            var conv = ChatStore.New(key, title, type);
+            conv.Name = name;
+            conv.Pinned = pinned;
+            conv.Items.Add(new ChatItem { Kind = "user", Text = name, Time = now - ago });
+            conv.Items.Add(new ChatItem { Kind = "assistant", Text = "Done.", Time = now - ago });
+            ChatStore.Save(conv);
+            // The history sorts by when a chat was last used.
+            if (conv.File.Length > 0 && File.Exists(conv.File)) { conv.Updated = now - ago; ChatStore.Save(conv, touch: false); }
+        }
+        Chat("Model from the borehole logs", ChatTypes.Coordinator, TimeSpan.FromHours(2), pinned: true);
+        Chat("Six phases and the anchor forces", ChatTypes.Coordinator, TimeSpan.FromDays(1), pinned: false);
+        Chat("Why did phase 4 fail?", ChatTypes.Simple, TimeSpan.FromDays(3), pinned: false);
+        Chat("Results per phase to Excel", ChatTypes.Simple, TimeSpan.FromDays(12), pinned: false);
+        Chat("Mesh finer around the wall", ChatTypes.Simple, TimeSpan.FromDays(45), pinned: false);
+        var history = new ChatWindow(link, new PlaxisInstall.StartArgs(null, null, null, false), () => null!, sample: true);
+        Shoot(history, Path.Combine(folder, "13-history.png"), w => ((ChatWindow)w).ShowSampleHistory());
+        var prompts = new ChatWindow(link, new PlaxisInstall.StartArgs(null, null, null, false), () => null!, sample: true);
+        Shoot(prompts, Path.Combine(folder, "14-saved-prompts.png"), w => ((ChatWindow)w).ShowSamplePrompts());
+
+        ChatScope.Set(@"plaxis:c:\jobs\quay wall.p2dx", "Quay wall", "");
+        MemoryNotes.Change(sections =>
+        {
+            MemoryNotes.Add(sections, null, "Reports in kN and m, levels in m CD");
+            MemoryNotes.Add(sections, null, "HS small for sands and stiff clays unless I say otherwise");
+            MemoryNotes.Add(sections, ChatScope.NotesKey, "The wall toe is at -14 m CD");
+            MemoryNotes.Add(sections, ChatScope.NotesKey, "Design water level +1.2, low water -0.8");
+            return true;
+        });
+        Shoot(ChatWindow.NotesWindow(null), Path.Combine(folder, "15-notes.png"));
+
+        var nightly = new Routine { Id = "r1", Name = Routines.Presets[0].Name, Task = Routines.Presets[0].Task, Time = Routines.Presets[0].Time, Created = now.AddDays(-9) };
+        nightly.Runs.Add(new RoutineRun { Started = now.AddHours(-7), Due = DateTime.Today.AddHours(1), State = JobBoard.Done, Ended = now.AddHours(-6.6), Job = 4, ChatTitle = "Routine · Nightly calculation", Model = "Quay wall",
+            Summary = "All six phases calculated. Phase 5 needed 38 steps; none failed." });
+        var excel = new Routine { Id = "r2", Name = Routines.Presets[1].Name, Task = Routines.Presets[1].Task, Time = Routines.Presets[1].Time, Model = "Quay wall", Created = now.AddDays(-3) };
+        Routines.Save(temp, [nightly, excel]);
+        Shoot(new RoutinesWindow(temp, "Quay wall"), Path.Combine(folder, "16-routines.png"));
+        try { Directory.Delete(temp, true); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
     }
 
     private static void Shoot(Window window, string file, Action<Window>? fill = null, bool shown = false)

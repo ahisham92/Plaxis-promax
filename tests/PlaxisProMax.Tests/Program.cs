@@ -52,6 +52,12 @@ Section("away", AwayTests.Run);
 Section("autopilot", AutopilotTests.Run);
 Section("autopilot stalls", AutopilotStallTests.Run);
 Section("autopilot run", AutopilotRunTests.Run);
+Section("chat history", ChatHistoryTests.Run);
+Section("saved prompts", SavedPromptTests.Run);
+Section("prompt library", PromptLibraryTests.Run);
+Section("recall", ChatRecallTests.Run);
+Section("plan usage", PlanUsageTests.Run);
+Section("notes, earlier chats and routines", MoreTests.Run);
 
 try { Directory.Delete(scratch, true); } catch (Exception) { }
 Console.WriteLine(failures == 0 ? "All checks passed." : $"{failures} check(s) failed.");

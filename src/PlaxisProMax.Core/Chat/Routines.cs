@@ -11,7 +11,7 @@ internal sealed class RoutineRun
     /// <summary>When it started (UTC), and the scheduled time it covered (local), later when it was caught up.</summary>
     public DateTime Started { get; set; }
     public DateTime Due { get; set; }
-    /// <summary>It ran after its time, because Revit (or the PC) was off or busy then.</summary>
+    /// <summary>It ran after its time, because Plaxis (or the PC) was off or busy then.</summary>
     public bool CatchUp { get; set; }
     /// <summary>running, done, failed or stopped (as its job ended).</summary>
     public string State { get; set; } = JobBoard.Running;
@@ -39,7 +39,7 @@ internal sealed class Routine
     public string Time { get; set; } = "02:00";
     /// <summary>The days it runs (DayOfWeek numbers, Sunday 0); empty: every day.</summary>
     public List<int> Days { get; set; } = [];
-    /// <summary>Runs only on the model with this title (the file name without .rvt); "": whichever model is open.</summary>
+    /// <summary>Runs only on the model with this title (the file name without .p2dx); "": whichever model is open.</summary>
     public string Model { get; set; } = "";
     public bool On { get; set; } = true;
     public DateTime Created { get; set; }
@@ -50,8 +50,8 @@ internal sealed class Routine
 }
 
 /// <summary>
-/// The routines and their rules (no WPF or Revit: the unit tests compile this file): when one is due, catching up a run
-/// missed while the PC or Revit was off (once, at the next chance, never one per missed day), the schedule in words, the
+/// The routines and their rules (no WPF or Plaxis: the unit tests compile this file): when one is due, catching up a run
+/// missed while the PC or Plaxis was off (once, at the next chance, never one per missed day), the schedule in words, the
 /// ready-made ones, and the file they are kept in (routines.json in the chat folder).
 /// </summary>
 internal static class Routines
@@ -64,10 +64,13 @@ internal static class Routines
     /// <summary>Ready-made routines the window offers (name, what to do, time).</summary>
     public static readonly (string Name, string Task, string Time)[] Presets =
     [
-        ("Nightly model check", "Run a model check of the open model: warnings, duplicates, unplaced or unused elements, missing parameters and anything " +
-            "else Plaxis ProMax's model check tools report. Don't change the model. Report what you found, worst first, with counts and how to fix each.", "02:00"),
-        ("BIM-ready audit", "Audit the open model for BIM readiness: check it against the pre-submission checklist and the BIM-ready rules (naming, " +
-            "levels, scope boxes, view templates, parameters, LOI data). Don't change the model. Report what fails, worst first, and what would fix it.", "03:00"),
+        ("Nightly calculation", "Calculate every phase of the open project that is marked to be calculated, in order. Don't change the model. " +
+            "Report how each phase ended, worst first; for a phase that failed, say what Plaxis reported and what would likely fix it.", "01:00"),
+        ("Results to Excel", "Read the results of every calculated phase of the open project (wall deflection, bending moments, anchor and strut " +
+            "forces, settlements where they apply) and write them to an Excel file beside the project, one sheet per phase. Don't change the model. " +
+            "Report where the file is and anything that looks wrong in the numbers.", "06:00"),
+        ("Model check", "Check the open project. Don't change the model. Look at: soil layers and materials against each other, structures with no material, " +
+            "loads and water levels per phase, mesh quality, and phases that are out of date. Report what you found, worst first, with how to fix each.", "02:00"),
     ];
 
     public static string File(string folder) => Path.Combine(folder, "routines.json");
@@ -123,7 +126,7 @@ internal static class Routines
 
     /// <summary>
     /// The scheduled time a routine should run for now (local), or null: it is on, its latest time has passed, it didn't
-    /// run for that time yet, and the routine existed then. A run missed while Revit was off is caught up once.
+    /// run for that time yet, and the routine existed then. A run missed while Plaxis was off is caught up once.
     /// </summary>
     public static DateTime? Due(Routine routine, DateTime now)
     {
@@ -159,7 +162,7 @@ internal static class Routines
     /// <summary>The task as the routine's job gets it: what to do, and that nobody may be there to answer.</summary>
     public static string JobTask(Routine routine, DateTime due, bool catchUp) =>
         $"This is the scheduled routine \"{routine.Name}\" ({Schedule(routine).ToLowerInvariant()}), " +
-        (catchUp ? $"catching up the run of {due:ddd d MMM HH:mm} that was missed while Revit was closed or busy" : $"the run of {due:ddd d MMM HH:mm}") +
+        (catchUp ? $"catching up the run of {due:ddd d MMM HH:mm} that was missed while Plaxis was closed or busy" : $"the run of {due:ddd d MMM HH:mm}") +
         ". The user may be away, so don't ask questions: do the work and report what you found.\n\n" + routine.Task.Trim();
 
     /// <summary>A run starts: it goes first in the history (the oldest go past <see cref="MaxRuns"/>) and the routine is up to date.</summary>

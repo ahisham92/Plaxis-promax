@@ -15,6 +15,8 @@ internal static class StepNames
     private static readonly Dictionary<string, string> Names = new(StringComparer.Ordinal)
     {
         ["chat_jobs"] = "Jobs",
+        ["memory_note"] = "Notes",
+        ["recall_chats"] = "Earlier chats",
         ["status"] = "Look at Plaxis",
         ["list_model"] = "List the model",
         ["inspect"] = "Read an object",
@@ -141,7 +143,7 @@ internal static class StepNames
     public static bool ReadOnly(string tool)
     {
         tool = Short(tool);
-        return tool is "status" or "inspect" or "remember_rule" or "chat_jobs"
+        return tool is "status" or "inspect" or "remember_rule" or "chat_jobs" or "memory_note" or "recall_chats"
                    or "Read" or "Glob" or "Grep" or "LS" or "TodoWrite" or "TaskCreate" or "TaskUpdate" or "WebFetch" or "WebSearch" or "ToolSearch"
                || tool.StartsWith("get_", StringComparison.Ordinal) || tool.StartsWith("list_", StringComparison.Ordinal)
                || tool.StartsWith("find_", StringComparison.Ordinal) || tool.StartsWith("read_", StringComparison.Ordinal);

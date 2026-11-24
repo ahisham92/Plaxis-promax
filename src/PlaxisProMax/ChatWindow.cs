@@ -74,7 +74,13 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         title.Children.Add(Brand.Text("Plaxis ProMax", Brand.K.HeaderText, 15, bold: true));
         title.Children.Add(_plaxisState);
         var head = new DockPanel { Margin = new Thickness(ChatUi.S3, ChatUi.S2, ChatUi.S3, ChatUi.S2), LastChildFill = true };
-        var buttons = Brand.ButtonRow(newChat, settings);
+        var menu = Brand.Button("Menu");
+        menu.MinWidth = 64;
+        menu.ToolTip = "Chat history, notes, routines, saved prompts and your plan's usage";
+        menu.Click += (_, _) => ShowMenu(menu);
+        newChat.MinWidth = settings.MinWidth = 72;
+        _plaxisState.TextTrimming = TextTrimming.CharacterEllipsis;
+        var buttons = Brand.ButtonRow(menu, newChat, settings);
         DockPanel.SetDock(buttons, Dock.Right);
         head.Children.Add(buttons);
         var logo = new Image { Source = Brand.Logo, Width = 28, Height = 28, VerticalAlignment = VerticalAlignment.Center };
@@ -112,6 +118,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         row.Children.Add(_working);
         _working.VerticalAlignment = VerticalAlignment.Center;
         var composer = new StackPanel { Margin = new Thickness(ChatUi.S3) };
+        composer.Children.Add(_promptPanel);
         composer.Children.Add(_attachments);
         composer.Children.Add(_input);
         composer.Children.Add(row);
@@ -135,7 +142,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         var crewBar = CrewBar();
         DockPanel.SetDock(crewBar, Dock.Bottom);
         root.Children.Add(crewBar);
-        root.Children.Add(_scroll);
+        root.Children.Add(Center());
         Content = root;
 
         _link.ConnectionChanged += connected => Dispatcher.BeginInvoke(() => ShowPlaxis(connected));
@@ -160,6 +167,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         AttachCrew();
         StartPhone();
         StartHelp();
+        StartRoutineClock();
         await ConnectPlaxisAsync();
         await FindClaudeAsync();
     }
