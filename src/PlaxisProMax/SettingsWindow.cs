@@ -103,7 +103,7 @@ internal sealed class SettingsWindow : Window
         var s = LicenseState.Current;
         return s.Kind switch
         {
-            LicenseState.Kind.Owner => "This is the owner's PC: no key is needed. Keys for other PCs come from Sketch ProMax's License manager.",
+            LicenseState.Kind.Owner => "This is the owner's PC: no key is needed. Keys for other PCs come from Sketch ProMax's License manager, with Plaxis ProMax ticked.",
             LicenseState.Kind.Licensed => $"Licensed to {s.License!.Name}" + (s.Ends is { } e ? $" until {e:d MMM yyyy}." : ", with no end date."),
             _ => "This PC has no valid key yet.",
         };

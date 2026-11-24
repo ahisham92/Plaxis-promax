@@ -10,7 +10,7 @@ namespace PlaxisProMax.UI;
 /// <summary>
 /// This PC's license (Settings > License): the PC code to send to the owner, a box for the key they send back, and what the
 /// key says now. Opened by itself at start, and by Send, while this PC has no valid key. Keys come from Sketch ProMax's
-/// License manager: one key per PC unlocks both.
+/// License manager, made for Plaxis ProMax (or both programs).
 /// </summary>
 internal sealed class LicenseWindow : Window
 {
@@ -19,7 +19,7 @@ internal sealed class LicenseWindow : Window
     private readonly TextBlock _result = Brand.Text("", Brand.K.Muted, 12);
     private static LicenseWindow? _open;
 
-    /// <summary>The License button. Keys are made in Sketch ProMax's License manager (the same keys work here).</summary>
+    /// <summary>The License button. Keys are made in Sketch ProMax's License manager, with Plaxis ProMax ticked.</summary>
     public static bool Command() => Open();
 
     public static bool Open()
@@ -116,7 +116,7 @@ internal sealed class LicenseWindow : Window
         switch (s.Kind)
         {
             case LicenseState.Kind.Owner:
-                _state.Text = "This is the owner's PC: no key is needed. Make keys for other PCs in Sketch ProMax's License manager (they work here too).";
+                _state.Text = "This is the owner's PC: no key is needed. Make keys for other PCs in Sketch ProMax's License manager, with Plaxis ProMax ticked.";
                 Brand.Fg(_state, Brand.K.SuccessText);
                 break;
             case LicenseState.Kind.Licensed:

@@ -9,8 +9,8 @@ namespace PlaxisProMax.Licensing;
 
 /// <summary>
 /// Whether this PC may use Plaxis ProMax (ported from Sketch ProMax, with the same keys): the owner's PCs always may; any
-/// other PC needs a key from Sketch ProMax's License manager for its PC code (UI/LicenseWindow). A PC that already has
-/// a Sketch ProMax key is licensed here without typing it again. Files live in %APPDATA%\PlaxisProMax\license: key.txt
+/// other PC needs a key from Sketch ProMax's License manager for its PC code (UI/LicenseWindow). Keys name the programs
+/// they unlock; a Sketch ProMax key on this PC that includes Plaxis ProMax is used without typing it again. Files live in %APPDATA%\PlaxisProMax\license: key.txt
 /// (a key typed here) and changes.txt (the owner's later changes, last read online from Sketch ProMax's list).
 /// </summary>
 internal static class LicenseState
@@ -23,6 +23,9 @@ internal static class LicenseState
 
     /// <summary>Where the owner's changes are published: Sketch ProMax's list (licenses/changes.txt on its main), the same keys.</summary>
     internal const string ChangesUrl = "https://raw.githubusercontent.com/ahisham92/sketch-promax/main/licenses/changes.txt";
+
+    /// <summary>The program keys are checked for: a key from the License manager must include Plaxis ProMax.</summary>
+    internal const string Program = LicenseKey.Programs.Plaxis;
 
     internal enum Kind { Owner, Licensed, Locked }
 
@@ -62,10 +65,12 @@ internal static class LicenseState
         var id = MachineId();
         var code = LicenseKey.PcCode(id);
         if (LicenseKey.IsOwner(id)) return new Status(Kind.Owner, code, null, LicenseKey.Check.Valid, null);
-        var key = ReadText(KeyFile) ?? ReadText(SketchKeyFile);
+        // A key typed here, else Sketch ProMax's key on this PC when it includes Plaxis ProMax.
+        var key = ReadText(KeyFile);
+        if (key is null && ReadText(SketchKeyFile) is { } sketch && LicenseKey.Read(sketch)?.Covers(LicenseKey.Programs.Plaxis) == true) key = sketch;
         var changes = LicenseChanges.Parse(ReadText(ChangesFile));
         var license = LicenseKey.Read(key);
-        var check = code.Length == 0 ? LicenseKey.Check.WrongPc : LicenseKey.Verify(license, code, DateTime.Today, changes);
+        var check = code.Length == 0 ? LicenseKey.Check.WrongPc : LicenseKey.Verify(license, code, DateTime.Today, changes, Program);
         var ends = license is null ? null : LicenseKey.EndsOf(license, changes);
         return new Status(check == LicenseKey.Check.Valid ? Kind.Licensed : Kind.Locked, code, license, check, ends);
     }
@@ -75,7 +80,7 @@ internal static class LicenseState
     {
         var code = Current.PcCode;
         var changes = LicenseChanges.Parse(ReadText(ChangesFile));
-        var check = LicenseKey.Verify(key, code, DateTime.Today, changes);
+        var check = LicenseKey.Verify(key, code, DateTime.Today, changes, program: Program);
         if (check == LicenseKey.Check.Valid)
         {
             Directory.CreateDirectory(Folder);
@@ -89,8 +94,9 @@ internal static class LicenseState
     public static string Explain(LicenseKey.Check check, DateTime? ends = null) => check switch
     {
         LicenseKey.Check.Valid => "The key is valid for this PC.",
-        LicenseKey.Check.WrongPc => "This key belongs to another PC. Send your PC code (above) to whoever gave you Plaxis ProMax (a Sketch ProMax key for this PC works too) to get a key for this PC.",
+        LicenseKey.Check.WrongPc => "This key belongs to another PC. Send your PC code (above) to whoever gave you Plaxis ProMax (a key for this PC that includes Plaxis ProMax) to get a key for this PC.",
         LicenseKey.Check.Expired => ends is { } e ? $"This key ended on {e:d MMM yyyy}. Ask for a new key." : "This key has ended. Ask for a new key.",
+        LicenseKey.Check.OtherProgram => "This key is for Sketch ProMax only. Ask whoever gave it to you for a key that includes Plaxis ProMax (your PC code stays the same).",
         LicenseKey.Check.Cancelled => "This key was cancelled. Ask whoever gave you Plaxis ProMax for a new key.",
         _ => "That isn't a Plaxis ProMax key. Paste the whole key, starting with SPM1.",
     };

@@ -38,11 +38,13 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
     private ChatEngine? _engine;
     private Conversation _conversation;
     private bool _busy;
+    private readonly bool _sample;
     private MarkdownView? _lastAnswer;
     private readonly System.Text.StringBuilder _turnText = new();
 
-    public ChatWindow(PlaxisLink link, PlaxisInstall.StartArgs start, Func<ChatMcp> mcp)
+    public ChatWindow(PlaxisLink link, PlaxisInstall.StartArgs start, Func<ChatMcp> mcp, bool sample = false)
     {
+        _sample = sample;
         _link = link;
         _start = start;
         _mcp = mcp;
@@ -124,7 +126,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         Content = root;
 
         _link.ConnectionChanged += connected => Dispatcher.BeginInvoke(() => ShowPlaxis(connected));
-        Loaded += async (_, _) => await StartAsync();
+        if (!sample) Loaded += async (_, _) => await StartAsync();
         Closed += (_, _) => _engine?.KillNow();
     }
 

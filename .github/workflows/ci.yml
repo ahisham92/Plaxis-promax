@@ -26,6 +26,16 @@ jobs:
       - name: Build the app
         shell: pwsh
         run: .\build.ps1
+      - name: Screenshots of the windows (sample content, no Plaxis or Claude)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist\app\PlaxisProMax.exe -ArgumentList '--screenshots', "$pwd\screenshots" -Wait -PassThru
+          Get-ChildItem screenshots
+          if ($p.ExitCode -ne 0 -or (Get-ChildItem screenshots\*.png).Count -lt 6) { throw "Screenshots failed ($($p.ExitCode))." }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PlaxisProMax-screenshots
+          path: screenshots
       - name: Package
         shell: pwsh
         run: |

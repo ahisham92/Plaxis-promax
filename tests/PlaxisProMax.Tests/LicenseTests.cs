@@ -10,6 +10,12 @@ internal static class LicenseTests
     // Made with the owner's real signing secret (not in either repository) for a made-up PC code, in Sketch ProMax.
     private const string RealKey = "SPM1.MXxNTTlGN0Y4OHxTUE0tVEVTVC0wMDAwLUFCQ0R8VGVzdCBQZXJzb258MjAyNi0xMC0yM3wyMDMwLTAxLTMx.LwwEbUCSRLPxG2IVG4VLn19xmOxoYVhhgg-KDulOIeyN5isyiKYwHARik7LkOnIvexx52SWlgL99rpfKB_H0Sw";
 
+    private static string Pad(string s)
+    {
+        s = s.Replace('-', '+').Replace('_', '/');
+        return s + new string('=', (4 - s.Length % 4) % 4);
+    }
+
     public static void Run(string root, Action<string, bool, string> check)
     {
         var today = new DateTime(2026, 10, 23);
@@ -56,6 +62,25 @@ internal static class LicenseTests
             check("license: change lines", LicenseChanges.Line("ABCDEFGH", new DateTime(2026, 11, 1)) == "ABCDEFGH ends 2026-11-01"
                 && LicenseChanges.Line("ABCDEFGH", null) == "ABCDEFGH cancelled", "");
 
+            // A separate key per program (the owner, 24 Nov 2026): old keys are Sketch ProMax's only; a Plaxis key names Plaxis.
+            check("license programs: a key made before is for Sketch ProMax only", real!.For.SequenceEqual([LicenseKey.Programs.Sketch])
+                && LicenseKey.Verify(RealKey, "SPM-TEST-0000-ABCD", today, program: LicenseKey.Programs.Plaxis) == LicenseKey.Check.OtherProgram, "");
+            var sketchOnly = LicenseKey.Sign(new LicenseKey.License("SKETCH01", code, "S", today, null, [LicenseKey.Programs.Sketch]), other);
+            check("license programs: a Sketch-only key is still made the old way (older versions read it)",
+                System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(Pad(sketchOnly.Split('.')[1]))).StartsWith("1|SKETCH01|"), sketchOnly);
+            var plaxisOnly = LicenseKey.Sign(new LicenseKey.License("PLAXIS01", code, "P", today, null, [LicenseKey.Programs.Plaxis]), other);
+            check("license programs: a Plaxis key unlocks Plaxis ProMax, not Sketch ProMax",
+                LicenseKey.Verify(plaxisOnly, code, today, verifier: other, program: LicenseKey.Programs.Plaxis) == LicenseKey.Check.Valid
+                && LicenseKey.Verify(plaxisOnly, code, today, verifier: other) == LicenseKey.Check.OtherProgram, "");
+            var both = LicenseKey.Sign(new LicenseKey.License("BOTH0001", code, "B", today, null, [LicenseKey.Programs.Plaxis, LicenseKey.Programs.Sketch]), other);
+            check("license programs: a key for both unlocks both", LicenseKey.Verify(both, code, today, verifier: other) == LicenseKey.Check.Valid
+                && LicenseKey.Verify(both, code, today, verifier: other, program: LicenseKey.Programs.Plaxis) == LicenseKey.Check.Valid
+                && LicenseKey.Read(both, other)!.For.SequenceEqual(LicenseKey.Programs.All), "");
+            check("license programs: still bound to its PC", LicenseKey.Verify(both, "SPM-TEST-0000-ABCD", today, verifier: other, program: LicenseKey.Programs.Plaxis) == LicenseKey.Check.WrongPc, "");
+
+            check("plaxis license: Plaxis ProMax checks keys for Plaxis ProMax", LicenseState.Program == LicenseKey.Programs.Plaxis
+                && LicenseKey.Verify(RealKey, "SPM-TEST-0000-ABCD", today, program: LicenseState.Program) == LicenseKey.Check.OtherProgram
+                && LicenseState.Explain(LicenseKey.Check.OtherProgram).Contains("includes Plaxis ProMax"), "");
         }
 
         // Wiring: the gates on the chat and the tools, the License button, Sketch ProMax's changes list, no signing secret here.
