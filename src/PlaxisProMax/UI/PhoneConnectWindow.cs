@@ -11,13 +11,12 @@ using PlaxisProMax.Phone;
 namespace PlaxisProMax.UI;
 
 /// <summary>
-/// The chat's Phone switch › Connect your phone: the user's Iris address (their own website), then a QR code the
-/// phone scans to connect Plaxis ProMax to their account there. The code carries the message key after the '#', so the
+/// The chat's Phone switch › Connect your phone: a QR code, shown as the window opens, that the phone scans in Iris to
+/// connect Plaxis ProMax to the user's own Iris account (no address to type; PhoneLink.KnownSite). The code carries the message key after the '#', so the
 /// website never sees it. Polls every 2.5 s until the phone accepts or the code runs out (10 minutes).
 /// </summary>
 internal sealed class PhoneConnectWindow : Window
 {
-    private readonly TextBox _address = new() { MinHeight = 28, Padding = new Thickness(6, 3, 6, 3) };
     private readonly Image _qr = new() { Width = 240, Height = 240, Margin = new Thickness(0, 12, 0, 6), Visibility = Visibility.Collapsed };
     private readonly TextBlock _status = Brand.Text("", Brand.K.Muted, 12);
     private readonly Button _start = Brand.Button("Show the code", Brand.Weight.Primary);
@@ -29,7 +28,7 @@ internal sealed class PhoneConnectWindow : Window
     /// <summary>Raised on the UI thread when the phone accepted.</summary>
     public event Action? Connected;
 
-    public PhoneConnectWindow(string address)
+    public PhoneConnectWindow(bool sample = false)
     {
         Title = "Plaxis ProMax: Connect your phone";
         Width = 460;
@@ -39,11 +38,6 @@ internal sealed class PhoneConnectWindow : Window
         Brand.Prepare(this);
 
         var page = new StackPanel { Margin = new Thickness(18, 8, 18, 14) };
-        page.Children.Add(Brand.Text("Your Iris address (your website)"));
-        _address.Text = address.Length > 0 ? address : PhoneLink.Site;
-        _address.Margin = new Thickness(0, 4, 0, 0);
-        AutomationProperties.SetName(_address, "Your Iris address");
-        page.Children.Add(_address);
 
         _qr.HorizontalAlignment = HorizontalAlignment.Center;
         RenderOptions.SetBitmapScalingMode(_qr, BitmapScalingMode.NearestNeighbor);
@@ -53,7 +47,7 @@ internal sealed class PhoneConnectWindow : Window
         _status.TextWrapping = TextWrapping.Wrap;
         _status.Margin = new Thickness(0, 8, 0, 0);
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
-        _status.Text = "On your phone, open Iris (your website's /iris, from the Home Screen) and sign in once. Then show the code here, and in Iris tap Add a connection to scan it.";
+        _status.Text = "Getting the code…";
         page.Children.Add(_status);
 
         _copy.Visibility = Visibility.Collapsed;
@@ -76,35 +70,46 @@ internal sealed class PhoneConnectWindow : Window
         Content = root;
 
         _poll.Tick += async (_, _) => await CheckAsync();
+        // No address to type: the code is asked for as the window opens.
+        if (sample) Loaded += (_, _) => ShowSample();
+        else Loaded += async (_, _) => await StartAsync();
         Closed += (_, _) => _poll.Stop();
     }
 
     private async Task StartAsync()
     {
-        var address = PhoneLink.Address(_address.Text);
+        var address = PhoneLink.KnownSite;
         if (address.Length == 0)
         {
-            Say("Type your website's address, such as yourname.pythonanywhere.com.", Brand.K.DangerText);
-            _address.Focus();
+            Say("This version doesn't know Iris's address yet; it comes with the next update.", Brand.K.DangerText);
+            _start.Visibility = Visibility.Collapsed;
             return;
         }
-        _address.Text = address;
         _start.IsEnabled = false;
-        Say("Asking your website for a code…", Brand.K.Muted);
+        Say("Getting the code…", Brand.K.Muted);
         try
         {
             _link = await Task.Run(() => PhoneLink.StartAsync(address));
             _qr.Source = Qr(_link);
             _qr.Visibility = Visibility.Visible;
             _copy.Visibility = Visibility.Visible;
-            Say("In Iris on your phone, tap Add a connection and point it at this code, then tap Connect. The code works for 10 minutes.", Brand.K.Muted);
+            Say("On your phone, open Iris and sign in (or sign up). Then tap Add a connection, scan this code and tap Connect. The code works for 10 minutes.", Brand.K.Muted);
             _poll.Start();
         }
         catch (Exception e)
         {
-            Say($"Your website didn't give a code ({e.GetBaseException().Message}). Check the address, and that Iris is installed on the site.", Brand.K.DangerText);
+            Say($"Iris didn't give a code ({e.GetBaseException().Message}). Check the internet connection, then press New code.", Brand.K.DangerText);
         }
         finally { _start.IsEnabled = true; _start.Content = "New code"; }
+    }
+
+    /// <summary>For the screenshots: a code as the user sees it, without asking Iris.</summary>
+    private void ShowSample()
+    {
+        _qr.Source = Qr("https://iris.example/iris/pair?c=SAMPLE#k=sample");
+        _qr.Visibility = Visibility.Visible;
+        _start.Content = "New code";
+        Say("On your phone, open Iris and sign in (or sign up). Then tap Add a connection, scan this code and tap Connect. The code works for 10 minutes.", Brand.K.Muted);
     }
 
     private async Task CheckAsync()

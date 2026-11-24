@@ -94,6 +94,29 @@ internal static class PhoneLink
     /// <summary>The Iris address this PC is connected to (or last tried).</summary>
     public static string Site => Client.State.Site;
 
+    /// <summary>
+    /// The one Iris website everyone uses (the owner hosts it; each user signs in there and gets their own Iris), so the
+    /// user is never asked for an address. Empty until the owner confirms it: then the address Sketch ProMax uses on this
+    /// PC, or the last one used here.
+    /// </summary>
+    public const string Hosted = "";
+
+    /// <summary>Where to connect: <see cref="Hosted"/>, else Sketch ProMax's Iris on this PC, else the last used here; "" none.</summary>
+    public static string KnownSite
+    {
+        get
+        {
+            if (Hosted.Length > 0) return Address(Hosted);
+            try
+            {
+                var sketch = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SketchProMax", "iris.json");
+                if (File.Exists(sketch) && JsonSerializer.Deserialize<IrisState>(File.ReadAllText(sketch)) is { Site.Length: > 0 } s) return s.Site;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException) { }
+            return Site;
+        }
+    }
+
     public static void Save()
     {
         lock (Gate)

@@ -58,7 +58,7 @@ internal sealed partial class ChatWindow
     {
         if (!PhoneLink.Connected)
         {
-            var window = new PhoneConnectWindow(PhoneLink.Site) { Owner = this };
+            var window = new PhoneConnectWindow() { Owner = this };
             window.Show();
             return;
         }

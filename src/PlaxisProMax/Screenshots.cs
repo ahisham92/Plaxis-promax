@@ -34,7 +34,7 @@ internal static class Screenshots
         Shoot(new SettingsWindow(null), Path.Combine(folder, "4-settings.png"));
         LicenseWindow.Open();
         Shoot(app.Windows.OfType<Window>().Last(w => w.GetType().Name == "LicenseWindow"), Path.Combine(folder, "5-license.png"), shown: true);
-        Shoot(new PhoneConnectWindow("yourname.pythonanywhere.com"), Path.Combine(folder, "6-phone.png"));
+        Shoot(new PhoneConnectWindow(sample: true), Path.Combine(folder, "6-phone.png"));
         app.Shutdown();
         return 0;
     }
