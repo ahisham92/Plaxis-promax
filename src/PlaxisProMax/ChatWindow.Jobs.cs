@@ -284,7 +284,8 @@ internal sealed partial class ChatWindow
         ShowItem(new ChatItem { Kind = "tool", Name = "status", Text = "Checked the open Plaxis project", State = "done" });
         ShowItem(new ChatItem { Kind = "tool", Name = "chat_jobs", Text = "Start a job: Soil parameters from the GIR", State = "done" });
         ShowItem(new ChatItem { Kind = "assistant", Text = "Nova works out the soil parameters from the report first; the model is built from them, and Pixel checks it against the design basis meanwhile." });
-        foreach (var job in _sampleJobs) ShowItem(new ChatItem { Kind = "pjob", Name = job.Number.ToString(System.Globalization.CultureInfo.InvariantCulture), Text = job.Title });
+        // Each job's card once, in the order they were started (ShowJobs adds a card only for a job that has none).
+        foreach (var job in _sampleJobs) AddItem(new ChatItem { Kind = "pjob", Name = job.Number.ToString(System.Globalization.CultureInfo.InvariantCulture), Text = job.Title });
         ShowJobs();
     }
 }

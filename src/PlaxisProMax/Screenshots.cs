@@ -43,6 +43,7 @@ internal static class Screenshots
         Shoot(crew, Path.Combine(folder, "9-crew.png"), w => ((ChatWindow)w).ShowSampleCrew());
         var job = new JobWindow(2);
         Shoot(job, Path.Combine(folder, "10-job.png"), w => ((JobWindow)w).ShowSample());
+        Shoot(new SettingsWindow(null), Path.Combine(folder, "11-settings-crew.png"), w => ((SettingsWindow)w).ScrollTo("Crew"));
         app.Shutdown();
         return 0;
     }

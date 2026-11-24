@@ -157,7 +157,12 @@ internal sealed class SettingsWindow : Window
         };
 
         var body = new StackPanel { Margin = new Thickness(ChatUi.S4) };
-        void Section(string title) => body.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold, FontSize = 13, Margin = new Thickness(0, ChatUi.S3, 0, ChatUi.S1) });
+        void Section(string title)
+        {
+            var head = new TextBlock { Text = title, FontWeight = FontWeights.SemiBold, FontSize = 13, Margin = new Thickness(0, ChatUi.S3, 0, ChatUi.S1) };
+            _sections[title] = head;
+            body.Children.Add(head);
+        }
         void Field(string label, FrameworkElement field, string? help = null)
         {
             body.Children.Add(ChatUi.Small(label));
@@ -212,6 +217,16 @@ internal sealed class SettingsWindow : Window
         buttons.Margin = new Thickness(0, ChatUi.S4, 0, 0);
         body.Children.Add(buttons);
         Content = new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = SystemParameters.WorkArea.Height - 80 };
+    }
+
+    private readonly Dictionary<string, FrameworkElement> _sections = new();
+
+    /// <summary>Scrolls a section to the top (for the screenshots).</summary>
+    internal void ScrollTo(string section)
+    {
+        if (!_sections.TryGetValue(section, out var head) || Content is not ScrollViewer scroll || scroll.Content is not FrameworkElement body) return;
+        UpdateLayout();
+        scroll.ScrollToVerticalOffset(head.TransformToAncestor(body).Transform(new Point(0, 0)).Y);
     }
 
     private static string LicenseText()
