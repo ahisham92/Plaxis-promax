@@ -124,6 +124,9 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         var updateBar = UpdateBar();
         DockPanel.SetDock(updateBar, Dock.Top);
         root.Children.Add(updateBar);
+        var strip = Strip();
+        DockPanel.SetDock(strip, Dock.Top);
+        root.Children.Add(strip);
         root.Children.Add(foot);
         var crewBar = CrewBar();
         DockPanel.SetDock(crewBar, Dock.Bottom);
@@ -314,6 +317,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         AddItem(new ChatItem { Kind = "user", Text = text, Time = DateTime.UtcNow });
         if (_conversation.Items.Count(i => i.Kind == "user") == 1) _conversation.Name = ChatHistory.AutoTitle(text);
         _mcp().NewTask();
+        _strip.Heard();
         SetBusy(true);
         _turnStart = DateTime.UtcNow;
         // A coordinator hears with each message which jobs are at work and what they changed so far (JobTruth).
@@ -544,6 +548,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         var (line, row) = AddStepRow(name, text, "running");
         _steps[id] = (line, row);
         _working.Text = StepNames.Running(name, text, !StepNames.ReadOnly(name));
+        _strip.CoordinatorDoes(name);
     }
 
     private void StepDone(string id, bool failed, string result)

@@ -21,6 +21,7 @@ internal sealed partial class ChatWindow
     private readonly Border _crewBar = new() { Visibility = Visibility.Collapsed, Padding = new Thickness(ChatUi.S3, ChatUi.S2, ChatUi.S3, ChatUi.S2) };
     private readonly TextBlock _crewText = ChatUi.Small("", Brand.K.Text);
     private Button? _pauseAll;
+    private readonly CrewStrip _strip = new() { Visibility = Visibility.Collapsed, Compact = true };
     private DispatcherTimer? _jobClock;
     private List<ChatJob>? _sampleJobs;
     private DateTime _turnStart;
@@ -53,6 +54,55 @@ internal sealed partial class ChatWindow
         return _crewBar;
     }
 
+    /// <summary>
+    /// The crew strip under the header (Sketch ProMax's CrewStrip): you, the coordinator, the workers at their desks and
+    /// who applies the changes in Plaxis, one at a time. Only for a chat With coordinator.
+    /// </summary>
+    private CrewStrip Strip()
+    {
+        _strip.WorkerPicked += (slot, _) =>
+        {
+            // The worker's job now, else the last one they did.
+            if (JobsNow().Where(j => j.Worker == slot).OrderByDescending(j => j.Active).ThenByDescending(j => j.Number).FirstOrDefault() is { } job) OpenJob(job.Number);
+        };
+        _strip.CoordinatorPicked += _ => { Activate(); _input.Focus(); };
+        _strip.ApplierPicked += _ =>
+        {
+            if (JobsNow().FirstOrDefault(j => JobBoard.ActivityOf(j) == JobBoard.Applying) is { } job) OpenJob(job.Number);
+        };
+        _strip.WorkersChanged += SetWorkers;
+        _strip.TeamPicked += () => new CrewPerformanceWindow { Owner = this }.Show();
+        CrewStats.Changed += () => Dispatcher.BeginInvoke(ShowKpis);
+        CrewStrip.NamesChanged += () => Dispatcher.BeginInvoke(ShowJobs);
+        return _strip;
+    }
+
+    /// <summary>Today's jobs done per worker, and who leads, on the strip.</summary>
+    private void ShowKpis()
+    {
+        if (_sample) return;
+        var today = CrewStats.Since(CrewStats.All(), DateTime.Today.ToUniversalTime());
+        _strip.ShowKpis(CrewStats.Workers(today).ToDictionary(k => k.Slot, k => k.Done), CrewStats.Leader(today));
+    }
+
+    /// <summary>+ or − on the strip: that many workers from now on (Settings: jobs at once); a new one takes a waiting job at once.</summary>
+    private void SetWorkers(int workers)
+    {
+        try
+        {
+            var settings = AgentSettings.Load();
+            settings.ChatJobLimit = JobBoard.ClampLimit(workers);
+            settings.Save();
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+        {
+            Note("Couldn't change the number of workers: " + ex.Message);
+            return;
+        }
+        _crew?.PumpJobs();
+        ShowJobs();
+    }
+
     /// <summary>The shown chat's crew: the one before it ends (its jobs stop), and the MCP server reaches this one.</summary>
     private void AttachCrew()
     {
@@ -60,6 +110,7 @@ internal sealed partial class ChatWindow
         _jobWindows.Clear();
         _jobCards.Clear();
         _crewPlan.Reset();
+        _strip.Clear();
         _crew?.Dispose();
         _crew = null;
         if (_sample) return;
@@ -84,7 +135,7 @@ internal sealed partial class ChatWindow
         ChatStore.NewType = ChatTypes.Parse(s.ChatTypeDefault);
         ChatStore.NewModel = ChatAuto.ParseModel(s.ChatModelDefault);
         ChatStore.NewEffort = ChatAuto.ParseEffort(s.ChatEffortDefault);
-        ChatJobs.ReloadNames();
+        CrewStrip.ReloadNames();
     }
 
     /// <summary>The jobs' reports (or a nudge to share work) go to the coordinator as its next turn; the user never typed it.</summary>
@@ -125,7 +176,9 @@ internal sealed partial class ChatWindow
         }
         // Each job keeps its worker with the chat, so its card names who did it.
         var limit = ChatJobs.Limit;
-        _crewPlan.Update(jobs, DateTime.UtcNow, JobBoard.ActivityOf, limit);
+        var events = _crewPlan.Update(jobs, DateTime.UtcNow, JobBoard.ActivityOf, limit);
+        _strip.Visibility = IsCoordinator ? Visibility.Visible : Visibility.Collapsed;
+        if (IsCoordinator) _strip.Show(_crewPlan.Seats, events, limit, _crewPlan.Unassigned);
         foreach (var seat in _crewPlan.Seats)
             if (jobs.FirstOrDefault(j => j.Number == seat.Number) is { } job && job.Worker != seat.Slot)
             {
@@ -143,9 +196,9 @@ internal sealed partial class ChatWindow
         _crewBar.Visibility = open > 0 || paused ? Visibility.Visible : Visibility.Collapsed;
         _crewText.Text = paused
             ? (_crew is { Running: > 0 } ? "Pausing: each job stops when its current step in Plaxis is done." : "All jobs are paused. Plaxis is yours; press Continue to carry on.")
-            : CrewPlan.Caption(_crewPlan.Seats, ChatJobs.Names, _crewPlan.Unassigned);
+            : open == 1 ? "1 job is open." : $"{open} jobs are open.";
         if (_pauseAll is not null) _pauseAll.Content = paused ? "Continue" : "Pause all";
-        if (open > 0 && !_sample)
+        if ((open > 0 || _crewPlan.Lingering) && !_sample)
         {
             if (_jobClock is null)
             {
@@ -165,7 +218,9 @@ internal sealed partial class ChatWindow
         var limit = ChatJobs.Limit;
         foreach (var job in jobs.Where(j => j.Active))
             if (_jobCards.TryGetValue(job.Number, out var card)) card.Render(job, now, limit);
-        if (!jobs.Any(j => j.Open)) _jobClock?.Stop();
+        // A finished job's worker leaves the strip after a few seconds even when nothing else changes meanwhile.
+        if (_crewPlan.Lingering) ShowJobs();
+        else if (!jobs.Any(j => j.Open)) _jobClock?.Stop();
     }
 
     private void StopJob(int number)
@@ -207,6 +262,7 @@ internal sealed partial class ChatWindow
                 Start = _turnStart == default ? DateTime.UtcNow : _turnStart, End = DateTime.UtcNow, Role = CrewRecord.Coordinator, Chat = _conversation.Id,
                 In = result.InputTokens, Out = result.OutputTokens, Usd = result.CostUsd, Ok = !result.IsError,
             });
+        _strip.CoordinatorDoes(null);
         _crew?.FlushReports();
     }
 
