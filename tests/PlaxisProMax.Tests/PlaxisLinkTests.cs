@@ -13,11 +13,6 @@ internal static class PlaxisLinkTests
         link.ConnectionChanged += c => { lock (changes) changes.Add(c); };
         var bad = await link.ConnectAsync(10000, "wrong", CancellationToken.None);
         check("plaxis link: a wrong password fails with Plaxis's dialog named", !bad.Ok && bad.Error.Contains("remote scripting server") && !link.Connected, bad.Error);
-        var away = await link.ConnectAsync(10000, "secret", CancellationToken.None, host: "nowhere");
-        check("plaxis link: Plaxis on another PC that doesn't answer names the PC and the firewall", !away.Ok && away.Error.Contains("Plaxis on nowhere")
-            && away.Error.Contains("firewall") && away.Error.Contains("10001"), away.Error);
-        var remote = await link.ConnectAsync(10000, "secret", CancellationToken.None, host: "plaxis-pc");
-        check("plaxis link: connects to Plaxis on a colleague's PC by its name", remote.Ok && link.Connected, remote.Error);
         var ok = await link.ConnectAsync(10000, "secret", CancellationToken.None);
         check("plaxis link: connect gives the product and version", ok.Ok && link.Connected && link.LastStatus?["product"]?.ToString() == "PLAXIS 2D"
             && link.LastStatus?["version"]?.ToString() == "2024.2", ok.Error + ok.Result?.ToJsonString());

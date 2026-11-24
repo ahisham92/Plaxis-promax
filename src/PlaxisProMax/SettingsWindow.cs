@@ -33,7 +33,6 @@ internal sealed class SettingsWindow : Window
         askAgain.Click += (_, _) => { silenced = []; silencedText.Text = "Nothing is set to not ask."; askAgain.IsEnabled = false; };
 
         var rules = new TextBox { Text = s.ProjectRules, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 90, MaxHeight = 200, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        var host = new TextBox { Text = s.PlaxisHost, Width = 200 };
         var port = new TextBox { Text = s.InputPort.ToString(System.Globalization.CultureInfo.InvariantCulture), Width = 90 };
         var password = new PasswordBox { Password = s.ServerPassword, Width = 200, MinHeight = 30, Padding = new Thickness(6, 4, 6, 4), VerticalContentAlignment = VerticalAlignment.Center };
         var python = new TextBox { Text = s.PlaxisPython };
@@ -57,7 +56,6 @@ internal sealed class SettingsWindow : Window
             fresh.ProjectRules = rules.Text.Trim();
             if (int.TryParse(port.Text, out var p) && p is > 0 and < 65536) fresh.InputPort = p;
             fresh.ServerPassword = password.Password;
-            fresh.PlaxisHost = string.IsNullOrWhiteSpace(host.Text) ? "localhost" : host.Text.Trim();
             fresh.PlaxisPython = python.Text.Trim();
             fresh.ChatModel = model.Text.Trim();
             if (int.TryParse(timeout.Text, out var t) && t is >= 10 and <= 3600) fresh.CallTimeoutSeconds = t;
@@ -83,7 +81,6 @@ internal sealed class SettingsWindow : Window
         Section("Your standing rules");
         Field("Every chat follows these (one per line). The chat adds the ones you tell it.", rules);
         Section("Plaxis");
-        Field("Plaxis runs on (localhost: this PC)", host, "Or a colleague's PC on the office network, by name or address. Plaxis there needs its remote scripting server on, and its firewall must let ports 10000 and 10001 in. Calculations then run on that PC.");
         Field("Remote scripting port (Plaxis Input)", port);
         Field("Remote scripting password", password, "Only needed when Plaxis ProMax is started outside Plaxis; from Plaxis's Expert menu it is passed on.");
         Field("Plaxis's Python", python, "Empty: found by itself (Bentley's PLAXIS Python Distribution).");

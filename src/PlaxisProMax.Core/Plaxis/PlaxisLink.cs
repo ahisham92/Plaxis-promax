@@ -53,14 +53,10 @@ internal sealed class PlaxisLink : IDisposable
     /// <summary>Raised (on a worker thread) when Connected changes.</summary>
     public event Action<bool>? ConnectionChanged;
 
-    /// <summary>
-    /// Connects to Plaxis Input on this PC, or on another PC of the office network (<paramref name="host"/>: its name or
-    /// address; Plaxis there must have its remote scripting server on and the ports open). Remembered, so a restarted
-    /// worker reconnects by itself.
-    /// </summary>
-    public async Task<WorkerAnswer> ConnectAsync(int inputPort, string password, CancellationToken ct, int timeoutMs = 30000, string host = "localhost")
+    /// <summary>Connects to Plaxis Input; remembered, so a restarted worker reconnects by itself.</summary>
+    public async Task<WorkerAnswer> ConnectAsync(int inputPort, string password, CancellationToken ct, int timeoutMs = 30000)
     {
-        var args = new JsonObject { ["input_port"] = inputPort, ["password"] = password, ["address"] = string.IsNullOrWhiteSpace(host) ? "localhost" : host.Trim() };
+        var args = new JsonObject { ["input_port"] = inputPort, ["password"] = password };
         lock (_gate) _connectArgs = args;
         var answer = await CallAsync("connect", (JsonObject)args.DeepClone(), timeoutMs, ct).ConfigureAwait(false);
         if (answer.Ok && answer.Result is JsonObject status) LastStatus = status;
