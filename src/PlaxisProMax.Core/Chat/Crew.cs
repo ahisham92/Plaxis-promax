@@ -81,6 +81,12 @@ internal sealed class Crew : IDisposable
     private double? _fiveHourSeen;
     private DateTimeOffset? _fiveHourResets;
 
+    /// <summary>For the checks: what starts a job's process instead of Claude Code.</summary>
+    internal Func<System.Diagnostics.ProcessStartInfo>? StartWith;
+
+    /// <summary>For the checks: where the jobs' session ids are kept instead of the chat folder.</summary>
+    internal static string? FolderOverride;
+
     public JobBoard Board { get; }
 
     /// <summary>The chat is With coordinator (ChatTypes): only then do jobs start.</summary>
@@ -92,7 +98,7 @@ internal sealed class Crew : IDisposable
     /// <summary>How many jobs have a process at work now.</summary>
     public int Running => _runs.Count;
 
-    public static string JobsFolder(Conversation conv) => Path.Combine(ClaudeCli.Folder, "jobs", conv.Id.Length > 0 ? conv.Id : "chat");
+    public static string JobsFolder(Conversation conv) => Path.Combine(FolderOverride ?? ClaudeCli.Folder, "jobs", conv.Id.Length > 0 ? conv.Id : "chat");
 
     /// <summary>
     /// The crew of <paramref name="conv"/>, reachable by the MCP server from now on. A chat opened from disk has no job
@@ -251,7 +257,7 @@ internal sealed class Crew : IDisposable
         // A job that finished a few minutes ago still has its process (Park): the message goes straight in.
         var warm = resume is not null ? TakeParked(key, model, effort) : null;
         if (warm is null) DropParked(key);
-        var engine = warm ?? new ChatEngine(_ui, install, resume, model, () => ClaudeCli.JobStart(install, key, resume, session, model, effort), effort: effort, job: key);
+        var engine = warm ?? new ChatEngine(_ui, install, resume, model, StartWith ?? (() => ClaudeCli.JobStart(install, key, resume, session, model, effort)), effort: effort, job: key);
         var run = new JobRun { Job = job, Engine = engine, Message = message, Resumed = resume is not null };
         _runs[key] = run;
         engine.Event += e => { if (_runs.TryGetValue(key, out var r) && r == run) OnJobEvent(run, e); };
@@ -675,11 +681,14 @@ internal sealed class Crew : IDisposable
         return delivery;
     }
 
-    /// <summary>Stop on a job's card: its process ends and it is marked stopped; null, or why it couldn't.</summary>
-    public string? StopJob(int number)
+    /// <summary>Stop on a job's card: its process ends and it is marked stopped. False when there was nothing to stop.</summary>
+    public bool StopJob(int number)
     {
-        var error = Board.Stop(number, DateTime.UtcNow);
+        if (Board.Stop(number, DateTime.UtcNow) is null) return false;
+        if (_runs.Values.FirstOrDefault(r => r.Job.Number == number) is { } run) EndRun(run, kill: true);
+        // A stopped check: the job it checked is reported without it.
+        if (Board.Find(number) is { ReviewOf: > 0 } stopped && Board.ReviewEnded(stopped, DateTime.UtcNow) is { } checkedJob) Report(checkedJob);
         JobsChanged();
-        return error;
+        return true;
     }
 }

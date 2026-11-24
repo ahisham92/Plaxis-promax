@@ -125,12 +125,19 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         DockPanel.SetDock(updateBar, Dock.Top);
         root.Children.Add(updateBar);
         root.Children.Add(foot);
+        var crewBar = CrewBar();
+        DockPanel.SetDock(crewBar, Dock.Bottom);
+        root.Children.Add(crewBar);
         root.Children.Add(_scroll);
         Content = root;
 
         _link.ConnectionChanged += connected => Dispatcher.BeginInvoke(() => ShowPlaxis(connected));
         if (!sample) Loaded += async (_, _) => await StartAsync();
-        Closed += (_, _) => _engine?.KillNow();
+        Closed += (_, _) =>
+        {
+            _crew?.Dispose();
+            _engine?.KillNow();
+        };
     }
 
     // ---- Start: Plaxis, then Claude Code ---------------------------------------------------------------------------
@@ -141,6 +148,9 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         // The owner's later changes (cancelled keys, earlier end dates), then the License window if this PC is locked.
         _ = Task.Run(() => LicenseState.RefreshChangesAsync(CancellationToken.None));
         LicenseWindow.BlockIfLocked();
+        ApplyChatDefaults();
+        _conversation = ChatStore.New("plaxis:unsaved", "Plaxis");
+        AttachCrew();
         StartPhone();
         StartHelp();
         await ConnectPlaxisAsync();
@@ -188,6 +198,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         _engine?.Dispose();
         _engine = null;
         _messages.Children.Clear();
+        AttachCrew();
         foreach (var item in _conversation.Items.TakeLast(80)) ShowItem(item);
         if (_conversation.Items.Count == 0)
             Note($"Connected to {s?["product"]} {s?["version"]}. Ask for what you need: build a model from a borehole log, set up phases, calculate, or read results.");
@@ -304,7 +315,9 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         if (_conversation.Items.Count(i => i.Kind == "user") == 1) _conversation.Name = ChatHistory.AutoTitle(text);
         _mcp().NewTask();
         SetBusy(true);
-        _ = SendAsync(text);
+        _turnStart = DateTime.UtcNow;
+        // A coordinator hears with each message which jobs are at work and what they changed so far (JobTruth).
+        _ = SendAsync(text + (IsCoordinator && _crew is { } crew ? JobTruth.Note(crew.Board.Snapshot()) : ""));
     }
 
     private async Task SendAsync(string text)
@@ -316,8 +329,14 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
             {
                 _engine?.Dispose();
                 var resume = _conversation.SessionId.Length > 0 ? _conversation.SessionId : null;
+                // The coordinator runs light, on one model for the whole chat; a Simple chat on what its first request needs
+                // (ChatAuto). A model or effort set by hand in Settings wins.
                 var settings = AgentSettings.Load();
-                _engine = new ChatEngine(a => Dispatcher.BeginInvoke(a), _claude!, resume, settings.ChatModel, effort: settings.ChatEffort);
+                var coordinator = IsCoordinator;
+                var pick = ChatJobs.Pick(text, _conversation.Model, _conversation.Effort, coordinator ? ChatAuto.Coordinating : null);
+                var model = settings.ChatModel.Trim().Length > 0 ? settings.ChatModel.Trim() : pick.Model;
+                var effort = settings.ChatEffort.Trim().Length > 0 ? settings.ChatEffort.Trim() : ClaudeCli.EffortRefused ? "" : pick.Effort;
+                _engine = new ChatEngine(a => Dispatcher.BeginInvoke(a), _claude!, resume, model, coordinator: coordinator, effort: effort, chatKey: JobBoard.ChatKey(_conversation.Id));
                 _engine.Event += OnEvent;
                 _engine.Exited += OnExited;
                 await _engine.StartAsync(line);
@@ -392,6 +411,9 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
             case NoticeEvent notice:
                 Note(notice.Text);
                 break;
+            case UsageEvent usage:
+                _crew?.OnUsage(usage.Usage);
+                break;
             case ResultEvent result:
                 EndTurn(result);
                 break;
@@ -423,6 +445,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         ReplyToPhone(_turnText.ToString());
         _turnText.Clear();
         SendQueuedFromPhone();
+        AfterTurn(result);
     }
 
     private void OnExited(string errors)
@@ -447,7 +470,9 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         _engine = null;
         _conversation = ChatStore.New(_conversation.Key, _conversation.Title);
         _messages.Children.Clear();
-        Note("New chat.");
+        AttachCrew();
+        Note(IsCoordinator ? $"New chat with a coordinator: bigger requests are split into jobs that {ChatJobs.Names.Coordinator} hands to the workers. Settings > Crew changes that."
+            : "New simple chat: one chat does all the work itself. Settings > Crew changes that.");
     }
 
     private void Attach()
@@ -473,6 +498,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
             case "user": AddBubble(item.Text); break;
             case "assistant": AddAnswer(item.Text, save: false); break;
             case "tool": AddStepRow(item.Name, item.Text, item.State); break;
+            case "pjob": _messages.Children.Add(ParallelJobCardFor(item)); break;
             case "error": AddNote(item.Text, Brand.K.DangerText); break;
             default: AddNote(item.Text, Brand.K.Muted); break;
         }
@@ -663,5 +689,8 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
     {
         var window = new SettingsWindow(_claude, this) { Owner = this };
         window.ShowDialog();
+        // The crew's names, the jobs at once and the kind of the next new chat may have changed.
+        ApplyChatDefaults();
+        ShowJobs();
     }
 }

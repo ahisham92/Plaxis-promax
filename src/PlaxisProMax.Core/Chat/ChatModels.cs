@@ -14,9 +14,9 @@ internal static class ChatModels
 
     public static readonly IReadOnlyList<Choice> All =
     [
-        new("opus", "Opus", "Hard reasoning: specs against the model, redlines, tricky modelling"),
-        new("sonnet", "Sonnet", "Most everyday Revit work"),
-        new("haiku", "Haiku", "Quick, simple work: rename, tag, list"),
+        new("opus", "Opus", "Hard reasoning: soil parameters from reports, a design basis against the model, why a calculation fails"),
+        new("sonnet", "Sonnet", "Most everyday Plaxis work"),
+        new("haiku", "Haiku", "Quick, simple work: rename, list, read values"),
         new("fable", "Fable", "Available on plans that include it"),
     ];
 
