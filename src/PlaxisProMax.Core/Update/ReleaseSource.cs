@@ -9,7 +9,7 @@ namespace PlaxisProMax.Update;
 /// but is the less reachable of the two: some networks block or time out on it, and it allows 60 anonymous requests an
 /// hour per address, which an office shares. github.com/&lt;repo&gt;/releases/latest redirects to the latest tag and the
 /// package has a fixed address under github.com, so any failure of the API (an error status, a refused or timed-out
-/// connection, an unreadable answer) falls back to that. No Revit here: the tests check it.
+/// connection, an unreadable answer) falls back to that. The tests check it.
 /// </summary>
 internal static class ReleaseSource
 {
@@ -18,7 +18,7 @@ internal static class ReleaseSource
 
     /// <summary>The package's address under github.com for a release tag (e.g. v0.33.2).</summary>
     public static string DownloadUrl(string repository, string tag, string version) =>
-        $"https://github.com/{repository}/releases/download/{Uri.EscapeDataString(tag)}/SketchProMax-{version}.zip";
+        $"https://github.com/{repository}/releases/download/{Uri.EscapeDataString(tag)}/PlaxisProMax-{version}.zip";
 
     /// <summary>The tag a releases/latest redirect names (…/releases/tag/v0.33.2), or null when it names none.</summary>
     public static string? TagFromRedirect(string? location)

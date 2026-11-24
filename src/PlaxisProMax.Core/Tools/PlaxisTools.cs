@@ -246,6 +246,10 @@ public sealed class ToolRegistry
         new FindKeptCodeTool(),
         new RunPlaxisCodeTool(),
         new RememberRuleTool(),
+        // Help (as in Sketch ProMax): bug reports, the activity log, and the chats-and-bugs export
+        new Bugs.ReportBugTool(),
+        new Bugs.GetActivityLogTool(),
+        new Bugs.ExportChatsAndBugsTool(),
     ]);
 
     /// <summary>The input schema of a tool, as MCP lists it.</summary>

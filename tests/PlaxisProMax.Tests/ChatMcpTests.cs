@@ -113,6 +113,12 @@ internal static class ChatMcpTests
 
             var missing = await Call("no_such_tool", new { });
             check("chat mcp: an unknown tool is an error result", missing.Error, missing.Text);
+
+            // Every call that ran is in the activity log (for bug reports and the chats-and-bugs export); declined ones didn't run.
+            var log = ActivityLog.Last(200);
+            check("chat mcp: calls that ran are logged with whether they worked and how long they took",
+                log.Any(l => l.Contains("\"tool\":\"status\"") && l.Contains("\"model\":\"test.p2dx\"") && l.Contains("\"ok\":true") && l.Contains("\"ms\":"))
+                && log.Count(l => l.Contains("\"tool\":\"run_plaxis_code\"")) == 3, string.Join("\n", log));
         }
         finally { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
     }
