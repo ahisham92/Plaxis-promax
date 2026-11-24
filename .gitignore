@@ -5,3 +5,5 @@ dist/
 .vs/
 __pycache__/
 *.pyc
+tests/**/bin/
+tests/**/obj/

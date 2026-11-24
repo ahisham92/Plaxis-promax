@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Checks that run without Plaxis (a stand-in Plaxis in tests/fake_plaxis, on any Python 3), the same way as
+       Sketch ProMax's: PASS/FAIL lines, exit code = failures. Run with `dotnet run`. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/PlaxisProMax.Core/PlaxisProMax.Core.csproj" />
+  </ItemGroup>
+</Project>
