@@ -227,6 +227,8 @@ class OutputCommands:
 
 
 def new_server(address=None, port=None, timeout=5.0, request_timeout=None, password=None, error_mode=()):
+    if address not in (None, "localhost", "127.0.0.1", "plaxis-pc"):
+        raise Exception("Connection refused")
     if password != PASSWORD:
         raise Exception("Invalid password")
     if port == 10000:

@@ -80,4 +80,10 @@ public sealed class AgentSettings
     /// ProMax): each project has its own chat there.
     /// </summary>
     public string PhoneProjectNames { get; set; } = "";
+
+    /// <summary>
+    /// The PC Plaxis runs on when Plaxis ProMax is started outside Plaxis: "localhost" (this PC), or a colleague's PC on the
+    /// office network by name or address. Started from Plaxis's Expert menu, it is always this PC.
+    /// </summary>
+    public string PlaxisHost { get; set; } = "localhost";
 }

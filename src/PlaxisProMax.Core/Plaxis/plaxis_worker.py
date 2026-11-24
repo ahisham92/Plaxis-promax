@@ -55,6 +55,12 @@ def _new_server(port):
     try:
         return new_server(_state["address"], port, password=_state["password"])
     except Exception as ex:  # plxscripting raises plain Exceptions for refused connections and bad passwords
+        if _state["address"] not in ("localhost", "127.0.0.1", "::1"):
+            raise UserError(
+                "Plaxis on {} didn't answer on port {}: {}. On that PC, Plaxis Input must be open with Expert > Configure "
+                "remote scripting server started, and its firewall must let ports {} and {} in from this PC. Check the "
+                "PC's name, the port and the password.".format(_state["address"], port, _one_line(ex), port, port + 1)
+            )
         raise UserError(
             "Plaxis didn't answer on port {}: {}. In Plaxis Input, open Expert > Configure remote scripting server, "
             "start the server, and check the port and password.".format(port, _one_line(ex))

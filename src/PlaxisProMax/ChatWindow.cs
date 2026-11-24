@@ -153,7 +153,9 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
             ShowConnectCard(port, "");
             return;
         }
-        var answer = await _link.ConnectAsync(port, password, CancellationToken.None);
+        // Started from Plaxis: that Plaxis, on this PC. Otherwise the PC in Settings (this one, or a colleague's).
+        var host = _start.Port is null ? settings.PlaxisHost : "localhost";
+        var answer = await _link.ConnectAsync(port, password, CancellationToken.None, host: host);
         if (answer.Ok) OpenProjectChat();
         else ShowConnectCard(port, answer.Error);
     }
@@ -192,6 +194,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
 
     private void ShowConnectCard(int port, string error)
     {
+        var hostBox = new TextBox { Text = AgentSettings.Load().PlaxisHost, Width = 160 };
         var portBox = new TextBox { Text = port.ToString(System.Globalization.CultureInfo.InvariantCulture), Width = 90 };
         var password = new PasswordBox { Width = 200 };
         var remember = new CheckBox { Content = "Remember the password on this PC", IsChecked = true, Margin = new Thickness(0, ChatUi.S1, 0, 0) };
@@ -200,6 +203,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         panel.Children.Add(Brand.Text("Connect to Plaxis", Brand.K.Text, 14, bold: true));
         panel.Children.Add(ChatUi.Small(error.Length > 0 ? error : "In Plaxis Input, open Expert > Configure remote scripting server, start the server, and enter its port and password here. Started from Plaxis's Expert menu, this happens by itself."));
         var fields = new WrapPanel { Margin = new Thickness(0, ChatUi.S2, 0, 0) };
+        fields.Children.Add(Labelled("PC (localhost: this one)", hostBox));
         fields.Children.Add(Labelled("Port", portBox));
         fields.Children.Add(Labelled("Password", password));
         panel.Children.Add(fields);
@@ -210,7 +214,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         {
             if (!int.TryParse(portBox.Text, out var p)) return;
             Brand.SetBusy(connect, true, "Connecting…");
-            var answer = await _link.ConnectAsync(p, password.Password, CancellationToken.None);
+            var answer = await _link.ConnectAsync(p, password.Password, CancellationToken.None, host: hostBox.Text);
             Brand.SetBusy(connect, false);
             if (!answer.Ok)
             {
@@ -219,6 +223,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
             }
             var s = AgentSettings.Load();
             s.InputPort = p;
+            s.PlaxisHost = string.IsNullOrWhiteSpace(hostBox.Text) ? "localhost" : hostBox.Text.Trim();
             if (remember.IsChecked == true) s.ServerPassword = password.Password;
             s.Save();
             _messages.Children.Remove(card);
