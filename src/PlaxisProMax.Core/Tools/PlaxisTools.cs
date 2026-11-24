@@ -217,6 +217,11 @@ public sealed class ToolRegistry
             "NodeToNodeAnchor.AnchorForce2D. object: a structure's name for its own results.",
             """{"phase":{"type":"string","description":"Phase name; empty for the last."},"result_types":{"type":"array","items":{"type":"string"}},"location":{"type":"string","enum":["node","stresspoint"]},"object":{"type":"string"},"first":{"type":"integer"},"csv_path":{"type":"string"}}""",
             [], false, 600),
+        new WorkerTool("results_to_excel", "Many results in one go, to one Excel file: every asked result type for every asked phase (default: all calculated " +
+            "phases), a sheet per phase with a column per result, and a Summary sheet with count, min, max and max abs. Use it for reports and big models " +
+            "instead of reading values one at a time. results: result type paths under ResultTypes, each with an optional structure name and location.",
+            """{"path":{"type":"string","description":"The .xlsx file to write."},"phases":{"type":"array","items":{"type":"string"},"description":"Phase names; empty for every calculated phase."},"results":{"type":"array","items":{"type":"object","properties":{"type":{"type":"string","description":"e.g. Soil.Utot, Plate.M2D, NodeToNodeAnchor.AnchorForce2D"},"object":{"type":"string","description":"A structure's name for its own results."},"location":{"type":"string","enum":["node","stresspoint"]}},"required":["type"]}}}""",
+            ["path", "results"], false, 3600),
         // Build (change the project; each is a Plaxis command, so Plaxis's own undo puts it back)
         new WorkerTool("run_commands", "Plaxis command-line commands in order, as typed in Plaxis's command line (e.g. \"point 0 0\", \"plate (0 0) (0 -10)\"). " +
             "Stops at the first that fails and says which. Prefer a dedicated tool when there is one.",
@@ -237,8 +242,11 @@ public sealed class ToolRegistry
             """{"coarseness":{"type":"number"}}""", [], true, 900),
         new WorkerTool("add_phase", "A new phase after another (by name; empty for the last), with its name and settings by Plaxis's names (DeformCalcType, ...).",
             """{"after":{"type":"string"},"name":{"type":"string"},"settings":{"type":"object"}}""", [], true),
-        new WorkerTool("calculate", "Calculates the named phases (or every phase set to calculate) and reports how each phase ended. Can take long.",
-            """{"phases":{"type":"array","items":{"type":"string"}}}""", [], true, 6 * 3600),
+        new WorkerTool("calculate", "Calculates the named phases (or every phase set to calculate) and reports how each phase ended. Can take long. " +
+            "For a big model or a long run: one_by_one calculates one phase at a time, saves the project after each and stops at the first that fails " +
+            "(the rest stay marked, so the next call carries on); stored_steps 1 keeps only each phase's last step, so the files stay small.",
+            """{"phases":{"type":"array","items":{"type":"string"}},"one_by_one":{"type":"boolean","description":"One phase at a time, saving after each, stopping at the first failure."},"stored_steps":{"type":"integer","description":"Steps kept per phase (MaxStepsStored); 1 for big models."},"save":{"type":"boolean","description":"Save after calculating (one_by_one saves after each phase unless false)."}}""",
+            [], true, 24 * 3600),
         new WorkerTool("undo", "Undoes the last Plaxis steps (Plaxis's own undo).", """{"steps":{"type":"integer"}}""", [], true, 60),
         // Projects
         new WorkerTool("new_project", "Starts a new, empty Plaxis project in Input.", "{}", [], true, 120),

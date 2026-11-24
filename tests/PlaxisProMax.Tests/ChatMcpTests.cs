@@ -95,6 +95,20 @@ internal static class ChatMcpTests
             var ran = await Call("run_plaxis_code", new { code, description = "Largest horizontal displacement of the last phase" });
             check("chat mcp: allowed code runs and is kept", !ran.Error && ran.Text.Contains("\"result\":0.02") && ran.Text.Contains("\"kept_as\":\"K1\""), ran.Text);
 
+            // Big models: one phase at a time with a save after each, and every result to one Excel file in one call.
+            var slow = await Call("calculate", new { one_by_one = true, stored_steps = 1 });
+            check("chat mcp: calculate one phase at a time says how each phase ended", !slow.Error && slow.Text.Contains("\"one_by_one\":[") && slow.Text.Contains("\"stored_steps\":{"), slow.Text);
+            var xlsx = Path.Combine(Path.GetTempPath(), "ppm-xlsx-" + Guid.NewGuid().ToString("N"), "results.xlsx");
+            var excel = await Call("results_to_excel", new { path = xlsx, results = new object[] { new { type = "Soil.Utot" }, new { type = "Plate.M2D" } } });
+            var sheets = new List<string>();
+            if (File.Exists(xlsx))
+                using (var zip = System.IO.Compression.ZipFile.OpenRead(xlsx)) sheets = zip.Entries.Select(e => e.FullName).ToList();
+            check("chat mcp: results_to_excel writes every phase's results to one workbook, with a summary",
+                !excel.Error && excel.Text.Contains("\"max_abs\":42.5") && sheets.Contains("xl/workbook.xml") && sheets.Count(n => n.StartsWith("xl/worksheets/")) >= 2, excel.Text);
+            check("chat mcp: results_to_excel is offered with calculate's big-model options",
+                ToolRegistry.CreateDefault().All.Any(t => t is { Name: "results_to_excel", ModifiesModel: false }) && ToolRegistry.CreateDefault().All.First(t => t.Name == "calculate").PropertiesJson.Contains("one_by_one"), "");
+            try { Directory.Delete(Path.GetDirectoryName(xlsx)!, true); } catch (Exception) { }
+
             var asksBefore = asker.Asked.Count;
             var near = code.Replace("max(ux)", "min(ux)");
             var held = await Call("run_plaxis_code", new { code = near, description = "Smallest horizontal displacement of the last phase" });

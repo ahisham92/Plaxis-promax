@@ -22,6 +22,7 @@ internal static class StepNames
         ["inspect"] = "Read an object",
         ["list_phases"] = "Read the phases",
         ["get_results"] = "Read results",
+        ["results_to_excel"] = "Results to Excel",
         ["run_commands"] = "Run Plaxis commands",
         ["go_to_mode"] = "Switch mode",
         ["soil_contour"] = "Set the soil contour",

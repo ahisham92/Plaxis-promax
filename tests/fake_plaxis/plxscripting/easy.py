@@ -74,6 +74,8 @@ class Model:
         self.log = []
         self.mode = "soil"
         self.calculated = False
+        self.calculations = 0
+        self.saves = 0
 
 
 MODEL = Model()
@@ -134,13 +136,21 @@ class Commands:
         return "Generated 812 elements, 6851 nodes"
 
     def phase(self, previous):
-        p = Obj("Phase", "Phase_{}".format(len(self.m.Phases)), Identification="Phase_{}".format(len(self.m.Phases)), ShouldCalculate=True, DeformCalcType="Plastic", PreviousPhase=previous)
+        p = Obj("Phase", "Phase_{}".format(len(self.m.Phases)), Identification="Phase_{}".format(len(self.m.Phases)), ShouldCalculate=True, DeformCalcType="Plastic", PreviousPhase=previous, MaxStepsStored=1)
         self.m.Phases.append(p)
         return p
 
     def calculate(self):
+        # As Plaxis: only the phases marked to calculate; a phase after one that failed isn't reached.
         for p in self.m.Phases:
-            p.CalculationResult = "OK"
+            if not p.ShouldCalculate.value:
+                continue
+            failed = "fail" in str(p.Identification.value).lower()
+            p.CalculationResult = "Failed" if failed else "OK"
+            p.ShouldCalculate = False
+            self.m.calculations += 1
+            if failed:
+                break
         self.m.calculated = True
         return "OK"
 
@@ -150,6 +160,7 @@ class Commands:
         return 10001
 
     def save(self, *path):
+        self.m.saves += 1
         return "Project saved"
 
 
