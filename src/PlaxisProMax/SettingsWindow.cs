@@ -24,18 +24,18 @@ internal sealed class SettingsWindow : Window
 
         var s = AgentSettings.Load();
         var level = new ComboBox { ItemsSource = ApprovalPolicy.Levels.Select(ApprovalPolicy.Label).ToList(), SelectedIndex = Array.IndexOf(ApprovalPolicy.Levels, s.Approvals) };
-        var hint = ChatUi.Small(ApprovalPolicy.Hint(s.Approvals));
+        var hint = ChatWindow.Wrapped(ChatUi.Small(ApprovalPolicy.Hint(s.Approvals)));
         level.SelectionChanged += (_, _) => hint.Text = ApprovalPolicy.Hint(ApprovalPolicy.Levels[Math.Max(0, level.SelectedIndex)]);
         var silenced = s.NoAskTools ?? [];
         var askAgain = Brand.Button("Ask again");
         askAgain.IsEnabled = silenced.Count > 0;
-        var silencedText = ChatUi.Small(silenced.Count == 0 ? "Nothing is set to not ask." : "Not asked about: " + string.Join(", ", silenced.Select(ApprovalPolicy.Friendly)));
+        var silencedText = ChatWindow.Wrapped(ChatUi.Small(silenced.Count == 0 ? "Nothing is set to not ask." : "Not asked about: " + string.Join(", ", silenced.Select(ApprovalPolicy.Friendly))));
         askAgain.Click += (_, _) => { silenced = []; silencedText.Text = "Nothing is set to not ask."; askAgain.IsEnabled = false; };
 
         var rules = new TextBox { Text = s.ProjectRules, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 90, MaxHeight = 200, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         var host = new TextBox { Text = s.PlaxisHost, Width = 200 };
         var port = new TextBox { Text = s.InputPort.ToString(System.Globalization.CultureInfo.InvariantCulture), Width = 90 };
-        var password = new PasswordBox { Password = s.ServerPassword, Width = 200 };
+        var password = new PasswordBox { Password = s.ServerPassword, Width = 200, MinHeight = 30, Padding = new Thickness(6, 4, 6, 4), VerticalContentAlignment = VerticalAlignment.Center };
         var python = new TextBox { Text = s.PlaxisPython };
         var model = new ComboBox { IsEditable = true, ItemsSource = new[] { "", "sonnet", "opus", "haiku", "fable" }, Text = s.ChatModel };
         var timeout = new TextBox { Text = s.CallTimeoutSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture), Width = 90 };
@@ -92,7 +92,7 @@ internal sealed class SettingsWindow : Window
         Field("Model (empty: Claude Code's default)", model);
         body.Children.Add(Brand.ButtonRow(signIn));
         Section("License");
-        body.Children.Add(ChatUi.Small(LicenseText()));
+        body.Children.Add(ChatWindow.Wrapped(ChatUi.Small(LicenseText())));
         body.Children.Add(Brand.ButtonRow(license));
         var buttons = Brand.ButtonRow(save, cancel);
         buttons.HorizontalAlignment = HorizontalAlignment.Right;

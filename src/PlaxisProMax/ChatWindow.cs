@@ -196,12 +196,12 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
     {
         var hostBox = new TextBox { Text = AgentSettings.Load().PlaxisHost, Width = 160 };
         var portBox = new TextBox { Text = port.ToString(System.Globalization.CultureInfo.InvariantCulture), Width = 90 };
-        var password = new PasswordBox { Width = 200 };
+        var password = new PasswordBox { Width = 200, MinHeight = 30, Padding = new Thickness(6, 4, 6, 4), VerticalContentAlignment = VerticalAlignment.Center };
         var remember = new CheckBox { Content = "Remember the password on this PC", IsChecked = true, Margin = new Thickness(0, ChatUi.S1, 0, 0) };
         var connect = Brand.Button("Connect", Brand.Weight.Primary);
         var panel = new StackPanel();
         panel.Children.Add(Brand.Text("Connect to Plaxis", Brand.K.Text, 14, bold: true));
-        panel.Children.Add(ChatUi.Small(error.Length > 0 ? error : "In Plaxis Input, open Expert > Configure remote scripting server, start the server, and enter its port and password here. Started from Plaxis's Expert menu, this happens by itself."));
+        panel.Children.Add(Wrapped(ChatUi.Small(error.Length > 0 ? error : "In Plaxis Input, open Expert > Configure remote scripting server, start the server, and enter its port and password here. Started from Plaxis's Expert menu, this happens by itself.")));
         var fields = new WrapPanel { Margin = new Thickness(0, ChatUi.S2, 0, 0) };
         fields.Children.Add(Labelled("PC (localhost: this one)", hostBox));
         fields.Children.Add(Labelled("Port", portBox));
@@ -263,7 +263,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
     {
         var panel = new StackPanel();
         panel.Children.Add(Brand.Text(title, Brand.K.Text, 14, bold: true));
-        panel.Children.Add(ChatUi.Small(text));
+        panel.Children.Add(Wrapped(ChatUi.Small(text)));
         panel.Children.Add(Brand.ButtonRow(buttons));
         var card = Card(panel);
         _messages.Children.Add(card);
@@ -565,7 +565,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
 
     private void AddNote(string text, string key)
     {
-        var note = ChatUi.Small(text, key);
+        var note = Wrapped(ChatUi.Small(text, key));
         note.TextWrapping = TextWrapping.Wrap;
         note.Margin = new Thickness(0, ChatUi.S2, 0, ChatUi.S2);
         _messages.Children.Add(note);
@@ -587,6 +587,14 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         return panel;
     }
 
+    /// <summary>A small text that wraps instead of being cut with "…" (cards, notes, errors).</summary>
+    internal static TextBlock Wrapped(TextBlock text)
+    {
+        text.TextWrapping = TextWrapping.Wrap;
+        text.TextTrimming = TextTrimming.None;
+        return text;
+    }
+
     private void ScrollToEnd() => Dispatcher.BeginInvoke(DispatcherPriority.Background, () => _scroll.ScrollToEnd());
 
     // ---- Approval cards --------------------------------------------------------------------------------------------
@@ -602,7 +610,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         {
             var panel = new StackPanel();
             panel.Children.Add(Brand.Text(request.Title, Brand.K.Text, 14, bold: true));
-            var reason = ChatUi.Small(request.Reason, Brand.K.Text);
+            var reason = Wrapped(ChatUi.Small(request.Reason, Brand.K.Text));
             reason.TextWrapping = TextWrapping.Wrap;
             panel.Children.Add(reason);
             if (request.Details.Length > 0)
@@ -619,7 +627,13 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
             var task = Brand.Button("Allow the rest of this task");
             var never = Brand.Button("Don't ask again");
             var deny = Brand.Button("Don't allow");
-            var buttons = request.CanSilence ? Brand.ButtonRow(allow, task, never, deny) : Brand.ButtonRow(allow, task, deny);
+            // A wrap panel: four buttons don't fit a narrow window in one row, and a row would cut off Allow.
+            var buttons = new WrapPanel { Margin = new Thickness(0, ChatUi.S3, 0, 0) };
+            foreach (var b in request.CanSilence ? new[] { allow, task, never, deny } : new[] { allow, task, deny })
+            {
+                b.Margin = new Thickness(0, 0, ChatUi.S2, ChatUi.S2);
+                buttons.Children.Add(b);
+            }
             panel.Children.Add(buttons);
             var card = Card(panel);
             card.SetResourceReference(Border.BorderBrushProperty, Brand.K.Accent);
