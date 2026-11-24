@@ -28,12 +28,13 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
     private readonly ScrollViewer _scroll;
     private readonly TextBox _input;
     private readonly Button _send;
+    private readonly Button _stop;
     private readonly TextBlock _plaxisState = Brand.Text("Connecting to Plaxis…", Brand.K.HeaderSub, 12);
     private readonly TextBlock _working = ChatUi.Small("");
     private readonly List<string> _attached = [];
     private readonly WrapPanel _attachments = new();
     private readonly Dictionary<string, MarkdownView> _streams = [];
-    private readonly Dictionary<string, (TextBlock Line, Border Row)> _steps = [];
+    private readonly Dictionary<string, StepRow> _steps = [];
     private ClaudeCli.Install? _claude;
     private ChatEngine? _engine;
     private Conversation _conversation;
@@ -64,68 +65,12 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         SetResourceReference(BackgroundProperty, Brand.K.Bg);
         Resources.MergedDictionaries.Add(ChatUi.Styles());
 
-        // Header: the mark, the name, what Plaxis is open, and New chat / Settings.
-        var newChat = Brand.Button("New chat");
-        newChat.ToolTip = "A new chat, or a new autopilot chat that works on its own to a goal";
-        newChat.Click += (_, _) => NewChatMenu(newChat);
-        var settings = Brand.Button("Settings");
-        settings.Click += (_, _) => ShowSettings();
-        var title = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(ChatUi.S2, 0, 0, 0) };
-        title.Children.Add(Brand.Text("Plaxis ProMax", Brand.K.HeaderText, 15, bold: true));
-        title.Children.Add(_plaxisState);
-        var head = new DockPanel { Margin = new Thickness(ChatUi.S3, ChatUi.S2, ChatUi.S3, ChatUi.S2), LastChildFill = true };
-        var menu = Brand.Button("Menu");
-        menu.MinWidth = 64;
-        menu.ToolTip = "Chat history, notes, routines, saved prompts and your plan's usage";
-        menu.Click += (_, _) => ShowMenu(menu);
-        newChat.MinWidth = settings.MinWidth = 72;
-        _plaxisState.TextTrimming = TextTrimming.CharacterEllipsis;
-        _plaxisState.TextWrapping = TextWrapping.NoWrap;
-        _plaxisState.ToolTip = "The Plaxis and the project this chat works on";
-        var buttons = Brand.ButtonRow(menu, newChat, settings);
-        DockPanel.SetDock(buttons, Dock.Right);
-        head.Children.Add(buttons);
-        var logo = new Image { Source = Brand.Logo, Width = 28, Height = 28, VerticalAlignment = VerticalAlignment.Center };
-        DockPanel.SetDock(logo, Dock.Left);
-        head.Children.Add(logo);
-        head.Children.Add(title);
-        var header = new Border { Child = head, Background = Brand.Brush(Brand.Navy) };
-
-        _scroll = new ScrollViewer { Content = _messages, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
-
-        // Composer: attachments, the message box, Attach and Send/Stop.
-        _input = new TextBox
-        {
-            AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 64, MaxHeight = 220,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(ChatUi.S2), FontSize = ChatUi.BodySize,
-        };
-        _input.SetResourceReference(BackgroundProperty, Brand.K.ComposerField);
-        _input.SetResourceReference(ForegroundProperty, Brand.K.Text);
-        _input.PreviewKeyDown += (_, e) =>
-        {
-            if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.None) { e.Handled = true; SendOrStop(); }
-        };
-        System.Windows.Automation.AutomationProperties.SetName(_input, "Message");
-        _send = Brand.Button("Send", Brand.Weight.Primary);
-        _send.Click += (_, _) => SendOrStop();
-        var attach = Brand.Button("Attach");
-        attach.Click += (_, _) => Attach();
-        var row = new DockPanel { Margin = new Thickness(0, ChatUi.S2, 0, 0) };
-        var sendRow = Brand.ButtonRow(attach, _send);
-        DockPanel.SetDock(sendRow, Dock.Right);
-        row.Children.Add(sendRow);
-        var pill = PhonePill();
-        DockPanel.SetDock(pill, Dock.Left);
-        row.Children.Add(pill);
-        row.Children.Add(_working);
-        _working.VerticalAlignment = VerticalAlignment.Center;
-        var composer = new StackPanel { Margin = new Thickness(ChatUi.S3) };
-        composer.Children.Add(_promptPanel);
-        composer.Children.Add(_attachments);
-        composer.Children.Add(_input);
-        composer.Children.Add(row);
-        var foot = new Border { Child = composer, BorderThickness = new Thickness(0, 1, 0, 0) };
-        foot.SetResourceReference(Border.BorderBrushProperty, Brand.K.BorderSubtle);
+        var header = Header();
+        _scroll = Conversation();
+        _input = InputBox();
+        _send = new Button { Content = ChatUi.Icon(ChatUi.Paths.Send, stroke: 2), ToolTip = "Send (Enter)" };
+        _stop = new Button { Content = ChatUi.Icon(ChatUi.Paths.Square, fill: true), Visibility = Visibility.Collapsed, ToolTip = "Stops the answer (Escape). A command already sent to Plaxis finishes on its own." };
+        var foot = Composer();
 
         var root = new DockPanel();
         DockPanel.SetDock(header, Dock.Top);
@@ -146,6 +91,13 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         root.Children.Add(crewBar);
         root.Children.Add(Center());
         Content = root;
+        // Escape stops the answer from anywhere in the window.
+        KeyDown += (_, e) =>
+        {
+            if (e.Key != Key.Escape || e.Handled || !_busy) return;
+            e.Handled = true;
+            SendOrStop();
+        };
 
         _link.ConnectionChanged += connected => Dispatcher.BeginInvoke(() => ShowPlaxis(connected));
         if (!sample) Loaded += async (_, _) => await StartAsync();
@@ -332,10 +284,11 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
                 text += "\n\nAttached files:\n" + string.Join("\n", _attached.Select(f => "- " + f));
             _input.Clear();
             _attached.Clear();
-            _attachments.Children.Clear();
+            ShowChips();
         }
         AddItem(new ChatItem { Kind = "user", Text = text, Time = DateTime.UtcNow });
         if (_conversation.Items.Count(i => i.Kind == "user") == 1) _conversation.Name = ChatHistory.AutoTitle(text);
+        ShowTitle();
         // An autopilot chat: the goal goes to the coordinator as a request for a plan; "stop" ends a run; anything typed
         // to a paused or ended run carries it on.
         var handled = false;
@@ -407,8 +360,10 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
     private void SetBusy(bool busy)
     {
         _busy = busy;
-        _send.Content = busy ? "Stop" : "Send";
+        _send.Visibility = busy ? Visibility.Collapsed : Visibility.Visible;
+        _stop.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         _working.Text = busy ? "Working…" : "";
+        ShowWorking(busy);
     }
 
     private void OnEvent(ChatEvent e)
@@ -525,13 +480,8 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         var pick = new OpenFileDialog { Multiselect = true, Title = "Attach files (borehole logs, reports, pictures)" };
         if (pick.ShowDialog(this) != true) return;
         foreach (var file in pick.FileNames)
-        {
-            if (_attached.Contains(file)) continue;
-            _attached.Add(file);
-            var chip = ChatUi.Small(Path.GetFileName(file), Brand.K.Text);
-            chip.Margin = new Thickness(0, 0, ChatUi.S2, ChatUi.S1);
-            _attachments.Children.Add(chip);
-        }
+            if (!_attached.Contains(file)) _attached.Add(file);
+        ShowChips();
     }
 
     // ---- What the chat shows ---------------------------------------------------------------------------------------
@@ -540,9 +490,9 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
     {
         switch (item.Kind)
         {
-            case "user": AddBubble(item.Text); break;
-            case "assistant": AddAnswer(item.Text, save: false); break;
-            case "tool": AddStepRow(item.Name, item.Text, item.State); break;
+            case "user": AddBubble(item); break;
+            case "assistant": AddAnswer(item.Text, save: false, item); break;
+            case "tool": AddStepRow(item.Name, item.Text, item.State, item.Result); break;
             case "pjob": _messages.Children.Add(ParallelJobCardFor(item)); break;
             case "error": AddNote(item.Text, Brand.K.DangerText); break;
             case "note" when item.Name == Crew.ApproveNote: _messages.Children.Add(ApproveCard(item)); break;
@@ -557,26 +507,9 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         ScrollToEnd();
     }
 
-    private void AddBubble(string text)
-    {
-        var box = ChatUi.Selectable(text, "Your message");
-        var bubble = new Border { Child = box, CornerRadius = new CornerRadius(ChatUi.Radius), Padding = new Thickness(ChatUi.S3, ChatUi.S2, ChatUi.S3, ChatUi.S2),
-            HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(48, ChatUi.S3, 0, ChatUi.S1), MaxWidth = 560 };
-        bubble.SetResourceReference(Border.BackgroundProperty, Brand.K.AccentSoft);
-        _messages.Children.Add(bubble);
-        ChatUi.Arrive(bubble);
-    }
+    private void Note(string text) => AddItem(new ChatItem { Kind = "note", Text = text, Time = DateTime.UtcNow });
 
-    private MarkdownView AddAnswer(string text, bool save = true)
-    {
-        var view = new MarkdownView { Margin = new Thickness(0, ChatUi.S2, 0, ChatUi.S1), Tag = text };
-        view.SetMarkdown(text);
-        _messages.Children.Add(view);
-        _lastAnswer = view;
-        if (save && text.Length > 0) _conversation.Items.Add(new ChatItem { Kind = "assistant", Text = text, Time = DateTime.UtcNow });
-        ScrollToEnd();
-        return view;
-    }
+    private void Error(string text) => AddItem(new ChatItem { Kind = "error", Text = text, Time = DateTime.UtcNow });
 
     private void Step(string id, string tool, string inputJson)
     {
@@ -587,8 +520,9 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
             known.Line.Text = text;
             return;
         }
-        var (line, row) = AddStepRow(name, text, "running");
-        _steps[id] = (line, row);
+        var row = AddStepRow(name, text, "running", "");
+        row.Input = inputJson;
+        _steps[id] = row;
         _working.Text = StepNames.Running(name, text, !StepNames.ReadOnly(name));
         _strip.CoordinatorDoes(name);
     }
@@ -597,55 +531,14 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
     {
         if (!_steps.TryGetValue(id, out var step)) return;
         _steps.Remove(id);
-        if (step.Row.Child is DockPanel panel && panel.Children[0] is FrameworkElement mark)
-        {
-            panel.Children.RemoveAt(0);
-            var done = failed ? ChatUi.Glyph("", Brand.K.DangerText) : ChatUi.StepMark(true);
-            DockPanel.SetDock(done, Dock.Left);
-            panel.Children.Insert(0, done);
-        }
-        step.Row.ToolTip = result.Length > 600 ? result.Substring(0, 600) + "…" : result;
-        _conversation.Items.Add(new ChatItem { Kind = "tool", Name = step.Line.Tag as string ?? "", Text = step.Line.Text, State = failed ? "failed" : "done", Result = result.Length > 2000 ? result.Substring(0, 2000) : result, Time = DateTime.UtcNow });
+        SetStep(step, failed ? "failed" : "done", result, pop: true);
+        _conversation.Items.Add(new ChatItem { Kind = "tool", Name = step.Tool, Text = step.Line.Text, State = failed ? "failed" : "done", Result = result.Length > 2000 ? result.Substring(0, 2000) : result, Time = DateTime.UtcNow });
         _working.Text = _busy ? "Working…" : "";
-    }
-
-    private (TextBlock Line, Border Row) AddStepRow(string tool, string text, string state)
-    {
-        var line = ChatUi.Small(text);
-        line.Tag = tool;
-        line.TextTrimming = TextTrimming.CharacterEllipsis;
-        FrameworkElement mark = state switch
-        {
-            "running" => ChatUi.StepRing(),
-            "failed" => ChatUi.Glyph("", Brand.K.DangerText),
-            _ => ChatUi.StepMark(true),
-        };
-        mark.Margin = new Thickness(0, 0, ChatUi.S2, 0);
-        var panel = new DockPanel();
-        DockPanel.SetDock(mark, Dock.Left);
-        panel.Children.Add(mark);
-        panel.Children.Add(line);
-        var row = new Border { Child = panel, Margin = new Thickness(0, 2, 0, 2) };
-        _messages.Children.Add(row);
-        ScrollToEnd();
-        return (line, row);
-    }
-
-    private void Note(string text) => AddItem(new ChatItem { Kind = "note", Text = text, Time = DateTime.UtcNow });
-
-    private void Error(string text) => AddItem(new ChatItem { Kind = "error", Text = text, Time = DateTime.UtcNow });
-
-    private void AddNote(string text, string key)
-    {
-        var note = Wrapped(ChatUi.Small(text, key));
-        note.TextWrapping = TextWrapping.Wrap;
-        note.Margin = new Thickness(0, ChatUi.S2, 0, ChatUi.S2);
-        _messages.Children.Add(note);
     }
 
     private static Border Card(UIElement content)
     {
-        var card = new Border { Child = content, CornerRadius = new CornerRadius(ChatUi.Radius), Padding = new Thickness(ChatUi.S3), Margin = new Thickness(0, ChatUi.S2, 0, ChatUi.S2), BorderThickness = new Thickness(1) };
+        var card = ChatUi.Opaque(new Border { Child = content, CornerRadius = new CornerRadius(ChatUi.Radius), Padding = new Thickness(ChatUi.S4, ChatUi.S3, ChatUi.S4, ChatUi.S3), Margin = new Thickness(0, ChatUi.S4, 0, ChatUi.S1), BorderThickness = new Thickness(1), SnapsToDevicePixels = true });
         card.SetResourceReference(Border.BackgroundProperty, Brand.K.Raised);
         card.SetResourceReference(Border.BorderBrushProperty, Brand.K.Border);
         return card;
@@ -666,8 +559,6 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         text.TextTrimming = TextTrimming.None;
         return text;
     }
-
-    private void ScrollToEnd() => Dispatcher.BeginInvoke(DispatcherPriority.Background, () => _scroll.ScrollToEnd());
 
     // ---- Approval cards --------------------------------------------------------------------------------------------
 

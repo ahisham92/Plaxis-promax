@@ -113,6 +113,8 @@ internal sealed partial class ChatWindow
         _strip.Clear();
         _crew?.Dispose();
         _crew = null;
+        _follow = true;
+        ShowTitle();
         if (_sample) return;
         ChatScope.Set(_conversation.Key, _conversation.Title, _conversation.Id);
         ChatJobs.ChatModel = ChatAuto.ParseModel(_conversation.Model);

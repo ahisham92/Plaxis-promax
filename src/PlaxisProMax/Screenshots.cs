@@ -47,6 +47,8 @@ internal static class Screenshots
         var auto = new ChatWindow(link, new PlaxisInstall.StartArgs(null, null, null, false), () => null!, sample: true);
         Shoot(auto, Path.Combine(folder, "12-autopilot.png"), w => ((ChatWindow)w).ShowSampleAutopilot());
         More(link, folder);
+        var home = new ChatWindow(link, new PlaxisInstall.StartArgs(null, null, null, false), () => null!, sample: true);
+        Shoot(home, Path.Combine(folder, "17-home.png"), w => ((ChatWindow)w).ShowSampleHome());
         app.Shutdown();
         return 0;
     }
@@ -154,6 +156,7 @@ internal sealed partial class ChatWindow
     {
         _plaxisState.Text = "PLAXIS 2D 2024.2 · Harbour wall";
         _conversation.Name = "Harbour wall";
+        ShowTitle();
         ShowItem(new ChatItem { Kind = "user", Text = "Build the soil from BH-03 in the attached log, then add the excavation phases to -6 m in 2 m steps." });
         ShowItem(new ChatItem { Kind = "tool", Name = "status", Text = "Checked the open Plaxis project", State = "done" });
         ShowItem(new ChatItem { Kind = "tool", Name = "find_kept_code", Text = "Looked for kept code: boreholes from a log", State = "done" });
@@ -166,6 +169,13 @@ internal sealed partial class ChatWindow
             "The phases are **Excavate to -2 m**, **-4 m** and **-6 m**, each after the one before. Nothing is calculated yet. " +
             "Say *calculate* when you want them run." });
         _input.Text = "Calculate the three phases and send me the wall's bending moments in Excel";
+    }
+
+    /// <summary>A new chat, before anything is asked: the greeting and the ideas.</summary>
+    internal void ShowSampleHome()
+    {
+        _plaxisState.Text = "PLAXIS 2D 2024.2 · Harbour wall";
+        ShowTitle();
     }
 
     /// <summary>A sample approval card: new code, shown before it runs.</summary>
