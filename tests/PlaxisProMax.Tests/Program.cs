@@ -48,6 +48,10 @@ Section("job truth", JobTruthTests.Run);
 Section("automatic model", ChatAutoTests.Run);
 Section("questions", ChatQuestionsTests.Run);
 Section("chat work", ChatWorkTests.Run);
+Section("away", AwayTests.Run);
+Section("autopilot", AutopilotTests.Run);
+Section("autopilot stalls", AutopilotStallTests.Run);
+Section("autopilot run", AutopilotRunTests.Run);
 
 try { Directory.Delete(scratch, true); } catch (Exception) { }
 Console.WriteLine(failures == 0 ? "All checks passed." : $"{failures} check(s) failed.");

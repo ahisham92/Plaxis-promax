@@ -185,7 +185,8 @@ internal static class ClaudeCli
         var pid = Process.GetCurrentProcess().Id.ToString(System.Globalization.CultureInfo.InvariantCulture);
         var mcpFile = WriteMcpConfig(engine, pid, model, "mcp-job-" + jobKey + "-", jobKey);
         var promptFile = Path.Combine(engine, "job-" + jobKey + "-" + pid + ".md");
-        File.WriteAllText(promptFile, Agent.SystemPrompt.ForJob(AgentSettings.Load().ProjectRules), new UTF8Encoding(false));
+        // A job started during an autopilot run is told nobody is there, and gets the user's own words.
+        File.WriteAllText(promptFile, Agent.SystemPrompt.ForJob(AgentSettings.Load().ProjectRules) + (Autopilot.Unattended ? Autopilot.JobRules + Autopilot.JobWords() : ""), new UTF8Encoding(false));
         var args = new List<string>
         {
             "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",

@@ -123,6 +123,11 @@ internal sealed partial class ChatWindow
             MainBusy = () => _busy,
             MainTurn = MainTurn,
             Save = Save,
+            AddItem = AddItem,
+            AbortMainTurn = AbortMainTurn,
+            MainLastActivity = () => _lastActivity,
+            MainStepRunning = () => _steps.Count > 0,
+            Backup = BackupProjectAsync,
             SignInLost = () => Error("Your Claude sign-in has expired. Sign in again in Settings > Claude; the jobs carry on when you send them a message."),
         });
         ShowJobs();
@@ -144,6 +149,7 @@ internal sealed partial class ChatWindow
         if (_busy || _claude is null) return;
         SetBusy(true);
         _turnStart = DateTime.UtcNow;
+        _lastActivity = DateTime.UtcNow;
         _working.Text = quiet ? "Sharing the work…" : "Reading the jobs' reports…";
         _ = SendAsync(text);
     }
@@ -168,6 +174,7 @@ internal sealed partial class ChatWindow
     /// </summary>
     private void ShowJobs()
     {
+        ShowAutopilotBanner();
         var jobs = JobsNow();
         foreach (var job in jobs.Where(j => j.Active || j.State == JobBoard.Queued))
         {

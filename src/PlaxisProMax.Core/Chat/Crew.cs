@@ -22,6 +22,15 @@ internal sealed class CrewHost
     public Action<PlanUsage> Usage = _ => { };
     /// <summary>The sign-in was lost while a job ran.</summary>
     public Action SignInLost = () => { };
+    /// <summary>An item for the main chat that isn't a plain note (the plan's Approve line, the autopilot's report).</summary>
+    public Action<ChatItem> AddItem = _ => { };
+    /// <summary>Ends the main chat's answer now, whatever it is doing (its process is ended); the note goes in the chat.</summary>
+    public Action<string> AbortMainTurn = _ => { };
+    /// <summary>When the main chat's Claude Code last said anything, and whether one of its steps runs (for a stuck answer).</summary>
+    public Func<DateTime> MainLastActivity = () => default;
+    public Func<bool> MainStepRunning = () => false;
+    /// <summary>Saves the project and copies it into a Backup folder beside it: the copy's path ("" when none).</summary>
+    public Func<Task<string>> Backup = () => Task.FromResult("");
 }
 
 /// <summary>
@@ -31,7 +40,7 @@ internal sealed class CrewHost
 /// the main chat's next turn. Everything here runs on the window's thread (<c>ui</c> posts to it); the MCP server reaches
 /// the board through <see cref="ChatJobs"/> from its own threads. Needs no WPF (the unit tests compile this file).
 /// </summary>
-internal sealed class Crew : IDisposable
+internal sealed partial class Crew : IDisposable
 {
     /// <summary>One job's run: its Claude Code process and what the run has said so far.</summary>
     private sealed class JobRun
@@ -117,6 +126,7 @@ internal sealed class Crew : IDisposable
         Board.AfterReload(DateTime.UtcNow);
         _chatKey = JobBoard.ChatKey(conv.Id);
         Hook();
+        HookAutopilot();
     }
 
     /// <summary>The MCP server reaches this chat's jobs (again after the chat's kind changed).</summary>
@@ -135,6 +145,7 @@ internal sealed class Crew : IDisposable
         if (_stopped) return;
         EndRuns("The chat was left, so this job stopped. Open the chat again and send it a message to carry on.", now: true);
         _stopped = true;
+        UnhookAutopilot();
         _reportTimer?.Dispose();
         _clock?.Dispose();
         ChatJobs.Boards.Remove(_chatKey);
@@ -222,6 +233,8 @@ internal sealed class Crew : IDisposable
     public void PumpJobs()
     {
         if (_stopped || _install() is null || !IsCoordinator || JobPause.On) return;
+        if (Run is { State: AutopilotRun.Paused }) return; // an autopilot paused at a usage limit starts nothing new
+        if (Run is { State: AutopilotRun.Planning or AutopilotRun.Approval }) Board.ReadOnlyUntilStarted(); // reading before the plan is approved
         foreach (var (job, message) in Board.ToStart(ChatJobs.Limit, DateTime.UtcNow)) _ = StartRun(job, message);
         if (_runs.Count > 0) _clock ??= Every(TimeSpan.FromSeconds(30), WatchJobs);
     }
@@ -356,6 +369,7 @@ internal sealed class Crew : IDisposable
         var rise = JobBudget.Rise(ref _fiveHourSeen, five?.Used, JobBudget.NewWindow(ref _fiveHourResets, five?.ResetsAt));
         if (job is not null && rise > 0) ChargeJob(job, JobBudget.ShareOf(rise, _runs.Count + (_host.MainBusy() ? 1 : 0)));
         _host.Usage(reported);
+        AutopilotUsage(reported);
     }
 
     private void OnJobResult(JobRun run, ResultEvent end)
@@ -413,6 +427,7 @@ internal sealed class Crew : IDisposable
             return;
         }
         if (end.IsError) Board.AddItem(run.Job, new ChatItem { Kind = "error", Text = summary }, now);
+        if (end.IsError && Autopilot.LostAccess(message)) AutopilotLostAccess(message);
         EndRun(run, kill: false, park: !end.IsError);
         Report(run.Job);
     }
@@ -448,6 +463,7 @@ internal sealed class Crew : IDisposable
             : "It stopped unexpectedly." + (detail.Length > 0 ? " " + detail : "") + " Send it a message to try again.";
         Board.RunEnded(run.Job, false, why, DateTime.UtcNow);
         Board.AddItem(run.Job, new ChatItem { Kind = "error", Text = why }, DateTime.UtcNow);
+        if (lost) AutopilotLostAccess(tail);
         Report(run.Job);
     }
 
@@ -482,7 +498,8 @@ internal sealed class Crew : IDisposable
     private void ChargeJob(string key, double rise)
     {
         double budget;
-        try { budget = JobBudget.Share(AgentSettings.Load().ChatJobBudget); }
+        // An autopilot's jobs have their own budget (Settings > Autopilot).
+        try { budget = JobBudget.Share(Run is { Active: true } ? AgentSettings.Load().AutopilotJobBudget : AgentSettings.Load().ChatJobBudget); }
         catch (Exception) { budget = JobBudget.Share(JobBudget.DefaultPercent); }
         if (Board.Charge(key, rise, budget, DateTime.UtcNow) is not { } job) return;
         if (_runs.TryGetValue(key, out var run)) EndRun(run, kill: true);
@@ -570,6 +587,22 @@ internal sealed class Crew : IDisposable
             _host.Save();
             return;
         }
+        // During a run nobody is there to press "try again": a job that ended with a problem is started again by itself
+        // (twice at most) before it counts as failed.
+        if (Run is { State: AutopilotRun.Running } && Autopilot.RetryMessage(job) is { } again)
+        {
+            job.AutoRetries++;
+            ActivityLog.Note("job_retry", $"job {job.Number} try {job.AutoRetries}: {JobBoard.OneLine(job.Summary, 200)}");
+            Board.Message(job.Number, again, now);
+            JobsChanged();
+            return;
+        }
+        // A goal reviewer's report goes to the run (GoalReview), not to the coordinator's chat.
+        if (job.GoalCheck > 0)
+        {
+            if (!job.Open) GoalCheckEnded(job);
+            return;
+        }
         // A teammate's check ended: the job it checked is reported now, with the verdict.
         if (job.ReviewOf > 0)
         {
@@ -588,7 +621,7 @@ internal sealed class Crew : IDisposable
         }
         if (job.State is not (JobBoard.Done or JobBoard.Failed) && !job.OverBudget || job.Review == JobReview.Pending) return;
         // Finished: a second worker checks the work in the project first (Settings > Chat).
-        if (job.State == JobBoard.Done && JobReview.Wanted(AgentSettings.Load().ChatJobReview, false, job)
+        if (job.State == JobBoard.Done && JobReview.Wanted(AgentSettings.Load().ChatJobReview, Run is { Active: true }, job)
             && Board.StartReview(job.Number, now, AskedWords(job.Created), _conv.Recall) is { } check)
         {
             ChatJobs.Assign(check, ChatAuto.Everyday);
@@ -619,13 +652,24 @@ internal sealed class Crew : IDisposable
     public void FlushReports()
     {
         if (_reports.Count == 0 || _stopped || _host.MainBusy()) return;
+        if (Run is { State: AutopilotRun.Paused }) return; // reviewed when the run carries on
         var jobs = Board.Snapshot();
         var done = _reports.Select(n => jobs.FirstOrDefault(j => j.Number == n)).OfType<ChatJob>().Where(j => j.State is JobBoard.Done or JobBoard.Failed || j.OverBudget).ToList();
         _reports.Clear();
         if (done.Count == 0) return;
         var open = jobs.Count(j => j.Active || j.State == JobBoard.Queued);
         _host.Note(done.Count == 1 ? $"Job {done[0].Number} finished and reported back." : $"Jobs {string.Join(", ", done.Select(j => j.Number))} finished and reported back.");
-        _host.MainTurn(JobBoard.Report(done, open), false);
+        var report = JobBoard.Report(done, open);
+        // An autopilot reviews the reports and carries on instead of telling the user.
+        if (Run is { State: AutopilotRun.Running } run && report.LastIndexOf("Tell the user", StringComparison.Ordinal) is var cut and > 0)
+        {
+            report = report.Substring(0, cut) + Autopilot.Review(run);
+            run.Idle = 0;
+        }
+        // Reading before the plan: the plan comes once every reading job has reported.
+        else if (Run is { State: AutopilotRun.Planning } && report.LastIndexOf("Tell the user", StringComparison.Ordinal) is var at and > 0)
+            report = report.Substring(0, at) + Autopilot.PlanReports(open);
+        _host.MainTurn(report, false);
     }
 
     /// <summary>
@@ -665,6 +709,7 @@ internal sealed class Crew : IDisposable
     private void ShareWithFreeWorkers()
     {
         if (_host.MainBusy() || _reports.Count > 0 || _stopped || !IsCoordinator || JobPause.On) return;
+        if (Run is { State: not AutopilotRun.Running and not AutopilotRun.Done and not AutopilotRun.Stopped }) return;
         var jobs = Board.Snapshot();
         if (FreeWorkers.ToShare(jobs, ChatJobs.Limit, _shareOffered) is not { } job) return;
         _shareOffered.Add(job.Number);
@@ -688,6 +733,8 @@ internal sealed class Crew : IDisposable
         if (_runs.Values.FirstOrDefault(r => r.Job.Number == number) is { } run) EndRun(run, kill: true);
         // A stopped check: the job it checked is reported without it.
         if (Board.Find(number) is { ReviewOf: > 0 } stopped && Board.ReviewEnded(stopped, DateTime.UtcNow) is { } checkedJob) Report(checkedJob);
+        // A stopped goal reviewer: its round is judged without it (it counts as not able to tell).
+        if (Board.Find(number) is { GoalCheck: > 0 } reviewer) GoalCheckEnded(reviewer);
         JobsChanged();
         return true;
     }

@@ -66,7 +66,8 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
 
         // Header: the mark, the name, what Plaxis is open, and New chat / Settings.
         var newChat = Brand.Button("New chat");
-        newChat.Click += (_, _) => NewChat();
+        newChat.ToolTip = "A new chat, or a new autopilot chat that works on its own to a goal";
+        newChat.Click += (_, _) => NewChatMenu(newChat);
         var settings = Brand.Button("Settings");
         settings.Click += (_, _) => ShowSettings();
         var title = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(ChatUi.S2, 0, 0, 0) };
@@ -127,6 +128,9 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         var strip = Strip();
         DockPanel.SetDock(strip, Dock.Top);
         root.Children.Add(strip);
+        var autoBanner = AutopilotBanner();
+        DockPanel.SetDock(autoBanner, Dock.Top);
+        root.Children.Add(autoBanner);
         root.Children.Add(foot);
         var crewBar = CrewBar();
         DockPanel.SetDock(crewBar, Dock.Bottom);
@@ -287,7 +291,13 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
 
     private void SendOrStop()
     {
-        if (_busy) { Stop(); return; }
+        if (_busy)
+        {
+            // While a run works, Stop on the composer ends the run (not only this answer, which it would start again).
+            if (_crew is { Run.State: AutopilotRun.Running } crew) crew.AutopilotStop("you pressed Stop");
+            else Stop();
+            return;
+        }
         Send(_input.Text.Trim(), typed: true);
     }
 
@@ -316,10 +326,17 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         }
         AddItem(new ChatItem { Kind = "user", Text = text, Time = DateTime.UtcNow });
         if (_conversation.Items.Count(i => i.Kind == "user") == 1) _conversation.Name = ChatHistory.AutoTitle(text);
+        // An autopilot chat: the goal goes to the coordinator as a request for a plan; "stop" ends a run; anything typed
+        // to a paused or ended run carries it on.
+        var handled = false;
+        var plan = _crew?.AutopilotSend(text, out handled);
+        if (handled) return;
         _mcp().NewTask();
         _strip.Heard();
         SetBusy(true);
         _turnStart = DateTime.UtcNow;
+        _lastActivity = DateTime.UtcNow;
+        if (plan is not null) { _ = SendAsync(plan); return; }
         // A coordinator hears with each message which jobs are at work and what they changed so far (JobTruth).
         _ = SendAsync(text + (IsCoordinator && _crew is { } crew ? JobTruth.Note(crew.Board.Snapshot()) : ""));
     }
@@ -359,6 +376,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         var engine = _engine;
         if (engine is null) { SetBusy(false); return; }
         _working.Text = "Stopping…";
+        _stopping = true;
         _ = engine.InterruptAsync();
         // An interrupt that isn't answered in a few seconds ends the process; the next message resumes the chat.
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(6) };
@@ -369,7 +387,9 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
             engine.Kill();
             _engine = null;
             Note("Stopped.");
+            _stopping = false;
             SetBusy(false);
+            _crew?.AutopilotTurnEnded(stopped: true, ok: false);
         };
         timer.Start();
     }
@@ -383,6 +403,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
 
     private void OnEvent(ChatEvent e)
     {
+        _lastActivity = DateTime.UtcNow;
         switch (e)
         {
             case InitEvent init:
@@ -443,6 +464,10 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
             else if (SignInHealth.LooksExpired(said)) Error("Your Claude sign-in has expired. Sign in again in Settings > Claude, then send your message again.");
             else if (result.Subtype != "error_during_execution" || said.Length > 0) Error(said.Length > 0 ? said : "The answer stopped: " + result.Subtype);
         }
+        var failed = result.IsError && result.Subtype != "success";
+        var lost = failed ? string.Join(" ", result.Errors.Prepend(result.Text)).Trim() : "";
+        var stopped = _stopping;
+        _stopping = false;
         SetBusy(false);
         ChatUi.FlashIfAway(this);
         Save();
@@ -450,6 +475,9 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         _turnText.Clear();
         SendQueuedFromPhone();
         AfterTurn(result);
+        // A run in this chat: the plan waits for Approve, the run carries on, or its goal is reviewed.
+        if (lost.Length > 0 && Autopilot.LostAccess(lost)) _crew?.AutopilotLostAccess(lost);
+        else _crew?.AutopilotTurnEnded(stopped, !failed);
     }
 
     private void OnExited(string errors)
@@ -457,8 +485,11 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         _engine = null;
         if (!_busy) return;
         Error("The chat stopped" + (errors.Length > 0 ? ": " + errors.Split('\n').Last().Trim() : ".") + " Send your message again to carry on.");
+        _stopping = false;
         SetBusy(false);
         Save();
+        if (Autopilot.LostAccess(errors)) _crew?.AutopilotLostAccess(errors);
+        else _crew?.AutopilotTurnEnded(stopped: false, ok: false);
     }
 
     private void Save()
@@ -504,6 +535,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
             case "tool": AddStepRow(item.Name, item.Text, item.State); break;
             case "pjob": _messages.Children.Add(ParallelJobCardFor(item)); break;
             case "error": AddNote(item.Text, Brand.K.DangerText); break;
+            case "note" when item.Name == Crew.ApproveNote: _messages.Children.Add(ApproveCard(item)); break;
             default: AddNote(item.Text, Brand.K.Muted); break;
         }
     }

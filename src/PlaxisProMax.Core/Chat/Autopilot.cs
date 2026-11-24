@@ -57,7 +57,7 @@ internal sealed class AutopilotRun
     /// <summary>Paused because the connection dropped (ConnectionWatch.Internet or .Network; "" otherwise), and since when.</summary>
     public string Offline { get; set; } = "";
     public DateTime OfflineSince { get; set; }
-    /// <summary>Paused because the model it works on (its chat's) isn't open in this Revit: Resume once it is open again.</summary>
+    /// <summary>Paused because the model it works on (its chat's) isn't open in this Plaxis: Resume once it is open again.</summary>
     public bool ModelGone { get; set; }
 
     public bool Active => State is Running or Paused;
@@ -66,7 +66,7 @@ internal sealed class AutopilotRun
 /// <summary>
 /// Autopilot: the user gives a goal and approves the coordinator's plan once; from then on the coordinator hands out
 /// jobs, reviews their reports, sends fixes and next parts, and writes a report when the goal is met, without asking
-/// anyone. Nothing waits on a click: Revit's warnings are dismissed, errors roll the step back, dialogs get their safe
+/// anyone. Nothing waits on a click: Plaxis's warnings are dismissed, errors roll the step back, dialogs get their safe
 /// button, risky approvals are refused and listed. It pauses near a usage limit and carries on when it resets. The
 /// rules here are plain functions, tested; the pane (ChatPane.Autopilot) runs them.
 /// </summary>
@@ -86,7 +86,7 @@ internal static class Autopilot
 
     /// <summary>
     /// True while popups and approvals are answered for the user: an approved run works in this window's chat, or in
-    /// another Revit window's chat that reaches this one (AutopilotShare: a documentation model linking the working model).
+    /// another Plaxis window's chat that reaches this one (AutopilotShare: a documentation model linking the working model).
     /// </summary>
     public static bool Unattended => Here || AutopilotShare.Remote(DateTime.UtcNow) is not null;
 
@@ -103,12 +103,12 @@ internal static class Autopilot
             if (Here) Logged?.Invoke(kind, text);
             // For another window's run: written for its report, saying which model it was in.
             else if (AutopilotShare.Remote(DateTime.UtcNow) is { } run)
-                AutopilotShare.AppendLog(run, kind, (ModelTitle?.Invoke() is { Length: > 0 } model ? $"[{model}] " : "[other Revit window] ") + text, DateTime.UtcNow);
+                AutopilotShare.AppendLog(run, kind, (ModelTitle?.Invoke() is { Length: > 0 } model ? $"[{model}] " : "[other Plaxis window] ") + text, DateTime.UtcNow);
         }
         catch (Exception) { /* a log line must never break the call */ }
     }
 
-    /// <summary>A run's id across the Revit windows: its chat and when it started.</summary>
+    /// <summary>A run's id across the Plaxis windows: its chat and when it started.</summary>
     public static string RunId(string chatId, AutopilotRun run) => chatId + ":" + run.Started.Ticks.ToString(CultureInfo.InvariantCulture);
 
     // ---- What the coordinator is told ----------------------------------------------------------------------------------
@@ -124,7 +124,7 @@ internal static class Autopilot
         "[Autopilot goal from the user]\n" + goal.Trim() + "\n\n" +
         "Plan it. The user will approve the plan once and then be away: after that nobody answers questions. So read first: " +
         "start read-only jobs side by side (chat_jobs start; they can't change anything before the plan is approved) to read " +
-        "what the goal depends on: the attached files, the drawings and folders it names, CAD files and the models, so that " +
+        "what the goal depends on: the attached files (site investigation and interpretive reports, borehole logs, drawings, the design basis), the folders it names and the open Plaxis project, so that " +
         "every question shows up now and not hours later. Keep what they find: the work after approval builds on it. When " +
         "they have all reported, answer with a short plan: the parts you will hand to workers (in order, side by side where " +
         "they can be), how you will check each part, and how you will know the goal is met. Work out the best way to reach " +
@@ -211,7 +211,7 @@ internal static class Autopilot
     /// </summary>
     public static readonly TimeSpan TurnStuck = TimeSpan.FromMinutes(10);
 
-    /// <summary>The same while one of its steps runs in Revit (a long change in the model is quiet too).</summary>
+    /// <summary>The same while one of its steps runs in Plaxis (a long change in the model is quiet too).</summary>
     public static readonly TimeSpan ToolStuck = TimeSpan.FromMinutes(30);
 
     /// <summary>After the connection came back: an answer or job with no word since gets this long.</summary>
@@ -223,7 +223,7 @@ internal static class Autopilot
     /// <summary>
     /// True when an answer whose last word came at <paramref name="lastWord"/> is stuck: nothing since the connection came
     /// back (<paramref name="reconnected"/>, default when it didn't drop) for <see cref="AfterReconnect"/>, or nothing for
-    /// <see cref="TurnStuck"/> (<see cref="ToolStuck"/> while a step runs in Revit).
+    /// <see cref="TurnStuck"/> (<see cref="ToolStuck"/> while a step runs in Plaxis).
     /// </summary>
     public static bool Stalled(DateTime lastWord, DateTime now, bool stepRunning, DateTime reconnected)
     {
@@ -234,7 +234,7 @@ internal static class Autopilot
     /// <summary>
     /// A job of the run (from <paramref name="jobsBefore"/>) that said nothing since the connection came back, for
     /// <see cref="AfterReconnect"/>: its Claude Code lost the connection mid-answer and is restarted with ConnectionWatch.CarryOnLine.
-    /// Never a reviewer, nor one whose step runs in Revit or that waits its turn there (JobWatch judges those).
+    /// Never a reviewer, nor one whose step runs in Plaxis or that waits its turn there (JobWatch judges those).
     /// </summary>
     public static bool JobStalled(ChatJob job, int jobsBefore, DateTime reconnected, DateTime now) =>
         reconnected != default && job.Number > jobsBefore && job.GoalCheck == 0 && job.State == JobBoard.Running
@@ -287,16 +287,16 @@ internal static class Autopilot
         return words.Skip(at + 1).All(StopRest.Contains);
     }
 
-    /// <summary>True when the run's model (<paramref name="runKey"/>, "" when none) is among the models open in this Revit.</summary>
+    /// <summary>True when the run's model (<paramref name="runKey"/>, "" when none) is among the models open in this Plaxis.</summary>
     public static bool ModelOpen(string runKey, IEnumerable<string> openKeys) =>
         runKey.Length == 0 || openKeys.Any(k => string.Equals(k, runKey, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>The pause's reason when the run's model isn't open (<paramref name="title"/>: its name).</summary>
-    public static string ModelGoneWhy(string title) => $"{title}, the model it works on, isn't open in this Revit";
+    public static string ModelGoneWhy(string title) => $"{title}, the model it works on, isn't open in Plaxis";
 
     /// <summary>The note (chat, log and phone) when the run pauses because its model isn't open.</summary>
     public static string ModelGoneNote(string title) =>
-        $"Autopilot paused: {title}, the model it works on, isn't open in this Revit any more. The chat is free to leave. Open {title} " +
+        $"Autopilot paused: {title}, the model it works on, isn't open in Plaxis any more. The chat is free to leave. Open {title} " +
         "again, then press Resume (or type \"continue\") in this chat to carry on, or Stop to end it.";
 
     /// <summary>Times a job that ended with a problem is started again by itself during a run, before it is reported.</summary>
@@ -315,7 +315,7 @@ internal static class Autopilot
         if (System.Text.RegularExpressions.Regex.IsMatch(why, @"usage limit", System.Text.RegularExpressions.RegexOptions.IgnoreCase) || LostAccess(why)) return null;
         return $"[Autopilot, try {job.AutoRetries + 1} of {MaxRetries}] Your last run ended with a problem: " + Clip(JobBoard.OneLine(why, 400), 400) +
                " Try again now and finish your task. Carry on from where you stopped (what you found or changed stays); work " +
-               "in smaller steps (fewer elements, views or sheets at a time); if a tool keeps failing, get the same thing " +
+               "in smaller steps (fewer objects, phases or result types at a time); if a tool keeps failing, get the same thing " +
                "another way. Don't end without your report.";
     }
 
@@ -372,18 +372,16 @@ internal static class Autopilot
         "task of every job whose part they touch; a job only knows what its task says.\n" +
         "- Work as a senior engineer who owns the result: choose the best way to reach the goal, not merely the safest. " +
         "Never ask the user anything and never wait for an answer; make the call a senior would, keep assumptions to the " +
-        "few the goal needs, and list them under \"Decisions I made\" in the final report. Only a choice that would change the " +
-        "result a lot and that the goal doesn't settle may go to the user's phone (ask_user, with the answer you assume): " +
-        "carry on meanwhile; their reply, even a late one, reaches the job to put the work right.\n" +
-        "- You may change and delete whatever the goal needs; a backup copy of the model was saved before you started.\n" +
+        "few the goal needs, and list them under \"Decisions I made\" in the final report.\n" +
+        "- You may change and delete whatever the goal needs; a backup copy of the project was saved before you started.\n" +
         "- Hand the work to jobs, divided across the free workers; review each report like a senior reviewer and send back " +
         "what is wrong or not good enough.\n" +
-        "- A step Revit refuses is undone; find another way, and skip it only when there is none (list it).\n" +
+        "- A command Plaxis refuses changes nothing; find another way, and skip it only when there is none (list it).\n" +
         "- Never stop to wait for the user's confirmation or go-ahead, even where an earlier message or a brief says to wait: " +
         "the run only stops when the goal is met, a limit pauses it or the user presses Stop. A choice you'd ask about: make it, " +
         "carry on, and list it under Decisions I made.\n" +
         "- Keep every worker busy: never hold parts back for a slow job. Start every part that doesn't depend on it; a big part " +
-        "with several steps is split across the free workers (changes still go into Revit one at a time, by themselves).\n" +
+        "with several steps is split across the free workers (Plaxis takes one command at a time, so the project changes go to one job at a time; the others read, work out parameters, read results and write files).\n" +
         "- When you say the goal is met, a review team checks every item the user asked for in the models and files. What " +
         "they find not done comes back to you, so finish everything the user asked for, not only the easy parts.\n" +
         "- Final report, when the goal is met: Done (what was done, with counts), Checked (what you verified and how), " +
@@ -395,10 +393,7 @@ internal static class Autopilot
 
         - Autopilot: nobody is at the computer. Never end with a question and never wait for an answer. Work as a senior
           engineer: where you would ask, make the best call for the goal (not merely the safest), change or delete what
-          the task needs, and say in your report what you decided and why. A backup of the model was saved first.
-          Only a choice that would change the result a lot and that the task doesn't settle may go to the user's phone:
-          ask_user with the question and the answer you assume, then carry on with work that doesn't depend on it (or
-          ask_user action=wait); a reply that comes later reaches you as a message, to put the work right.
+          the task needs, and say in your report what you decided and why. A backup of the project was saved first.
         """;
 
     // ---- Answering for the user ----------------------------------------------------------------------------------------
@@ -411,10 +406,10 @@ internal static class Autopilot
         (true, reason.Trim().Length > 0 ? "allowed while you were away: " + Trim(reason) : "allowed while you were away");
 
     /// <summary>
-    /// The answer to a Revit dialog nobody is there to click: Cancel where there is one (the step is undone and the
+    /// The answer to a Plaxis dialog nobody is there to click: Cancel where there is one (the step is undone and the
     /// worker finds another way), else No, else OK
     /// (Win32 IDOK 1, IDCANCEL 2, IDABORT 3, IDNO 7). <paramref name="messageBoxType"/>: a message box's MB_ type, or -1 for
-    /// a task dialog or another Revit dialog (both cancelled).
+    /// a task dialog or another Plaxis dialog (both cancelled).
     /// </summary>
     public static int SafeResult(int messageBoxType) => (messageBoxType & 0xF) switch
     {
@@ -441,23 +436,23 @@ internal static class Autopilot
         run.Updating.Length > 0 && Version.TryParse(run.Updating, out var wanted)
         && new Version(current.Major, current.Minor, Math.Max(current.Build, 0)) >= new Version(wanted.Major, wanted.Minor, Math.Max(wanted.Build, 0));
 
-    // ---- Revit stuck --------------------------------------------------------------------------------------------------
+    // ---- Plaxis stuck --------------------------------------------------------------------------------------------------
 
-    /// <summary>Revit "Not responding" this long with no activity at all during a run: restarted on the same model.</summary>
+    /// <summary>Plaxis "Not responding" this long with no activity at all during a run: restarted on the same model.</summary>
     public static readonly TimeSpan RestartWhenStuck = TimeSpan.FromMinutes(10);
 
-    /// <summary>Revit busy (the processor, memory or files moving) but not responding this long: restarted too.</summary>
+    /// <summary>Plaxis busy (the processor, memory or files moving) but not responding this long: restarted too.</summary>
     public static readonly TimeSpan RestartWhenBusy = TimeSpan.FromMinutes(45);
 
     /// <summary>
-    /// Whether an autopilot restarts a hung Revit by itself: Revit not responding for <see cref="RestartWhenStuck"/> while
-    /// doing nothing at all, or for <see cref="RestartWhenBusy"/> while working; long work Revit is known to do
+    /// Whether an autopilot restarts a hung Plaxis by itself: Plaxis not responding for <see cref="RestartWhenStuck"/> while
+    /// doing nothing at all, or for <see cref="RestartWhenBusy"/> while working; long work Plaxis is known to do
     /// (<paramref name="longWork"/>: synchronizing, opening, saving, loading links) gets the longer time either way.
     /// </summary>
     public static bool RestartAfterHang(bool unattended, bool notResponding, TimeSpan lasted, bool idle, bool longWork) =>
         unattended && notResponding && lasted >= (idle && !longWork ? RestartWhenStuck : RestartWhenBusy);
 
-    /// <summary>What the coordinator is told when the run carries on after Revit was started again.</summary>
+    /// <summary>What the coordinator is told when the run carries on after Plaxis was started again.</summary>
     public static string Recovered(AutopilotRun run, string why) =>
         "[Autopilot, not typed by the user] " + why + " The jobs that were working were told to carry on; a change that was " +
         "being applied may not be in the model. Check the model where it matters, then carry on toward the goal. " + Words(run);
@@ -586,7 +581,7 @@ internal static class Autopilot
 /// <summary>
 /// The review team (Autopilot): when the coordinator says the goal is met, reviewers (read-only jobs) check every item the
 /// user asked for in the models and files, not in the reports. All met: the run ends. Anything not done goes back to the
-/// coordinator, who carries on, and the team checks again, up to <see cref="MaxRounds"/> times. Needs no WPF or Revit
+/// coordinator, who carries on, and the team checks again, up to <see cref="MaxRounds"/> times. Needs no WPF or Plaxis
 /// (the unit tests compile this file).
 /// </summary>
 internal static class GoalReview
@@ -600,12 +595,11 @@ internal static class GoalReview
     /// <summary>The team: each reviewer takes one side of the goal, side by side.</summary>
     public static readonly (string Title, string Scope)[] Parts =
     [
-        ("Review: modelling", "the modelling: elements, geometry, levels, voids and openings, parameters and marks, bills " +
-                              "and quantities, links, clashes. Check the model in this window and any other model the goal names."),
-        ("Review: drawings and files", "the drawings and deliverables: sheets and their grouping, views, tags, dimensions, " +
-                                       "annotation, revisions and dates, schedules, and exported files (PDF sets, lists, " +
-                                       "bills). The sheets may be in a documentation model open in another Revit window " +
-                                       "(list_revit_models), so check there too."),
+        ("Review: the model", "the model: boreholes and soil layers, materials and their parameters, structures, loads, water levels, " +
+                              "the mesh, and the phases with what is active in each. Check it in the open Plaxis project."),
+        ("Review: calculation, results and files", "the calculation and the deliverables: how each phase ended (list_phases), the results " +
+                                       "the goal asks for against what Output gives (get_results), and the files written " +
+                                       "(Excel and CSV exports, the report)."),
     ];
 
     /// <summary>A reviewer's task: the goal in full, the plan's checks, the coordinator's claims, and how to answer.</summary>
@@ -619,7 +613,7 @@ internal static class GoalReview
         "1. List every thing the user asked for on your side, one line each, from the goal, their answers and what they wrote since, " +
         "including HOW they said to do it (not from the plan or the report).\n" +
         "2. Check each one in the models and files with Plaxis ProMax's tools: count it, read it, look at it. A report saying it is done is not proof.\n" +
-        "An item the user later said to hold, skip or leave (exports, clash re-runs, a berth not to touch) is not a gap: leave it out.\n" +
+        "An item the user later said to hold, skip or leave (exports, a re-calculation, a phase not to touch) is not a gap: leave it out.\n" +
         "3. An item is NOT DONE when it is missing, partly done, done differently from what the user said, or left for later, " +
         "\"to confirm\" or \"flagged\" when the user didn't allow that. An assumption is fine only where the goal left the choice open.\n" +
         "4. Don't change anything (your changes are refused): you only check.\n\n" +

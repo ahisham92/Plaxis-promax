@@ -113,7 +113,13 @@ internal sealed class ChatMcp : IDisposable
         var remembered = (ICollection<string>?)settings.NoAskTools ?? [];
         var decision = ApprovalPolicy.Decide(name, tool.ModifiesModel, false, args, true, facts, settings.Approvals, remembered,
             _taskApproved, Probe, [OutputFolder]);
-        if (decision.Ask)
+        // An autopilot works with nobody at the computer: the user approved the goal and a backup was saved first, so the
+        // change is allowed and kept in the run's log for its report.
+        if (decision.Ask && Autopilot.Unattended)
+        {
+            Autopilot.Log(AutopilotEntry.Allowed, $"{ApprovalPolicy.Friendly(name)}: {Autopilot.Allows(decision.Reason).Why}");
+        }
+        else if (decision.Ask)
         {
             // A job's card says whose it is ("Job 2: Soil layers").
             var title = jobKey is null ? ApprovalPolicy.Friendly(name) : $"{ChatJobs.AskerName(jobKey)}: {ApprovalPolicy.Friendly(name)}";
