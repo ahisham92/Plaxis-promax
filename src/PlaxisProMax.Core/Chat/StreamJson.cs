@@ -325,7 +325,7 @@ internal sealed class StreamParser
         return new ResultEvent(subtype, isError, Str(root, "result"), Str(root, "session_id"), input, output, errors, cost, apiMs);
     }
 
-    /// <summary>"mcp__sketch-promax__create_walls" → "create_walls"; built-in tools keep their name.</summary>
+    /// <summary>"mcp__plaxis-promax__create_boreholes" → "create_boreholes"; built-in tools keep their name.</summary>
     public static string ShortName(string tool)
     {
         if (!tool.StartsWith("mcp__", StringComparison.Ordinal)) return tool;

@@ -1,0 +1,39 @@
+# Builds the Windows app and runs every check on each push and pull request: the worker's tests and the C# checks run
+# against a stand-in Plaxis (tests/fake_plaxis), so no Plaxis licence is needed. The built app is kept as an artifact.
+name: CI
+
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Worker tests (stand-in Plaxis)
+        run: python -m unittest discover -s tests/worker -v
+      - name: Checks (approvals, kept code, MCP, Plaxis link, chat engine)
+        run: dotnet run --project tests/PlaxisProMax.Tests -c Release
+      - name: Build the app
+        shell: pwsh
+        run: .\build.ps1
+      - name: Package
+        shell: pwsh
+        run: |
+          $pkg = "package\PlaxisProMax"
+          New-Item -ItemType Directory -Force $pkg | Out-Null
+          Copy-Item dist $pkg -Recurse
+          Copy-Item install.ps1, Install.cmd, README.md $pkg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PlaxisProMax-build
+          path: package

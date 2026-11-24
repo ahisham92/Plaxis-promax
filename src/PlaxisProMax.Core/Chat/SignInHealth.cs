@@ -77,7 +77,7 @@ internal static class SignInHealth
         "Send your message again in a minute; if it keeps happening, check the internet or VPN, or ask IT why the page is blocked.";
 
     /// <summary>The chat's folder (ClaudeCli.Folder); a test points it at a temporary one.</summary>
-    internal static string Folder { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SketchProMax", "chat");
+    internal static string Folder { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PlaxisProMax", "chat");
 
     private static string MarkerFile => Path.Combine(Folder, "signin-failed.txt");
 

@@ -17,6 +17,7 @@ Section("mcp http", McpHttpTests.Run);
 Section("plaxis link", PlaxisLinkTests.Run);
 Section("chat mcp", ChatMcpTests.Run);
 Section("chat engine", ChatEngineTests.Run);
+Section("install", InstallTests.Run);
 
 Console.WriteLine(failures == 0 ? "All checks passed." : $"{failures} check(s) failed.");
 return failures;

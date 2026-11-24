@@ -14,42 +14,26 @@ internal static class StepNames
     // Tools whose id doesn't read well as words. Anything else is its id in sentence case ("Tag elements in view").
     private static readonly Dictionary<string, string> Names = new(StringComparer.Ordinal)
     {
-        ["run_revit_query_code"] = "Read model data",
-        ["run_revit_code"] = "Change the model",
-        ["query_elements"] = "Find elements",
-        ["query_linked_models"] = "Read linked models",
-        ["get_model_context"] = "Look at the model",
-        ["get_element_parameters"] = "Read parameters",
-        ["get_coordinates"] = "Read coordinates",
-        ["get_activity_log"] = "Read the activity log",
-        ["get_drawing_package_plan"] = "Plan the drawing package",
-        ["capture_view_image"] = "Take a picture of the view",
-        ["select_elements"] = "Select elements",
-        ["set_parameters"] = "Set parameters",
-        ["delete_elements"] = "Delete elements",
-        ["move_copy_rotate"] = "Move, copy or rotate",
-        ["wait_for_job"] = "Wait for the job",
-        ["cancel_job"] = "Stop the job",
-        ["memory_note"] = "Save a note",
-        ["read_document_text"] = "Read a document",
-        ["berth_status"] = "Submissions status",
-        ["submission_format"] = "Submission format",
-        ["berth_costing"] = "Berth costing",
-        ["help"] = "Read the guide",
-        ["features"] = "List what it can do",
-        ["diagnostics"] = "Check the setup",
-        ["ve"] = "Value engineering",
-        ["ve_apply"] = "Apply value engineering",
-        ["ve_view"] = "Value engineering view",
-        ["ve_register"] = "Value engineering register",
-        ["ve_opportunities"] = "Find value engineering ideas",
-        ["ve_compare_options"] = "Compare value engineering options",
-        ["what_if"] = "What if",
-        ["read_pdf_part"] = "Read a part of the PDF",
-        ["chat_jobs"] = "Jobs",
-        ["chat_questions"] = "Questions for you",
-        ["ask_user"] = "Ask you on your phone",
-        ["make_document"] = "Make a file",
+        ["status"] = "Look at Plaxis",
+        ["list_model"] = "List the model",
+        ["inspect"] = "Read an object",
+        ["list_phases"] = "Read the phases",
+        ["get_results"] = "Read results",
+        ["run_commands"] = "Run Plaxis commands",
+        ["go_to_mode"] = "Switch mode",
+        ["soil_contour"] = "Set the soil contour",
+        ["create_soil_material"] = "Make a soil material",
+        ["create_boreholes"] = "Make boreholes",
+        ["generate_mesh"] = "Generate the mesh",
+        ["add_phase"] = "Add a phase",
+        ["calculate"] = "Calculate",
+        ["undo"] = "Undo",
+        ["new_project"] = "New project",
+        ["open_project"] = "Open a project",
+        ["save_project"] = "Save the project",
+        ["find_kept_code"] = "Look for kept code",
+        ["run_plaxis_code"] = "Run code in Plaxis",
+        ["remember_rule"] = "Keep a rule",
         // Built-in steps of the chat engine.
         ["Read"] = "Read a file",
         ["Write"] = "Write a file",
@@ -144,20 +128,19 @@ internal static class StepNames
 
     /// <summary>
     /// The status line while a step runs: "Running: Set 79 selected pile tops…". A step that may change the model adds
-    /// "If Revit asks, answer it there." unless nothing ever asks (the Always allow approval level).
+    /// "If it asks, answer the card below." unless nothing ever asks (the Always allow approval level).
     /// </summary>
     public static string Running(string tool, string text, bool mayAsk)
     {
         var what = Line(tool, text).TrimEnd('…', '.', ' ');
-        return "Running: " + what + "…" + (mayAsk ? " If Revit asks, answer it there." : "");
+        return "Running: " + what + "…" + (mayAsk ? " If it asks, answer the card below." : "");
     }
 
     /// <summary>True for steps that only read (no approval is ever asked for them).</summary>
     public static bool ReadOnly(string tool)
     {
         tool = Short(tool);
-        return tool is "run_revit_query_code" or "query_elements" or "query_linked_models" or "capture_view_image" or "select_elements"
-                   or "wait_for_job" or "cancel_job" or "chat_jobs" or "chat_questions" or "ask_user" or "help" or "features" or "memory_note" or "diagnostics" or "make_document"
+        return tool is "status" or "inspect" or "remember_rule"
                    or "Read" or "Glob" or "Grep" or "LS" or "TodoWrite" or "TaskCreate" or "TaskUpdate" or "WebFetch" or "WebSearch" or "ToolSearch"
                || tool.StartsWith("get_", StringComparison.Ordinal) || tool.StartsWith("list_", StringComparison.Ordinal)
                || tool.StartsWith("find_", StringComparison.Ordinal) || tool.StartsWith("read_", StringComparison.Ordinal);
