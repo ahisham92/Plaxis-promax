@@ -24,6 +24,7 @@ Section("chat mcp", ChatMcpTests.Run);
 Section("chat engine", ChatEngineTests.Run);
 Section("install", InstallTests.Run);
 Section("license", c => LicenseTests.Run(root, c));
+Section("iris", IrisTests.Run);
 
 Console.WriteLine(failures == 0 ? "All checks passed." : $"{failures} check(s) failed.");
 return failures;

@@ -19,7 +19,7 @@ namespace PlaxisProMax;
 /// names) in a window of its own, so a long Plaxis call never freezes it (Sketch ProMax bug 110). Approval cards show
 /// inline and never block: the call waits, the window doesn't (bugs 79, 80, 112).
 /// </summary>
-internal sealed class ChatWindow : Window, IApprovalAsker
+internal sealed partial class ChatWindow : Window, IApprovalAsker
 {
     private readonly PlaxisLink _link;
     private readonly PlaxisInstall.StartArgs _start;
@@ -39,6 +39,7 @@ internal sealed class ChatWindow : Window, IApprovalAsker
     private Conversation _conversation;
     private bool _busy;
     private MarkdownView? _lastAnswer;
+    private readonly System.Text.StringBuilder _turnText = new();
 
     public ChatWindow(PlaxisLink link, PlaxisInstall.StartArgs start, Func<ChatMcp> mcp)
     {
@@ -102,6 +103,9 @@ internal sealed class ChatWindow : Window, IApprovalAsker
         var sendRow = Brand.ButtonRow(attach, _send);
         DockPanel.SetDock(sendRow, Dock.Right);
         row.Children.Add(sendRow);
+        var pill = PhonePill();
+        DockPanel.SetDock(pill, Dock.Left);
+        row.Children.Add(pill);
         row.Children.Add(_working);
         _working.VerticalAlignment = VerticalAlignment.Center;
         var composer = new StackPanel { Margin = new Thickness(ChatUi.S3) };
@@ -132,6 +136,7 @@ internal sealed class ChatWindow : Window, IApprovalAsker
         // The owner's later changes (cancelled keys, earlier end dates), then the License window if this PC is locked.
         _ = Task.Run(() => LicenseState.RefreshChangesAsync(CancellationToken.None));
         LicenseWindow.BlockIfLocked();
+        StartPhone();
         await ConnectPlaxisAsync();
         await FindClaudeAsync();
     }
@@ -263,8 +268,13 @@ internal sealed class ChatWindow : Window, IApprovalAsker
     private void SendOrStop()
     {
         if (_busy) { Stop(); return; }
-        var text = _input.Text.Trim();
-        if (text.Length == 0 && _attached.Count == 0) return;
+        Send(_input.Text.Trim(), typed: true);
+    }
+
+    /// <summary>Sends <paramref name="text"/> with the attached files (typed here, or written on the phone).</summary>
+    private void Send(string text, bool typed)
+    {
+        if (text.Length == 0 && (!typed || _attached.Count == 0)) return;
         // A PC without a valid key: the License window, and nothing is sent (as in Sketch ProMax).
         if (LicenseWindow.BlockIfLocked())
         {
@@ -276,11 +286,14 @@ internal sealed class ChatWindow : Window, IApprovalAsker
             Note("Claude Code isn't ready yet: install it or sign in with the card above.");
             return;
         }
-        if (_attached.Count > 0)
-            text += "\n\nAttached files:\n" + string.Join("\n", _attached.Select(f => "- " + f));
-        _input.Clear();
-        _attached.Clear();
-        _attachments.Children.Clear();
+        if (typed)
+        {
+            if (_attached.Count > 0)
+                text += "\n\nAttached files:\n" + string.Join("\n", _attached.Select(f => "- " + f));
+            _input.Clear();
+            _attached.Clear();
+            _attachments.Children.Clear();
+        }
         AddItem(new ChatItem { Kind = "user", Text = text, Time = DateTime.UtcNow });
         if (_conversation.Items.Count(i => i.Kind == "user") == 1) _conversation.Name = ChatHistory.AutoTitle(text);
         _mcp().NewTask();
@@ -359,6 +372,7 @@ internal sealed class ChatWindow : Window, IApprovalAsker
                 break;
             case AssistantTextEvent text:
                 AddAnswer(text.Text);
+                _turnText.Append(text.Text).Append("\n\n");
                 break;
             case ToolUseEvent use:
                 Step(use.Id, use.Name, use.InputJson);
@@ -383,7 +397,10 @@ internal sealed class ChatWindow : Window, IApprovalAsker
         // Keep the streamed answer as one item in the saved chat.
         foreach (var view in _streams.Values)
             if (view.Tag is string { Length: > 0 } text)
+            {
                 _conversation.Items.Add(new ChatItem { Kind = "assistant", Text = text, Time = DateTime.UtcNow });
+                _turnText.Append(text).Append("\n\n");
+            }
         _streams.Clear();
         if (result.SessionId.Length > 0) _conversation.SessionId = result.SessionId;
         if (result.IsError && result.Subtype != "success")
@@ -397,6 +414,9 @@ internal sealed class ChatWindow : Window, IApprovalAsker
         SetBusy(false);
         ChatUi.FlashIfAway(this);
         Save();
+        ReplyToPhone(_turnText.ToString());
+        _turnText.Clear();
+        SendQueuedFromPhone();
     }
 
     private void OnExited(string errors)
@@ -599,12 +619,15 @@ internal sealed class ChatWindow : Window, IApprovalAsker
             _messages.Children.Add(card);
             ScrollToEnd();
             ChatUi.FlashIfAway(this);
+            long phoneId = 0;
             void Answer(ApprovalAnswer a, string said)
             {
                 if (!answer.TrySetResult(a)) return;
                 buttons.IsEnabled = false;
                 panel.Children.Add(ChatUi.Small(said));
+                SettleOnPhone(ref phoneId, said);
             }
+            AskOnPhone(request, id => phoneId = id, (a, said) => Answer(a, said + " (on your phone)"));
             allow.Click += (_, _) => Answer(ApprovalAnswer.Allow, "Allowed.");
             task.Click += (_, _) => Answer(ApprovalAnswer.AllowRestOfTask, "Allowed for the rest of this task.");
             never.Click += (_, _) => Answer(ApprovalAnswer.DontAskAgain, "Allowed; it won't ask again for this (Settings can undo that).");
