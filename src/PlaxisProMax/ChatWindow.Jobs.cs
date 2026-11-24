@@ -308,11 +308,11 @@ internal sealed class JobWindow : Window
 {
     private readonly StackPanel _items = new() { Margin = new Thickness(ChatUi.S4, ChatUi.S3, ChatUi.S4, ChatUi.S3) };
     private readonly ScrollViewer _scroll;
-    private readonly TextBlock _title = Brand.Text("", Brand.K.HeaderText, 14, bold: true);
-    private readonly TextBlock _state = Brand.Text("", Brand.K.HeaderSub, 12);
+    private readonly TextBlock _title = Brand.Text("", Brand.K.Text, ChatUi.BodySize, bold: true);
+    private readonly TextBlock _state = Brand.Text("", Brand.K.Muted, ChatUi.SmallSize);
     private readonly TextBox _input;
     private readonly Button _stop;
-    private readonly List<(ChatItem Item, string State, TextBlock? Line)> _drawn = [];
+    private readonly List<(ChatItem Item, string State, Action<ChatItem>? Update)> _drawn = [];
 
     /// <summary>The user wrote to the job.</summary>
     public event Action<string>? Sent;
@@ -333,29 +333,41 @@ internal sealed class JobWindow : Window
         SetResourceReference(BackgroundProperty, Brand.K.Bg);
         Resources.MergedDictionaries.Add(ChatUi.Styles());
 
-        _stop = Brand.Button("Stop job", Brand.Weight.Danger);
+        _stop = ParallelJobCard.Pill("Stop job", "SpmChatDanger", "Stops this job. A command it already sent to Plaxis finishes on its own; send it a message later to carry on.");
+        _stop.Margin = new Thickness(ChatUi.S2, 0, 0, 0);
+        _stop.VerticalAlignment = VerticalAlignment.Center;
         _stop.Click += (_, _) => StopPressed?.Invoke();
         var names = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         _title.TextTrimming = TextTrimming.CharacterEllipsis;
+        _state.TextTrimming = TextTrimming.CharacterEllipsis;
         names.Children.Add(_title);
         names.Children.Add(_state);
-        var head = new DockPanel { Margin = new Thickness(ChatUi.S3, ChatUi.S2, ChatUi.S3, ChatUi.S2) };
+        var head = new DockPanel { Margin = new Thickness(ChatUi.S4, ChatUi.S2, ChatUi.S3, ChatUi.S2) };
+        var mark = ChatUi.Mark(24);
+        mark.Margin = new Thickness(0, 0, ChatUi.S2, 0);
+        mark.VerticalAlignment = VerticalAlignment.Center;
+        DockPanel.SetDock(mark, Dock.Left);
         DockPanel.SetDock(_stop, Dock.Right);
+        head.Children.Add(mark);
         head.Children.Add(_stop);
         head.Children.Add(names);
-        var header = new Border { Child = head, Background = Brand.Brush(Brand.Navy) };
+        var header = new Border { Child = head, BorderThickness = new Thickness(0, 0, 0, 1) };
+        header.SetResourceReference(Border.BorderBrushProperty, Brand.K.BorderSubtle);
 
         _scroll = new ScrollViewer { Content = _items, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
 
+        // The message box as in the main chat: one raised card, the box with its hint, and the round Send.
         _input = new TextBox
         {
-            AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 48, MaxHeight = 160,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(ChatUi.S2), FontSize = ChatUi.BodySize,
+            AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = ChatStyles.ComposerMinHeight, MaxHeight = ChatStyles.ComposerMaxHeight,
+            Padding = new Thickness(ChatStyles.ComposerPadX, ChatStyles.ComposerPadY, ChatStyles.ComposerPadX, ChatStyles.ComposerPadY),
+            VerticalContentAlignment = VerticalAlignment.Top, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, FontSize = ChatUi.BodySize,
         };
-        _input.SetResourceReference(BackgroundProperty, Brand.K.ComposerField);
-        _input.SetResourceReference(ForegroundProperty, Brand.K.Text);
+        _input.SetResourceReference(StyleProperty, "SpmChatBare");
         System.Windows.Automation.AutomationProperties.SetName(_input, $"Message to job {number}");
-        var send = Brand.Button("Send to job", Brand.Weight.Primary);
+        var send = new Button { Content = ChatUi.Icon(ChatUi.Paths.Send, stroke: 2), ToolTip = "Send to the job (Enter)" };
+        send.SetResourceReference(StyleProperty, "SpmChatSend");
+        System.Windows.Automation.AutomationProperties.SetName(send, "Send to job");
         void Send()
         {
             var text = _input.Text.Trim();
@@ -368,19 +380,35 @@ internal sealed class JobWindow : Window
         {
             if (e.Key == System.Windows.Input.Key.Enter && System.Windows.Input.Keyboard.Modifiers == System.Windows.Input.ModifierKeys.None) { e.Handled = true; Send(); }
         };
+        var placeholder = ChatUi.Small("Write to this job…");
+        placeholder.FontSize = ChatUi.BodySize;
+        placeholder.IsHitTestVisible = false;
+        placeholder.VerticalAlignment = VerticalAlignment.Top;
+        placeholder.Margin = new Thickness(ChatStyles.ComposerPadX + 2, ChatStyles.ComposerPadY, ChatStyles.ComposerPadX + 2, 0);
+        _input.TextChanged += (_, _) => placeholder.Visibility = _input.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        var box = new Grid();
+        box.Children.Add(_input);
+        box.Children.Add(placeholder);
+        var field = new Border { Child = box, CornerRadius = new CornerRadius(ChatUi.RadiusSmall), SnapsToDevicePixels = true, Margin = new Thickness(ChatUi.S2, ChatUi.S2, ChatUi.S2, ChatUi.S1), BorderThickness = new Thickness(1) };
+        field.SetResourceReference(Border.BackgroundProperty, Brand.K.ComposerField);
+        void FieldState() => field.SetResourceReference(Border.BorderBrushProperty, ChatStyles.ComposerBorder(_input.IsKeyboardFocused, field.IsMouseOver));
+        FieldState();
+        field.MouseEnter += (_, _) => FieldState();
+        field.MouseLeave += (_, _) => FieldState();
+        _input.IsKeyboardFocusedChanged += (_, _) => FieldState();
         var hint = ChatUi.Small("A working job gets your message with its next step; a finished one carries on with it.");
         hint.TextWrapping = TextWrapping.Wrap;
         hint.VerticalAlignment = VerticalAlignment.Center;
-        var row = new DockPanel { Margin = new Thickness(0, ChatUi.S2, 0, 0) };
-        var sendRow = Brand.ButtonRow(send);
-        DockPanel.SetDock(sendRow, Dock.Right);
-        row.Children.Add(sendRow);
+        hint.Margin = new Thickness(ChatUi.S2, 0, ChatUi.S2, 0);
+        var row = new DockPanel { Margin = new Thickness(ChatUi.S1, 0, ChatUi.S2, ChatUi.S2) };
+        DockPanel.SetDock(send, Dock.Right);
+        row.Children.Add(send);
         row.Children.Add(hint);
-        var composer = new StackPanel { Margin = new Thickness(ChatUi.S3) };
-        composer.Children.Add(_input);
-        composer.Children.Add(row);
-        var foot = new Border { Child = composer, BorderThickness = new Thickness(0, 1, 0, 0) };
-        foot.SetResourceReference(Border.BorderBrushProperty, Brand.K.BorderSubtle);
+        var inside = new StackPanel();
+        inside.Children.Add(field);
+        inside.Children.Add(row);
+        var foot = ChatUi.Elevated(inside, out _);
+        foot.Margin = new Thickness(ChatUi.S3, 0, ChatUi.S3, ChatUi.S3);
 
         var root = new DockPanel();
         DockPanel.SetDock(header, Dock.Top);
@@ -406,10 +434,10 @@ internal sealed class JobWindow : Window
         }
         for (var i = 0; i < _drawn.Count; i++)
         {
-            var (item, state, line) = _drawn[i];
-            if (item.State == state || line is null) continue;
-            line.Text = StepText(item);
-            _drawn[i] = (item, item.State, line);
+            var (item, state, update) = _drawn[i];
+            if (item.State == state || update is null) continue;
+            update(item);
+            _drawn[i] = (item, item.State, update);
         }
         var added = false;
         foreach (var item in items.Skip(_drawn.Count).ToList())
@@ -437,37 +465,64 @@ internal sealed class JobWindow : Window
         _input.Text = "Use the wall's top level from drawing S-201 instead: +3.0";
     }
 
-    private static string StepText(ChatItem item) =>
-        (item.State switch { "running" => "… ", "failed" => "✕ ", "stopped" => "■ ", _ => "✓ " }) + StepNames.Line(item.Name, item.Text);
-
-    private TextBlock? Draw(ChatItem item)
+    private Action<ChatItem>? Draw(ChatItem item)
     {
         switch (item.Kind)
         {
             case "user":
             {
-                var box = ChatUi.Selectable(item.Text, item.State == JobBoard.FromCoordinator ? "From the coordinator" : "Message to the job");
-                var bubble = new Border { Child = box, CornerRadius = new CornerRadius(ChatUi.Radius), Padding = new Thickness(ChatUi.S3, ChatUi.S2, ChatUi.S3, ChatUi.S2),
-                    HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(32, ChatUi.S3, 0, ChatUi.S1), MaxHeight = 320 };
+                // From the coordinator or from you: who, over a bubble with the tail at the bottom right.
+                var panel = new StackPanel { HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(ChatUi.S8, ChatUi.S4, 0, ChatUi.S1) };
+                var who = ChatUi.Small(item.State == JobBoard.FromCoordinator ? "From the coordinator" : "You");
+                who.HorizontalAlignment = HorizontalAlignment.Right;
+                who.Margin = new Thickness(0, 0, 0, ChatUi.S1);
+                panel.Children.Add(who);
+                var bubble = new Border
+                {
+                    Child = ChatUi.Selectable(item.Text, item.State == JobBoard.FromCoordinator ? "From the coordinator" : "Message to the job"),
+                    Padding = new Thickness(ChatUi.S4, ChatUi.S2 + 2, ChatUi.S4, ChatUi.S2 + 2), MaxHeight = 320,
+                    CornerRadius = new CornerRadius(ChatUi.Radius, ChatUi.Radius, ChatUi.S1, ChatUi.Radius), HorizontalAlignment = HorizontalAlignment.Right, SnapsToDevicePixels = true,
+                };
                 bubble.SetResourceReference(Border.BackgroundProperty, Brand.K.AccentSoft);
-                _items.Children.Add(bubble);
+                panel.Children.Add(bubble);
+                _items.Children.Add(panel);
                 return null;
             }
             case "assistant":
             {
-                var view = new MarkdownView { Margin = new Thickness(0, ChatUi.S2, 0, ChatUi.S1) };
+                var view = new MarkdownView { Margin = new Thickness(0, ChatUi.S3, 0, ChatUi.S1) };
                 view.SetMarkdown(item.Text);
                 _items.Children.Add(view);
                 return null;
             }
             case "tool":
             {
-                var line = ChatUi.Small(StepText(item), item.State == "failed" ? Brand.K.DangerText : Brand.K.Muted);
-                line.TextTrimming = TextTrimming.CharacterEllipsis;
-                line.Margin = new Thickness(0, 2, 0, 2);
-                if (item.Result.Length > 0) line.ToolTip = item.Result.Length > 600 ? item.Result.Substring(0, 600) + "…" : item.Result;
-                _items.Children.Add(line);
-                return line;
+                // A step as in the main chat: a one-line card with its ring, check or cross.
+                var mark = new ContentControl { Width = 18, Height = 18, Focusable = false, VerticalAlignment = VerticalAlignment.Center };
+                var line = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis, FontSize = ChatUi.SmallSize, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(ChatUi.S2, 0, 0, 0) };
+                var row = new DockPanel();
+                DockPanel.SetDock(mark, Dock.Left);
+                row.Children.Add(mark);
+                row.Children.Add(line);
+                var card = new Border { Child = row, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(ChatUi.Radius), Padding = new Thickness(ChatUi.S3, ChatUi.S2, ChatUi.S3, ChatUi.S2), Margin = new Thickness(0, ChatUi.S1, 0, 0), SnapsToDevicePixels = true };
+                card.SetResourceReference(Border.BorderBrushProperty, Brand.K.BorderSubtle);
+                card.SetResourceReference(Border.BackgroundProperty, Brand.K.Raised);
+                void Show(ChatItem step)
+                {
+                    mark.Content = step.State switch
+                    {
+                        "running" => ChatUi.StepRing(),
+                        "failed" => ChatUi.StepMark(done: false),
+                        "stopped" => ChatUi.Glyph(ChatUi.GlyphStop, Brand.K.Muted, 11),
+                        _ => ChatUi.StepMark(done: true),
+                    };
+                    line.Text = StepNames.Line(step.Name, step.Text);
+                    Brand.Fg(line, step.State == "failed" ? Brand.K.DangerText : Brand.K.Muted);
+                    if (step.Result.Length > 0) card.ToolTip = step.Result.Length > 600 ? step.Result.Substring(0, 600) + "…" : step.Result;
+                }
+                Show(item);
+                _items.Children.Add(card);
+                return Show;
             }
             default:
             {
