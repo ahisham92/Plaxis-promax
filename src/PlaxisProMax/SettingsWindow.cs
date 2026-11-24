@@ -1,13 +1,14 @@
 using System.Windows;
 using System.Windows.Controls;
 using PlaxisProMax.Chat;
+using PlaxisProMax.Licensing;
 using PlaxisProMax.Settings;
 using PlaxisProMax.Tools;
 using PlaxisProMax.UI;
 
 namespace PlaxisProMax;
 
-/// <summary>Settings: when to ask, the standing rules, the Plaxis connection, Plaxis's Python, the model, and Claude's sign-in.</summary>
+/// <summary>Settings: when to ask, the standing rules, the Plaxis connection, Plaxis's Python, the model, Claude's sign-in, and the license.</summary>
 internal sealed class SettingsWindow : Window
 {
     public SettingsWindow(ClaudeCli.Install? claude)
@@ -42,6 +43,8 @@ internal sealed class SettingsWindow : Window
         signIn.IsEnabled = claude is not null;
         signIn.Click += (_, _) => { if (claude is not null) ClaudeCli.StartSignIn(claude); };
 
+        var license = Brand.Button("License");
+        license.Click += (_, _) => LicenseWindow.Command();
         var save = Brand.Button("Save", Brand.Weight.Primary);
         var cancel = Brand.Button("Cancel");
         cancel.Click += (_, _) => Close();
@@ -85,10 +88,24 @@ internal sealed class SettingsWindow : Window
         Section("Claude");
         Field("Model (empty: Claude Code's default)", model);
         body.Children.Add(Brand.ButtonRow(signIn));
+        Section("License");
+        body.Children.Add(ChatUi.Small(LicenseText()));
+        body.Children.Add(Brand.ButtonRow(license));
         var buttons = Brand.ButtonRow(save, cancel);
         buttons.HorizontalAlignment = HorizontalAlignment.Right;
         buttons.Margin = new Thickness(0, ChatUi.S4, 0, 0);
         body.Children.Add(buttons);
         Content = new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = SystemParameters.WorkArea.Height - 80 };
+    }
+
+    private static string LicenseText()
+    {
+        var s = LicenseState.Current;
+        return s.Kind switch
+        {
+            LicenseState.Kind.Owner => "This is the owner's PC: no key is needed. Keys for other PCs come from Sketch ProMax's License manager.",
+            LicenseState.Kind.Licensed => $"Licensed to {s.License!.Name}" + (s.Ends is { } e ? $" until {e:d MMM yyyy}." : ", with no end date."),
+            _ => "This PC has no valid key yet.",
+        };
     }
 }

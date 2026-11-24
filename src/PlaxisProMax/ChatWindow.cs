@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using PlaxisProMax.Chat;
+using PlaxisProMax.Licensing;
 using PlaxisProMax.Mcp;
 using PlaxisProMax.Plaxis;
 using PlaxisProMax.Settings;
@@ -128,6 +129,9 @@ internal sealed class ChatWindow : Window, IApprovalAsker
     private async Task StartAsync()
     {
         _input.Focus();
+        // The owner's later changes (cancelled keys, earlier end dates), then the License window if this PC is locked.
+        _ = Task.Run(() => LicenseState.RefreshChangesAsync(CancellationToken.None));
+        LicenseWindow.BlockIfLocked();
         await ConnectPlaxisAsync();
         await FindClaudeAsync();
     }
@@ -261,6 +265,12 @@ internal sealed class ChatWindow : Window, IApprovalAsker
         if (_busy) { Stop(); return; }
         var text = _input.Text.Trim();
         if (text.Length == 0 && _attached.Count == 0) return;
+        // A PC without a valid key: the License window, and nothing is sent (as in Sketch ProMax).
+        if (LicenseWindow.BlockIfLocked())
+        {
+            Note("Plaxis ProMax needs a license for this PC. Send the PC code in the License window to get a key.");
+            return;
+        }
         if (_claude is null)
         {
             Note("Claude Code isn't ready yet: install it or sign in with the card above.");

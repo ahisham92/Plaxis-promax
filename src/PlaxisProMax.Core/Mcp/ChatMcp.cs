@@ -67,6 +67,10 @@ internal sealed class ChatMcp : IDisposable
     {
         var tool = _registry.Find(name);
         if (tool is null) return new McpResult($"No tool named {name}.", true);
+        // A PC without a valid key runs no tools (Licensing/LicenseState, as in Sketch ProMax).
+        if (!Licensing.LicenseState.Allowed)
+            return new McpResult("Plaxis ProMax isn't licensed on this PC, so its tools are off. Tell the user to open Settings > License " +
+                                 "and send their PC code to get a key.", true);
         var args = new Dictionary<string, JsonElement>(raw ?? new Dictionary<string, JsonElement>(), StringComparer.Ordinal);
         var settings = AgentSettings.Load();
         var context = new ToolContext(_context.Link, _context.Library, _context.Settings) { Chat = session.Id };
