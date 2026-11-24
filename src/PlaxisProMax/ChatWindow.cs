@@ -80,6 +80,8 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         menu.Click += (_, _) => ShowMenu(menu);
         newChat.MinWidth = settings.MinWidth = 72;
         _plaxisState.TextTrimming = TextTrimming.CharacterEllipsis;
+        _plaxisState.TextWrapping = TextWrapping.NoWrap;
+        _plaxisState.ToolTip = "The Plaxis and the project this chat works on";
         var buttons = Brand.ButtonRow(menu, newChat, settings);
         DockPanel.SetDock(buttons, Dock.Right);
         head.Children.Add(buttons);
