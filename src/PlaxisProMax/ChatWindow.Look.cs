@@ -118,6 +118,7 @@ internal sealed partial class ChatWindow
         if (_sample)
         {
             _usageLabel.Text = "5-hour 42% · week 17%";
+            _usagePill.Visibility = Visibility.Visible;
             return;
         }
         var usage = PlanUsage.Load(Crew.RoutinesFolder);
