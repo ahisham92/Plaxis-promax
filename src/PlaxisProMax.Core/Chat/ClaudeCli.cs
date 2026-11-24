@@ -140,15 +140,15 @@ internal static class ClaudeCli
     /// ToolSearch, and nothing else that could act on the PC. Anything that would need a permission prompt is denied
     /// (dontAsk), because nobody can answer a prompt in a hidden process: the window's own approval card asks instead.
     /// </summary>
-    public static ProcessStartInfo EngineStart(Install install, string? resumeSessionId, string? model = null, string? effort = null)
+    public static ProcessStartInfo EngineStart(Install install, string? resumeSessionId, string? model = null, string? effort = null, bool coordinator = false, string? chatKey = null)
     {
         Directory.CreateDirectory(WorkFolder);
         var engine = Path.Combine(Folder, "engine");
         Directory.CreateDirectory(engine);
         var pid = Process.GetCurrentProcess().Id.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        var mcpFile = WriteMcpConfig(engine, pid, model);
+        var mcpFile = WriteMcpConfig(engine, pid, model, "mcp-", chatKey);
         var promptFile = Path.Combine(engine, "prompt-" + pid + ".md");
-        File.WriteAllText(promptFile, Agent.SystemPrompt.ForChat(AgentSettings.Load().ProjectRules), new UTF8Encoding(false));
+        File.WriteAllText(promptFile, Agent.SystemPrompt.ForChat(AgentSettings.Load().ProjectRules, coordinator, ChatJobs.Limit, ChatJobs.Names.Line()), new UTF8Encoding(false));
 
         var args = new List<string>
         {
@@ -159,7 +159,8 @@ internal static class ClaudeCli
             "--allowedTools", $"mcp__{ServerName},mcp__{ServerName}__*,Read,Glob,Grep",
             "--permission-mode", "dontAsk",
             // Claude Code's own transcripts of earlier conversations: never read back into a chat (Sketch ProMax bug 35).
-            "--disallowedTools", TranscriptRule,
+            // And a Simple chat does everything itself: it never gets chat_jobs (ChatTypes).
+            "--disallowedTools", coordinator ? TranscriptRule : TranscriptRule + $",mcp__{ServerName}__{Tools.ChatJobsTool.ToolName}",
         };
         if (!string.IsNullOrEmpty(resumeSessionId)) { args.Add("--resume"); args.Add(resumeSessionId!); }
         if (!string.IsNullOrEmpty(model)) { args.Add("--model"); args.Add(model!); }
@@ -168,6 +169,51 @@ internal static class ClaudeCli
         info.EnvironmentVariables["PLAXISPROMAX_PID"] = pid;
         return info;
     }
+
+    /// <summary>
+    /// A parallel job's own Claude Code (Chat.JobBoard, Chat.Crew; Sketch ProMax's JobStart): like the chat's engine, with
+    /// the job's instructions, its calls marked with the job's key (so they take turns and the window knows whose they
+    /// are), its plan tools, whole messages rather than streamed words, and its own session: a new id
+    /// (<paramref name="newSession"/>) or the one it resumes, never the main chat's. A job may use chat_jobs only to
+    /// list, ask and message its teammates (the MCP server refuses start and stop from a job).
+    /// </summary>
+    public static ProcessStartInfo JobStart(Install install, string jobKey, string? resume, string? newSession, string? model, string? effort = null)
+    {
+        Directory.CreateDirectory(WorkFolder);
+        var engine = Path.Combine(Folder, "engine");
+        Directory.CreateDirectory(engine);
+        var pid = Process.GetCurrentProcess().Id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var mcpFile = WriteMcpConfig(engine, pid, model, "mcp-job-" + jobKey + "-", jobKey);
+        var promptFile = Path.Combine(engine, "job-" + jobKey + "-" + pid + ".md");
+        File.WriteAllText(promptFile, Agent.SystemPrompt.ForJob(AgentSettings.Load().ProjectRules), new UTF8Encoding(false));
+        var args = new List<string>
+        {
+            "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
+            "--mcp-config", mcpFile, "--strict-mcp-config",
+            "--append-system-prompt-file", promptFile,
+            // Its plan's steps too (JobPlan: TodoWrite, or TaskCreate/TaskUpdate where Claude Code has those instead),
+            // so the window shows how far along it is. Names Claude Code doesn't have are left out by it.
+            "--tools", BuiltInTools + "," + JobPlan.Tools,
+            "--allowedTools", $"mcp__{ServerName},mcp__{ServerName}__*,Read,Glob,Grep," + JobPlan.Tools,
+            "--permission-mode", "dontAsk",
+            "--disallowedTools", TranscriptRule,
+        };
+        if (!string.IsNullOrEmpty(resume)) { args.Add("--resume"); args.Add(resume!); }
+        else { args.Add("--session-id"); args.Add(newSession ?? Guid.NewGuid().ToString()); }
+        if (!string.IsNullOrEmpty(model)) { args.Add("--model"); args.Add(model!); }
+        AddEffort(args, effort);
+        var info = CliStart(install, args);
+        // Its own session, always: nothing of a parent session carries over.
+        foreach (var name in info.EnvironmentVariables.Keys.Cast<string>().Where(k => k == "CLAUDECODE" || k.StartsWith("CLAUDE_CODE_", StringComparison.Ordinal) && k.Contains("SESSION")).ToList())
+            info.EnvironmentVariables.Remove(name);
+        info.EnvironmentVariables["PLAXISPROMAX_PID"] = pid;
+        // A call may wait its turn behind other jobs' calls: it must not time out first.
+        info.EnvironmentVariables["MCP_TOOL_TIMEOUT"] = JobToolTimeoutMs.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return info;
+    }
+
+    /// <summary>How long a job's tool call may take, its wait for its turn included.</summary>
+    private const int JobToolTimeoutMs = 2_400_000;
 
     /// <summary>The efforts Claude Code takes with --effort.</summary>
     public static readonly string[] Efforts = ["low", "medium", "high", "xhigh", "max"];
@@ -217,14 +263,16 @@ internal static class ClaudeCli
     /// so a new address is used. Claude Code gives up on an HTTP call that is silent for 5 minutes: the server's own
     /// limit raises that to 6 hours, since a call may wait on an approval or a long calculation.
     /// </summary>
-    private static string WriteMcpConfig(string engine, string pid, string? model)
+    private static string WriteMcpConfig(string engine, string pid, string? model, string prefix = "mcp-", string? job = null)
     {
         var http = Mcp.ChatMcp.Current ?? throw new InvalidOperationException("The Plaxis tools are not running.");
         var headers = new JsonObject { ["Authorization"] = "Bearer " + http.Token };
         if (!string.IsNullOrEmpty(model)) headers[Mcp.McpHttpServer.ModelHeader] = model;
+        // Who calls: a parallel job's key, or the main chat's own key (JobBoard.ChatKey).
+        if (!string.IsNullOrEmpty(job)) headers[Mcp.McpHttpServer.JobHeader] = job;
         var server = new JsonObject { ["type"] = "http", ["url"] = http.Url, ["headers"] = headers, ["timeout"] = 21_600_000 };
         var mcp = new JsonObject { ["mcpServers"] = new JsonObject { [ServerName] = server } };
-        var mcpFile = Path.Combine(engine, "mcp-" + pid + ".json");
+        var mcpFile = Path.Combine(engine, prefix + pid + ".json");
         File.WriteAllText(mcpFile, mcp.ToJsonString(new JsonSerializerOptions { WriteIndented = true }), new UTF8Encoding(false));
         return mcpFile;
     }

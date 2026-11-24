@@ -36,6 +36,15 @@ Section("update resume", UpdateResumeTests.Run);
 Section("updater", UpdaterTests.Run);
 Section("bug log", BugLogTests.Run);
 Section("bug reports and export", BugReportTests.Run);
+Section("job pause", JobPauseTests.Run);
+Section("job cards", JobCardTests.Run);
+Section("jobs", ParallelJobTests.Run);
+Section("crew", CrewTests.Run);
+Section("job checks", JobChecksTests.Run);
+Section("job truth", JobTruthTests.Run);
+Section("automatic model", ChatAutoTests.Run);
+Section("questions", ChatQuestionsTests.Run);
+Section("chat work", ChatWorkTests.Run);
 
 try { Directory.Delete(scratch, true); } catch (Exception) { }
 Console.WriteLine(failures == 0 ? "All checks passed." : $"{failures} check(s) failed.");

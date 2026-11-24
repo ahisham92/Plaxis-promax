@@ -31,13 +31,17 @@ internal static class ChatStore
     private static string FileFor(Conversation conv) =>
         Path.Combine(Folder, Hash(conv.Key) + (conv.Id.Length > 0 ? "-" + conv.Id : "") + ".json");
 
-    /// <summary>The model and effort a new chat starts on (Settings): "" for Claude Code's defaults.</summary>
-    internal static volatile string NewModel = "", NewEffort = "";
+    /// <summary>The model and effort a new chat starts on (ChatAuto; Settings > Chat): Automatic unless changed there.</summary>
+    internal static volatile string NewModel = ChatAuto.Automatic, NewEffort = ChatAuto.Automatic;
 
     /// <summary>A new, empty chat for a project.</summary>
-    public static Conversation New(string key, string title) => new()
+    /// <summary>The kind a new chat gets (ChatTypes): the Settings default, which the window keeps up to date.</summary>
+    internal static volatile string NewType = ChatTypes.Coordinator;
+
+    /// <summary>A new, empty chat for a project, of <paramref name="type"/> (the default kind when null).</summary>
+    public static Conversation New(string key, string title, string? type = null) => new()
     {
-        Key = key, Title = title, Id = NewId(), Model = NewModel, Effort = NewEffort,
+        Key = key, Title = title, Id = NewId(), Type = ChatTypes.Parse(type ?? NewType), Model = ChatAuto.ParseModel(NewModel), Effort = ChatAuto.ParseEffort(NewEffort),
     };
 
     private static string NewId() => Guid.NewGuid().ToString("N").Substring(0, 12);

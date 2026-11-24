@@ -1,4 +1,5 @@
 using System.Text.Json;
+using PlaxisProMax.Chat;
 using PlaxisProMax.Settings;
 using PlaxisProMax.Tools;
 
@@ -71,6 +72,15 @@ internal sealed class ChatMcp : IDisposable
         if (!Licensing.LicenseState.Allowed)
             return new McpResult("Plaxis ProMax isn't licensed on this PC, so its tools are off. Tell the user to open Settings > License " +
                                  "and send their PC code to get a key.", true);
+        // Who calls (Sketch ProMax's bridge): null for the main chat shown in the window, else a parallel job's key.
+        var jobKey = JobBoard.Caller(session.Job, ChatJobs.Shown);
+        var isJob = jobKey is not null && !JobBoard.IsChatKey(jobKey);
+        // chat_jobs is answered here, never by Plaxis, so it works while a job's call runs.
+        if (name == ChatJobsTool.ToolName)
+        {
+            var answer = ChatJobsTool.Answer(new ToolArgs(new Dictionary<string, JsonElement>(raw ?? new Dictionary<string, JsonElement>(), StringComparer.Ordinal)), coordinator: !isJob, session.Job);
+            return new McpResult(answer.Text, answer.IsError);
+        }
         var args = new Dictionary<string, JsonElement>(raw ?? new Dictionary<string, JsonElement>(), StringComparer.Ordinal);
         var settings = AgentSettings.Load();
         var context = new ToolContext(_context.Link, _context.Library, _context.Settings) { Chat = session.Id };
@@ -82,12 +92,32 @@ internal sealed class ChatMcp : IDisposable
             KeptCode = name == RunPlaxisCodeTool.ToolName && !args.ContainsKey("code") && args.TryGetValue("kept_id", out var kid)
                        && kid.ValueKind == JsonValueKind.String && _context.Library.Get(kid.GetString()!) is { Allowed: true },
         };
+        // A job's call: refused while everything is paused (Pause all), and a check or a reader may not change the project.
+        if (isJob && JobPause.Enter(jobKey!) is { } paused) return new McpResult(paused, true);
+        try
+        {
+            if (isJob && tool.ModifiesModel && ChatJobs.IsCheck(jobKey!))
+                return new McpResult("This job only reads (it checks work, or reads before a plan is approved), so this change was not made. Report what you found instead.", true);
+            return await RunAsync(session, tool, name, args, context, settings, facts, isJob ? jobKey : null, ct).ConfigureAwait(false);
+        }
+        finally { if (isJob) JobPause.Exit(jobKey!); }
+    }
+
+    /// <summary>How long a job's call waits for its turn at Plaxis before it is told to try again.</summary>
+    internal static TimeSpan TurnWait = TimeSpan.FromMinutes(30);
+
+    /// <summary>The approval card (when the policy asks), a job's turn at Plaxis, the call itself, and the activity log.</summary>
+    private async Task<McpResult> RunAsync(McpSession session, IPlaxisTool tool, string name, Dictionary<string, JsonElement> args, ToolContext context,
+        AgentSettings settings, ApprovalFacts facts, string? jobKey, CancellationToken ct)
+    {
         var remembered = (ICollection<string>?)settings.NoAskTools ?? [];
         var decision = ApprovalPolicy.Decide(name, tool.ModifiesModel, false, args, true, facts, settings.Approvals, remembered,
             _taskApproved, Probe, [OutputFolder]);
         if (decision.Ask)
         {
-            var answer = await _asker.AskAsync(new ApprovalRequest(name, ApprovalPolicy.Friendly(name), decision.Reason, Details(name, args), decision.CanSilence), ct).ConfigureAwait(false);
+            // A job's card says whose it is ("Job 2: Soil layers").
+            var title = jobKey is null ? ApprovalPolicy.Friendly(name) : $"{ChatJobs.AskerName(jobKey)}: {ApprovalPolicy.Friendly(name)}";
+            var answer = await _asker.AskAsync(new ApprovalRequest(name, title, decision.Reason, Details(name, args), decision.CanSilence), ct).ConfigureAwait(false);
             switch (answer)
             {
                 case ApprovalAnswer.Deny:
@@ -103,6 +133,30 @@ internal sealed class ChatMcp : IDisposable
             }
         }
 
+        // A job's call to Plaxis takes its turn (Plaxis runs one command at a time): its card shows it waiting, then
+        // reading or applying; thinking again when the call ends.
+        JobTurns.Ticket? turn = null;
+        var plaxis = tool is WorkerTool or RunPlaxisCodeTool;
+        if (jobKey is not null && plaxis)
+        {
+            turn = JobTurns.Shared.Enter(jobKey, name);
+            if (JobTurns.Shared.Position(turn) > 1)
+            {
+                void Moved() => ChatJobs.SetActivity(jobKey, JobBoard.WaitingToApply, Math.Max(1, JobTurns.Shared.Position(turn) - 1));
+                JobTurns.Shared.Changed += Moved;
+                Moved();
+                bool got;
+                try { got = await JobTurns.Shared.WaitAsync(turn, TurnWait, ct).ConfigureAwait(false); }
+                finally { JobTurns.Shared.Changed -= Moved; }
+                if (!got)
+                {
+                    ChatJobs.SetActivity(jobKey, "");
+                    return new McpResult("Plaxis was busy with other jobs' calls for too long, so this call did not run. Try it again.", true);
+                }
+            }
+            if (tool.ModifiesModel) ChatJobs.ChangesModel(jobKey);
+            ChatJobs.SetActivity(jobKey, tool.ModifiesModel ? JobBoard.Applying : JobBoard.Reading);
+        }
         var clock = System.Diagnostics.Stopwatch.StartNew();
         McpResult reply;
         try
@@ -112,6 +166,17 @@ internal sealed class ChatMcp : IDisposable
         }
         catch (ArgumentException ex) { reply = new McpResult(ex.Message, true); }
         catch (InvalidOperationException ex) { reply = new McpResult(ex.Message, true); }
+        finally
+        {
+            if (turn is not null) JobTurns.Shared.Leave(turn);
+            if (jobKey is not null && plaxis) ChatJobs.SetActivity(jobKey, "");
+        }
+        // The applier's numbers (CrewStats): a change put into Plaxis for a job.
+        if (jobKey is not null && tool.ModifiesModel && !reply.IsError)
+            CrewStats.Add(new CrewRecord { Start = DateTime.UtcNow - clock.Elapsed, End = DateTime.UtcNow, Role = CrewRecord.Applier, Ok = true });
+        // Messages sent to the job while it worked reach it with this step, not at the end of its run.
+        if (jobKey is not null && !ct.IsCancellationRequested && ChatJobs.TakeAsides(jobKey, name) is { } aside)
+            reply = reply with { Text = JobText.Add(reply.Text, null, aside) };
         // Every call, worked or not, for the bug reports and the chats-and-bugs export (as Sketch ProMax logs them).
         ActivityLog.Write(ProjectName(), name, tool.ModifiesModel, args, !reply.IsError, reply.Text, clock.ElapsedMilliseconds);
         return reply;

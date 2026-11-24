@@ -202,6 +202,8 @@ public sealed class ToolRegistry
 
     public static ToolRegistry CreateDefault() => new(
     [
+        // The crew (answered by the MCP server itself)
+        new ChatJobsTool(),
         // Look (read-only)
         new WorkerTool("status", "What is open in Plaxis: 2D or 3D, the version, the project, its units and phases. Call it first in a chat.", "{}", [], false, 30),
         new WorkerTool("list_model", "Every collection of the open model (Materials, Boreholes, Plates, Phases...) with its count and names.",

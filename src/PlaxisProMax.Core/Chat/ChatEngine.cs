@@ -144,7 +144,7 @@ internal sealed class ChatEngine : IDisposable
 
     private void Launch()
     {
-        var info = _start?.Invoke() ?? ClaudeCli.EngineStart(_install, ResumedFrom, Model, Effort);
+        var info = _start?.Invoke() ?? ClaudeCli.EngineStart(_install, ResumedFrom, Model, Effort, Coordinator, ChatKey);
         McpAddress = ClaudeCli.McpAddress;
         var started = DateTime.UtcNow;
         // Started so it inherits none of the window's open handles (Sketch ProMax bug 72: Revit's held Sync with Central).
