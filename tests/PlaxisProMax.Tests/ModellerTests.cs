@@ -127,8 +127,8 @@ internal static class ModellerTests
 
             // The ProMax panel: the chat's lines, writing to the chat, and an OK answered from the page
             ChatBridge.Reset();
-            var none = Split(Send(server, "POST", "/s/" + server.Secret + "/api/promax", new JsonObject { ["text"] = "add a phase" }, null));
-            check("promax: with no chat window open, sending says so plainly", none.Status == 400 && none.Text.Contains("chat window"), none.Text);
+            var noChat = Split(Send(server, "POST", "/s/" + server.Secret + "/api/promax", new JsonObject { ["text"] = "add a phase" }, null));
+            check("promax: with no chat window open, sending says so plainly", noChat.Status == 400 && noChat.Text.Contains("chat window"), noChat.Text);
             var heard = new List<string>();
             ChatBridge.Attach(t => { heard.Add(t); return true; }, () => heard.Add("<focus>"));
             ChatBridge.Add("user", "add a phase");
