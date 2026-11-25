@@ -62,6 +62,7 @@ Section("notes, earlier chats and routines", MoreTests.Run);
 Section("documents", DocumentTests.Run);
 Section("drawings and tables", DrawingTests.Run);
 Section("self-test, crash guard and folders", SelfTestTests.Run);
+Section("what is new after an update", UpdateNotesTests.Run);
 Section("recipes and redo", RecipeTests.Run);
 Section("ask the user on the phone", AskUserTests.Run);
 

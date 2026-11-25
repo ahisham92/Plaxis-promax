@@ -72,3 +72,31 @@ internal static class SelfTestTests
 
     private static string Dump(SelfTest.Report report) => string.Join("; ", report.Results.Select(r => r.Step + "=" + r.Status + ":" + SelfTest.Short(r.Message, 80)));
 }
+
+/// <summary>What's new: the notes as plain text and the line said once after an update.</summary>
+internal static class UpdateNotesTests
+{
+    public static void Run(Action<string, bool, string> check)
+    {
+        var file = Path.Combine(Path.GetTempPath(), "ppm-seen-" + Guid.NewGuid().ToString("N") + ".txt");
+        PlaxisProMax.Update.UpdateNotes.FileOverride = file;
+        try
+        {
+            const string notes = "# Plaxis ProMax 0.2.0\n\n## New\n\n- **Shrink chat** keeps a long chat going\n- Recipes with `run_recipe`\n- See [the guide](https://example.com)\n";
+            var plain = PlaxisProMax.Update.UpdateNotes.Plain(notes);
+            check("notes: marks are removed and bullets kept", plain.Contains("• Shrink chat keeps") && plain.Contains("• Recipes with run_recipe") && plain.Contains("See the guide") && !plain.Contains('#') && !plain.Contains("**"), plain);
+            check("notes: the top leaves the title out", !PlaxisProMax.Update.UpdateNotes.Top(notes).Contains("0.2.0") && PlaxisProMax.Update.UpdateNotes.Top(notes).StartsWith("New"), PlaxisProMax.Update.UpdateNotes.Top(notes));
+            check("a first install says nothing", PlaxisProMax.Update.UpdateNotes.TakeUpdated("0.1.1", _ => notes) is null, "");
+            check("the same version says nothing", PlaxisProMax.Update.UpdateNotes.TakeUpdated("0.1.1", _ => notes) is null, "");
+            var said = PlaxisProMax.Update.UpdateNotes.TakeUpdated("0.2.0", _ => notes);
+            check("a newer version says so once, with the top of its notes", said is not null && said.StartsWith("Updated to Plaxis ProMax 0.2.0.") && said.Contains("Shrink chat"), said ?? "");
+            check("and only once", PlaxisProMax.Update.UpdateNotes.TakeUpdated("0.2.0", _ => notes) is null, "");
+            check("an older version says nothing", PlaxisProMax.Update.UpdateNotes.TakeUpdated("0.1.9", _ => notes) is null, "");
+        }
+        finally
+        {
+            PlaxisProMax.Update.UpdateNotes.FileOverride = null;
+            try { File.Delete(file); } catch (IOException) { }
+        }
+    }
+}

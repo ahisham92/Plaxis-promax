@@ -78,6 +78,17 @@ internal static class RecipeTests
             check("redo_steps: another project by words, and an unknown one", Call("redo_steps", """{"project":"no such project"}""") is { IsError: true } unknown && unknown.Text.Contains("Projects with kept steps"), "");
             check("redo time: HH:mm is today", RedoStepsTool.Time("08:30") == DateTime.Today.AddHours(8.5) && RedoStepsTool.Time("") is null && RedoStepsTool.Time("rubbish") is null, "");
 
+            // work_progress: the plan of a long job, kept per project.
+            WorkProgressTool.FolderOverride = Path.Combine(temp, "progress");
+            check("work_progress: nothing saved yet", Call("work_progress", """{"action":"get"}""").Text.Contains("No saved plan"), "");
+            var plan = Call("work_progress", """{"action":"set","goal":"Logs to report","steps":["Soil model","Phases","Calculate"]}""");
+            check("work_progress set names the next step", plan.Text.Contains("1. Soil model"), plan.Text);
+            var done = Call("work_progress", """{"action":"update","step":1,"status":"done","note":"BH-1 to BH-4, five layers"}""");
+            check("work_progress update moves on and keeps the note", done.Text.Contains("2. Phases") && done.Text.Contains("five layers"), done.Text);
+            check("work_progress get reads it back", Call("work_progress", """{"action":"get"}""").Text.Contains("Logs to report"), "");
+            check("work_progress clear", Call("work_progress", """{"action":"clear"}""").Text.Contains("cleared") && Call("work_progress", """{"action":"get"}""").Text.Contains("No saved plan"), "");
+            WorkProgressTool.FolderOverride = null;
+
             check("delete_recipe deletes", !Call("delete_recipe", """{"name":"Stage: excavate"}""").IsError && Directory.GetFiles(Recipes.Folder, "*.json").Length == 0, "");
             check("delete_recipe: an unknown one says so", Call("delete_recipe", """{"name":"Stage: excavate"}""").IsError, "");
         }
