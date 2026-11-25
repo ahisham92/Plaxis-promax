@@ -1135,6 +1135,8 @@ async function checkModel() {
 function calculateDialog() {
   const body = el("div");
   const opts = { stored_steps: 1, keep_open: false, one_by_one: true };
+  const GROUPS = [["displacements", "Displacements"], ["stresses", "Stresses"], ["pore_pressures", "Pore pressures"], ["plastic_points", "Plastic points"], ["structures", "Structure forces"]];
+  const keepResults = new Set(GROUPS.map((g) => g[0])), keepPhases = new Set((model.phases || []).map((p) => p.id));
   const fill = async () => {
     body.innerHTML = "";
     let info = null; try { info = API ? await api("plaxis") : null; } catch (e) { info = { error: e.message }; }
@@ -1149,12 +1151,23 @@ function calculateDialog() {
       el("label", "Steps kept per phase"), el("input.field", { type: "number", min: 1, value: opts.stored_steps, onchange: (e) => opts.stored_steps = +e.target.value }),
       el("label", "Phase by phase"), el("label", el("input", { type: "checkbox", checked: opts.one_by_one, onchange: (e) => opts.one_by_one = e.target.checked }), " save after each phase and stop at the first that fails"),
       el("label", "After the run"), el("label", el("input", { type: "checkbox", checked: opts.keep_open, onchange: (e) => opts.keep_open = e.target.checked }), " keep Plaxis open (the licence stays in use)")));
+    const tick = (set, key, label) => el("label", { style: { display: "inline-flex", gap: "6px", alignItems: "center", marginRight: "14px", whiteSpace: "nowrap" } },
+      el("input", { type: "checkbox", checked: set.has(key), onchange: (e) => { e.target.checked ? set.add(key) : set.delete(key); } }), label);
+    body.append(el("div", { style: { marginTop: "14px", fontWeight: 600 } }, "Keep in the results file"),
+      el("div", { style: { color: "var(--muted)", fontSize: "12px", margin: "2px 0 8px" } }, "Everything by default. For a big model, leave out what the review doesn't need: the results file stays small enough to send, and the Plaxis project keeps everything."),
+      el("div", { style: { display: "flex", flexWrap: "wrap", rowGap: "6px" } }, ...GROUPS.map((g) => tick(keepResults, g[0], g[1]))),
+      el("div", { style: { margin: "10px 0 4px", color: "var(--muted)", fontSize: "12px" } }, "Phases"),
+      el("div", { style: { display: "flex", flexWrap: "wrap", rowGap: "6px", maxHeight: "110px", overflow: "auto" } }, ...(model.phases || []).map((p) => tick(keepPhases, p.id, p.name || p.id))));
     if (info && info.error) body.append(el("div", { style: { color: "var(--danger)", marginTop: "10px" } }, info.error));
   };
   fill();
   PP.dialog({ title: "Calculate in Plaxis", size: "md", body, buttons: [{ label: "Cancel" }, { label: "Check model", run: () => { checkModel(); } }, { label: "Calculate", primary: true, run: async () => {
     if (!API) { toast("Calculating needs Plaxis ProMax running on the PC with Plaxis."); return false; }
-    try { await flush(); await api("run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...opts, plaxis: $("#plx").value }) }); runWindow(); }
+    try { await flush(); if (!keepResults.size || !keepPhases.size) { toast("Keep at least one kind of result and one phase."); return false; }
+      const keep = {};
+      if (keepResults.size < GROUPS.length) keep.results = [...keepResults];
+      if (keepPhases.size < (model.phases || []).length) keep.phases = [...keepPhases];
+      await api("run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...opts, keep, plaxis: $("#plx").value }) }); runWindow(); }
     catch (e) { toast(e.message); return false; }
   } }] });
 }

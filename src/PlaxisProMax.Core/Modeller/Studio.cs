@@ -351,7 +351,8 @@ public sealed class StudioServer : IDisposable
                         Plaxis: body["plaxis"]?.ToString() is { Length: > 0 } p ? p : null,
                         StoredSteps: body["stored_steps"] is JsonValue st && st.TryGetValue<int>(out var n) ? Math.Clamp(n, 1, 1000) : 1,
                         OneByOne: body["one_by_one"]?.GetValue<bool>() ?? true,
-                        KeepOpen: body["keep_open"]?.GetValue<bool>() ?? false));
+                        KeepOpen: body["keep_open"]?.GetValue<bool>() ?? false,
+                        Keep: Keep(body["keep"] as JsonObject)));
                     return Ok(run.Status());
                 }
             case ("GET", "api/run"):
@@ -370,6 +371,20 @@ public sealed class StudioServer : IDisposable
             default:
                 return Json(404, new JsonObject { ["error"] = "not found" });
         }
+    }
+
+    /// <summary>A "keep" choice as the run takes it: only known groups, and null when it keeps everything.</summary>
+    internal static JsonObject? Keep(JsonObject? keep)
+    {
+        if (keep is null) return null;
+        var phases = (keep["phases"] as JsonArray)?.Select(p => p?.ToString()).Where(p => !string.IsNullOrEmpty(p)).ToList() ?? [];
+        var results = (keep["results"] as JsonArray)?.Select(p => p?.ToString()).Where(p => p is not null && PlaxisRun.ResultGroups.Contains(p)).ToList() ?? [];
+        if (keep["results"] is JsonArray && results.Count == 0) throw new InvalidOperationException("Keep at least one kind of result in the results file.");
+        if (keep["phases"] is JsonArray && phases.Count == 0) throw new InvalidOperationException("Keep at least one phase in the results file.");
+        var o = new JsonObject();
+        if (phases.Count > 0) o["phases"] = new JsonArray(phases.Select(p => (JsonNode)JsonValue.Create(p!)!).ToArray());
+        if (results.Count > 0 && results.Count < PlaxisRun.ResultGroups.Length) o["results"] = new JsonArray(results.Select(p => (JsonNode)JsonValue.Create(p!)!).ToArray());
+        return o.Count == 0 ? null : o;
     }
 
     internal static JsonArray Findings(JsonObject model) =>

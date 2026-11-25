@@ -50,10 +50,30 @@ script). That is the same builder.
 | `mesh` | `coarseness`, `refine` (`object` and `factor`) |
 | `phases` | `id`, `name`, `parent`, `calc` (K0 procedure, Gravity loading, Plastic, Consolidation, Safety...), `active` (id to true or false), `loads` (values per load in this phase), `water` (the water level used), and when needed `time` (consolidation) and `reset_displacements` |
 
-**Results (.ppr)**: gzip JSON written by Calculate in Plaxis: the model, then for each phase its name, calculation type,
-how it ended, ΣMstage and ΣMsf, node coordinates and displacements, stress point coordinates and stresses, pore
-pressures, plastic points, and plate, embedded beam and anchor results. Anything Plaxis would not give is listed under
-`missing`, so a gap is never silent. Very large models keep the first 200,000 nodes.
+**Results (.ppr)**: written by Calculate in Plaxis beside the model. For each phase: its name, calculation type, how it
+ended, ΣMstage and ΣMsf, node coordinates and displacements, stress point coordinates and stresses, pore pressures,
+plastic points, and plate, embedded beam and anchor results. Anything Plaxis would not give is listed under `missing`,
+so a gap is never silent. Very large models keep the first 200,000 nodes and 600,000 stress points, and the file says
+so when it cut any.
+
+This is the file to send to another PC: the Viewer there needs nothing else (or use the Viewer's Share to make one
+HTML file). The Plaxis project folder, which holds Plaxis's own results and can run to gigabytes, stays behind.
+
+It is made small for big models (format version 2):
+
+- Lists that are the same in several phases (node and stress point coordinates) are written once.
+- Soil results are kept as 2-byte steps over each list's own range: a value is within 1/131,068 of that range of
+  Plaxis's (0.0002 mm on a 30 mm range, 0.004 kPa on a 500 kPa range). Coordinates and structure forces keep 7
+  digits.
+- The numbers are stored byte plane by byte plane and the whole file is gzip-compressed.
+- Before a run you can choose what to keep: displacements, stresses, pore pressures, plastic points, structure
+  forces, and which phases (the Calculate dialog, or `keep_results` and `keep_phases` from the chat). The Plaxis
+  project still has everything.
+
+Sizes measured on made-up data (smooth fields with noise, so real results should pack at least as well): a 3D model
+with 50,000 nodes, 150,000 stress points and 10 phases, every result kept, is 28 MB, against 63 MB in the first format;
+keeping only displacements for the last 3 phases, 1.1 MB. A model four times that size scales about in proportion.
+The format is in `ppm_build.py` (`write_pack`, `read_pack`); files in the first format still open.
 
 ## What to know
 

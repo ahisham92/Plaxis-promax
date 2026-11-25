@@ -644,6 +644,51 @@ const PP = (() => {
     const a = el("a", { href: URL.createObjectURL(blob), download: name });
     document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
   }
+  // A results file (.ppr): version 2 is gzip of "PPR2", the header's length, the header (JSON) and the numbers, with
+  // each long list in the header pointing into the numbers, stored byte plane by byte plane: {"$f": [offset, count]}
+  // 4-byte floats (NaN missing), or {"$q": [offset, count, low, step]} 2-byte steps (65535 missing). Version 1 is plain
+  // gzip JSON. Both come back as plain JSON with plain lists (see ppm_build.py, write_pack).
+  async function readPack(buffer) {
+    let bytes = new Uint8Array(buffer);
+    if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+      bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+    }
+    if (!(bytes[0] === 0x50 && bytes[1] === 0x50 && bytes[2] === 0x52 && bytes[3] === 0x32)) return JSON.parse(new TextDecoder().decode(bytes));
+    const n = bytes[4] | (bytes[5] << 8) | (bytes[6] << 16) | (bytes[7] << 24);
+    const head = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + n)));
+    const blob = bytes.subarray(8 + n), cache = new Map();
+    const get = (offset, count) => {
+      const key = offset + ":" + count;
+      if (cache.has(key)) return cache.get(key);
+      const raw = new Uint8Array(4 * count);
+      for (let p = 0; p < 4; p++) { const plane = blob.subarray(offset + p * count, offset + (p + 1) * count); for (let i = 0; i < count; i++) raw[4 * i + p] = plane[i]; }
+      const f = new Float32Array(raw.buffer), out = new Array(count);
+      for (let i = 0; i < count; i++) { const v = f[i]; out[i] = v !== v ? null : +v.toPrecision(7); }
+      cache.set(key, out);
+      return out;
+    };
+    // 2-byte steps over the list's own range (soil results): value = low + q * step, 65535 is a missing value.
+    const steps = (offset, count, low, step) => {
+      const key = "q" + offset + ":" + count + ":" + low + ":" + step;
+      if (cache.has(key)) return cache.get(key);
+      const lo = blob.subarray(offset, offset + count), hi = blob.subarray(offset + count, offset + 2 * count), out = new Array(count);
+      for (let i = 0; i < count; i++) { const q = lo[i] | (hi[i] << 8); out[i] = q === 65535 ? null : +(low + q * step).toPrecision(7); }
+      cache.set(key, out);
+      return out;
+    };
+    const walk = (v) => {
+      if (Array.isArray(v)) return v.map(walk);
+      if (v && typeof v === "object") {
+        if (v.$f && Object.keys(v).length === 1) return get(v.$f[0], v.$f[1]);
+        if (v.$q && Object.keys(v).length === 1) return steps(v.$q[0], v.$q[1], v.$q[2], v.$q[3]);
+        const o = {}; for (const k in v) o[k] = walk(v[k]); return o;
+      }
+      return v;
+    };
+    head.phases = walk(head.phases || []);
+    return head;
+  }
   async function gunzipJson(buffer) {
     const bytes = new Uint8Array(buffer);
     if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
@@ -662,5 +707,5 @@ const PP = (() => {
   function csv(rows) { return rows.map((r) => r.map((v) => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(",")).join("\r\n"); }
 
   return { $, $$, el, icon, theme, css, isDark, menubar, dialog, toast, fmt, fmtFixed, clamp, niceStep, ramp, rgb, bandColours, levels, shade, mix, hex,
-    inside, segDist, area, delaunay, displayMesh, triIndex, bandPolygon, View2D, Orbit3D, faceNormal, norm, cross, chart, floating, download, gunzipJson, pickFile, csv };
+    inside, segDist, area, delaunay, displayMesh, triIndex, bandPolygon, View2D, Orbit3D, faceNormal, norm, cross, chart, floating, download, gunzipJson, readPack, pickFile, csv };
 })();

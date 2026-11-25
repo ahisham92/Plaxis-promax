@@ -13,12 +13,16 @@ without being said: the answer lists what was made, what was refused and why.
 Coordinates: 2D is x (horizontal) and y (up). 3D is x, y (horizontal) and z (up).
 """
 
+import array
 import gzip
+import hashlib
 import json
 import math
+import struct
+import sys
 import time
 
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 
 # ---- Names Plaxis uses for each value, newest first ------------------------------------------------------------------
 
@@ -607,6 +611,30 @@ PLATE_RESULTS_3D = [("N1", ["N1"]), ("N2", ["N2"]), ("M11", ["M11"]), ("M22", ["
 EMBEDDED_RESULTS = [("N", ["N", "Nx2D"]), ("Q", ["Q2D", "Q12"]), ("M", ["M2D", "M3"])]
 
 
+# What "keep" can choose, by group: Calculate in Plaxis can leave out what a review does not need, so a big model's
+# results file stays small.
+RESULT_GROUPS = {
+    "displacements": {"Ux", "Uy", "Uz", "Utot"},
+    "stresses": {"SigxxE", "SigyyE", "SigzzE", "Sigxy", "Sig1", "Sig3", "TauRel"},
+    "pore_pressures": {"PActive", "PExcess", "PSteady", "GroundwaterHead"},
+    "plastic_points": {"Plastic"},
+    "structures": set(),
+}
+
+
+def _kept(keep):
+    """The result keys and phases to write (None: all)."""
+    keep = keep or {}
+    groups = keep.get("results")
+    keys = None
+    if groups:
+        keys = set()
+        for g in groups:
+            keys |= RESULT_GROUPS.get(g, {g})
+    phases = keep.get("phases")
+    return keys, (set(str(p) for p in phases) if phases else None), (not groups or "structures" in groups)
+
+
 def _rt(g_o, group, names):
     rt = getattr(g_o.ResultTypes, group, None)
     if rt is None:
@@ -637,12 +665,23 @@ def _get(g_o, args, missing, label):
         return None
 
 
-def export(g_i, g_o, model, path, phases_info=None, plaxis_version="", most_nodes=200000):
+def export(g_i, g_o, model, path, phases_info=None, plaxis_version="", most_nodes=200000, keep=None):
     """
     Reads every calculated phase from Plaxis Output into a results file: node displacements, stresses and pore
     pressures at stress points, and forces in plates, embedded beams and anchors. Everything is copied from Plaxis's
     own results; nothing is computed here. Returns a summary of what was written and what Plaxis did not give.
+    keep: {"phases": [names or model ids], "results": [groups of RESULT_GROUPS]} to leave the rest out.
     """
+    keys, keep_phases, keep_structures = _kept(keep)
+    most_sp = most_nodes * 3  # a 3D mesh has about three stress points per node
+
+    def cut(vals, most, what):
+        if len(vals) > most:
+            note = "{}: only the first {} of {} kept".format(what, most, len(vals))
+            if note not in missing:
+                missing.append(note)
+        return vals[:most]
+    ids = {str(p.get("name")): str(p.get("id")) for p in (model.get("phases") or [])}
     is_3d = model.get("product") == "3D"
     started = time.time()
     phases_out = []
@@ -658,6 +697,10 @@ def export(g_i, g_o, model, path, phases_info=None, plaxis_version="", most_node
             pass
         entry = {"name": ident, "plaxis": name}
         entry.update({k: v for k, v in (info.get(ident) or {}).items() if k != "name"})
+        if keep_phases is not None and ident not in keep_phases and ids.get(ident) not in keep_phases:
+            entry["skipped"] = "left out of the results file, as chosen before the run"
+            phases_out.append(entry)
+            continue
         coords = ["X", "Y", "Z"] if is_3d else ["X", "Y"]
         nodes = {}
         for c in coords:
@@ -665,7 +708,7 @@ def export(g_i, g_o, model, path, phases_info=None, plaxis_version="", most_node
             vals = _get(g_o, (phase, t, "node"), missing, ident + " node " + c) if t is not None else None
             if vals is None:
                 break
-            nodes[c.lower()] = _round(vals[:most_nodes], 4)
+            nodes[c.lower()] = _round(cut(vals, most_nodes, ident + " nodes"), 4)
         if len(nodes) != len(coords):
             entry["skipped"] = "no node coordinates (is this phase calculated?)"
             phases_out.append(entry)
@@ -673,29 +716,35 @@ def export(g_i, g_o, model, path, phases_info=None, plaxis_version="", most_node
         entry["nodes"] = nodes
         entry["node"] = {}
         for key, names in (NODE_RESULTS_3D if is_3d else NODE_RESULTS_2D):
+            if keys is not None and key not in keys:
+                continue
             t, _ = _rt(g_o, "Soil", names)
             if t is None:
                 missing.append("{}: Soil.{} not in this Plaxis".format(ident, names[0]))
                 continue
             vals = _get(g_o, (phase, t, "node"), missing, ident + " " + key)
             if vals is not None:
-                entry["node"][key] = _round(vals[:most_nodes])
+                entry["node"][key] = _round(cut(vals, most_nodes, ident + " nodes"))
         sp = {}
-        for c in coords:
+        stress_keys = [(k, n) for k, n in (STRESS_RESULTS_3D if is_3d else STRESS_RESULTS_2D) if keys is None or k in keys]
+        for c in (coords if stress_keys else []):
             t, _ = _rt(g_o, "Soil", [c])
             vals = _get(g_o, (phase, t, "stresspoint"), missing, ident + " stress point " + c) if t is not None else None
             if vals is not None:
-                sp[c.lower()] = _round(vals[:most_nodes], 4)
-        if len(sp) == len(coords):
-            for key, names in (STRESS_RESULTS_3D if is_3d else STRESS_RESULTS_2D):
+                sp[c.lower()] = _round(cut(vals, most_sp, ident + " stress points"), 4)
+        if stress_keys and len(sp) == len(coords):
+            for key, names in stress_keys:
                 t, _ = _rt(g_o, "Soil", names)
                 if t is None:
                     missing.append("{}: Soil.{} not in this Plaxis".format(ident, names[0]))
                     continue
                 vals = _get(g_o, (phase, t, "stresspoint"), missing, ident + " " + key)
                 if vals is not None:
-                    sp[key] = _round(vals[:most_nodes], 3)
+                    sp[key] = _round(cut(vals, most_sp, ident + " stress points"), 3)
             entry["sp"] = sp
+        if not keep_structures:
+            phases_out.append(entry)
+            continue
         entry["plates"] = _members(g_o, phase, "Plate", "Plates", PLATE_RESULTS_3D if is_3d else PLATE_RESULTS_2D, coords, missing, ident)
         entry["embedded"] = _members(g_o, phase, "EmbeddedBeam" if is_3d else "EmbeddedBeamRow",
                                      "EmbeddedBeams" if is_3d else "EmbeddedBeamRows", EMBEDDED_RESULTS, coords, missing, ident)
@@ -708,15 +757,130 @@ def export(g_i, g_o, model, path, phases_info=None, plaxis_version="", most_node
         "units": model.get("units") or {"length": "m", "force": "kN", "time": "day"},
         "model": model, "phases": phases_out, "missing": missing[:200],
     }
-    data = json.dumps(pack, separators=(",", ":")).encode("utf-8")
-    with gzip.open(path, "wb", compresslevel=6) as f:
-        f.write(data)
+    if keep:
+        pack["kept"] = keep
+    size = write_pack(pack, path)
     return {
         "path": path, "phases": [p["name"] for p in phases_out if "nodes" in p],
         "skipped": [{"phase": p["name"], "why": p["skipped"]} for p in phases_out if "skipped" in p],
         "nodes": max([len(p.get("nodes", {}).get("x", [])) for p in phases_out] or [0]),
-        "missing": missing[:40], "seconds": round(time.time() - started, 1), "bytes": len(data),
+        "missing": missing[:40], "seconds": round(time.time() - started, 1), "bytes": size,
     }
+
+
+# ---- The results file -----------------------------------------------------------------------------------------------
+#
+# Version 2, made small for big models: gzip of
+#   "PPR2", the length of the header (4 bytes, little-endian), the header (JSON), then the numbers.
+# In the header each long list of numbers under "phases" points into the numbers, stored byte plane by byte plane (all
+# first bytes, then all second bytes...), which gzip packs far better than the numbers as they are:
+#   {"$f": [offset, count]}            4-byte floats (coordinates, structure forces): NaN is a missing value.
+#   {"$q": [offset, count, low, step]} 2-byte steps (soil results at nodes and stress points): value = low + q * step,
+#                                      65535 is a missing value. 65534 steps over each list's own range, so a value is
+#                                      within 1/131068 of that list's range of Plaxis's (0.0002 mm on a 30 mm range).
+# A list that is the same as one already written (node coordinates, phase after phase) is written once and pointed at
+# again. Version 1 (plain gzip JSON) still opens.
+
+PACK_MAGIC = b"PPR2"
+_PACKED_MIN = 8
+
+
+def _numbers(v):
+    return isinstance(v, list) and len(v) >= _PACKED_MIN and all(
+        x is None or (isinstance(x, (int, float)) and not isinstance(x, bool)) for x in v)
+
+
+_QUANTISED = ("node", "sp")
+_COORDS = ("x", "y", "z")
+_Q_MISSING = 65535
+_Q_TOP = 65534
+
+
+def write_pack(pack, path):
+    """Writes a results file (version 2). Returns its size in bytes."""
+    blob = bytearray()
+    seen = {}
+
+    def store(raw, width):
+        planes = b"".join(raw[i::width] for i in range(width))
+        key = hashlib.sha1(planes + bytes([width])).digest()
+        if key not in seen:
+            seen[key] = len(blob)
+            blob.extend(planes)
+        return seen[key]
+
+    def floats(values):
+        f = array.array("f", (float("nan") if x is None else float(x) for x in values))
+        if sys.byteorder != "little":
+            f.byteswap()
+        return {"$f": [store(f.tobytes(), 4), len(values)]}
+
+    def steps(values):
+        real = [float(x) for x in values if x is not None and math.isfinite(float(x))]
+        low = min(real) if real else 0.0
+        high = max(real) if real else 0.0
+        step = (high - low) / _Q_TOP if high > low else 1.0
+        q = array.array("H", (_Q_MISSING if x is None or not math.isfinite(float(x)) else int(round((float(x) - low) / step)) for x in values))
+        if sys.byteorder != "little":
+            q.byteswap()
+        return {"$q": [store(q.tobytes(), 2), len(values), low, step]}
+
+    def walk(v, parent=None, key=None):
+        if _numbers(v):
+            return steps(v) if parent in _QUANTISED and key not in _COORDS else floats(v)
+        if isinstance(v, dict):
+            return {k: walk(x, key, k) for k, x in v.items()}
+        if isinstance(v, list):
+            return [walk(x, parent, key) for x in v]
+        return v
+
+    head = dict(pack)
+    head["phases"] = walk(pack.get("phases") or [])
+    text = json.dumps(head, separators=(",", ":")).encode("utf-8")
+    with open(path, "wb") as raw_file:
+        with gzip.GzipFile(fileobj=raw_file, mode="wb", compresslevel=6) as f:
+            f.write(PACK_MAGIC)
+            f.write(struct.pack("<I", len(text)))
+            f.write(text)
+            f.write(bytes(blob))
+        return raw_file.tell()
+
+
+def read_pack(path):
+    """Reads a results file, version 1 or 2, into plain lists (missing values back to None)."""
+    with gzip.open(path, "rb") as f:
+        data = f.read()
+    if not data.startswith(PACK_MAGIC):
+        return json.loads(data.decode("utf-8"))
+    n = struct.unpack("<I", data[4:8])[0]
+    head = json.loads(data[8:8 + n].decode("utf-8"))
+    blob = data[8 + n:]
+
+    def planes(offset, count, width, code):
+        part = blob[offset:offset + width * count]
+        raw = bytearray(width * count)
+        for i in range(width):
+            raw[i::width] = part[i * count:(i + 1) * count]
+        a = array.array(code)
+        a.frombytes(bytes(raw))
+        if sys.byteorder != "little":
+            a.byteswap()
+        return a
+
+    def walk(v):
+        if isinstance(v, dict):
+            if set(v) == {"$f"}:
+                return [None if math.isnan(x) else float("%.7g" % x) for x in planes(v["$f"][0], v["$f"][1], 4, "f")]
+            if set(v) == {"$q"}:
+                offset, count, low, step = v["$q"]
+                return [None if q == _Q_MISSING else float("%.7g" % (low + q * step)) for q in planes(offset, count, 2, "H")]
+            return {k: walk(x) for k, x in v.items()}
+        if isinstance(v, list):
+            return [walk(x) for x in v]
+        return v
+
+    head["phases"] = walk(head.get("phases") or [])
+    return head
 
 
 def _members(g_o, phase, group, collection, results, coords, missing, ident):

@@ -76,10 +76,62 @@ class BuilderTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "r.ppr")
             ppm.export(g_i, g_o, sample("excavation-2d"), path, [], "2024.2")
-            with gzip.open(path, "rt", encoding="utf-8") as f:
-                r = json.load(f)
+            r = ppm.read_pack(path)
         self.assertEqual(r["format"], "ppr")
         self.assertIn("missing", r)
+
+
+class ResultsFileTests(unittest.TestCase):
+    def pack(self, phases):
+        return {"format": "ppr", "version": 2, "title": "t", "product": "2D", "model": {"phases": []}, "phases": phases}
+
+    def test_numbers_come_back_with_missing_values(self):
+        values = [0.0, -0.0123456, 1e-7, None, 123456.7, 3.0, -2.5, 0.001, 42.0]
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "r.ppr")
+            ppm.write_pack(self.pack([{"name": "A", "node": {"Utot": values}, "plates": [{"M": values}], "short": [1, 2]}]), path)
+            r = ppm.read_pack(path)
+        exact = r["phases"][0]["plates"][0]["M"]
+        stepped = r["phases"][0]["node"]["Utot"]
+        self.assertIsNone(exact[3])
+        self.assertIsNone(stepped[3])
+        span = 123456.7 + 2.5
+        for a, b, c in zip(values, exact, stepped):
+            if a is not None:
+                self.assertAlmostEqual(a, b, delta=abs(a) * 1e-6 + 1e-12)       # structure forces: 7 digits
+                self.assertAlmostEqual(a, c, delta=span / 65534 / 2 * 1.0001)   # soil results: half a step of the range
+        self.assertEqual(stepped[4], 123456.7)
+        self.assertEqual(stepped[6], -2.5)
+        self.assertEqual(r["phases"][0]["short"], [1, 2])
+
+    def test_coordinates_are_written_once_for_all_phases(self):
+        n = 20000
+        xs = [i * 0.37 % 60 for i in range(n)]
+        ys = [-(i * 0.11 % 30) for i in range(n)]
+        phases = [{"name": "P%d" % k, "nodes": {"x": xs, "y": ys}, "node": {"Utot": [((i * 7919 + k) % 1000) / 1e5 for i in range(n)]}} for k in range(10)]
+        with tempfile.TemporaryDirectory() as d:
+            once, plain = os.path.join(d, "a.ppr"), os.path.join(d, "b.ppr")
+            size = ppm.write_pack(self.pack(phases), once)
+            with gzip.open(plain, "wb", compresslevel=6) as f:
+                f.write(json.dumps(self.pack(phases), separators=(",", ":")).encode("utf-8"))
+            r = ppm.read_pack(once)
+            self.assertLess(size, os.path.getsize(plain) / 2)
+        self.assertEqual(len(r["phases"]), 10)
+        self.assertAlmostEqual(r["phases"][9]["nodes"]["x"][123], xs[123], places=4)
+
+    def test_old_files_still_open(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "old.ppr")
+            with gzip.open(path, "wb") as f:
+                f.write(json.dumps({"format": "ppr", "version": 1, "phases": [{"name": "A"}]}).encode("utf-8"))
+            self.assertEqual(ppm.read_pack(path)["phases"][0]["name"], "A")
+
+    def test_keep_leaves_out_phases_and_results(self):
+        keys, phases, structures = ppm._kept({"phases": ["p2"], "results": ["displacements"]})
+        self.assertEqual(keys, {"Ux", "Uy", "Uz", "Utot"})
+        self.assertEqual(phases, {"p2"})
+        self.assertFalse(structures)
+        self.assertEqual(ppm._kept(None), (None, None, True))
 
 
 if __name__ == "__main__":

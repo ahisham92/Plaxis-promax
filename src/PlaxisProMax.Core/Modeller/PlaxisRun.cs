@@ -27,7 +27,12 @@ public sealed class PlaxisRun
         public double? Seconds { get; set; }
     }
 
-    public sealed record Options(string? Plaxis, int StoredSteps = 1, bool OneByOne = true, bool KeepOpen = false);
+    /// <param name="Keep">What the results file keeps: {"phases": [names or ids], "results": [displacements, stresses,
+    /// pore_pressures, plastic_points, structures]}; null keeps everything.</param>
+    public sealed record Options(string? Plaxis, int StoredSteps = 1, bool OneByOne = true, bool KeepOpen = false, JsonObject? Keep = null);
+
+    /// <summary>The groups of results a run can keep or leave out of the results file.</summary>
+    public static readonly string[] ResultGroups = ["displacements", "stresses", "pore_pressures", "plastic_points", "structures"];
 
     private readonly List<string> _log = [];
     private readonly object _gate = new();
@@ -184,9 +189,10 @@ public sealed class PlaxisRun
             End($"{ok} of {phases.Count} phases ended OK");
 
             Begin(4);
-            var export = await Call(link, "export_results", new JsonObject { ["model"] = model, ["save_as"] = ResultsPath }, 2 * 3600, ct).ConfigureAwait(false);
+            var export = await Call(link, "export_results", new JsonObject { ["model"] = model, ["save_as"] = ResultsPath, ["keep"] = o.Keep?.DeepClone() }, 2 * 3600, ct).ConfigureAwait(false);
             ExportAnswer = export;
-            End($"{(export["phases"] as JsonArray)?.Count ?? 0} phases, {export["nodes"]} nodes");
+            var bytes = export["bytes"] is JsonValue b && b.TryGetValue<long>(out var size) ? size : 0;
+            End($"{(export["phases"] as JsonArray)?.Count ?? 0} phases, {export["nodes"]} nodes, {Size(bytes)}");
 
             Begin(5);
             if (o.KeepOpen) End("Kept open, as asked: the licence stays in use until you close Plaxis.");
@@ -235,6 +241,13 @@ public sealed class PlaxisRun
         catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) { }
         LicenceInUse = false;
     }
+
+    internal static string Size(long bytes) => bytes switch
+    {
+        <= 0 => "size not known",
+        < 1024 * 1024 => (bytes / 1024.0).ToString("0", CultureInfo.InvariantCulture) + " KB",
+        _ => (bytes / 1048576.0).ToString("0.0", CultureInfo.InvariantCulture) + " MB",
+    };
 
     private static async Task<JsonObject> Call(PlaxisLink link, string op, JsonObject args, int seconds, CancellationToken ct)
     {

@@ -966,7 +966,8 @@ def op_export_results(args):
     info = _phase_info(g_i)
     s_o, g_o = _output_for(phases[-1])
     version = "{}.{}".format(_safe(lambda: s_i.major_version, "?"), _safe(lambda: s_i.minor_version, "?"))
-    return _ppm().export(g_i, g_o, model, path, info, plaxis_version=version, most_nodes=int(args.get("most_nodes") or 200000))
+    return _ppm().export(g_i, g_o, model, path, info, plaxis_version=version, most_nodes=int(args.get("most_nodes") or 200000),
+                         keep=args.get("keep") or None)
 
 
 def op_close_project(args):

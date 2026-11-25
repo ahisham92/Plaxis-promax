@@ -54,13 +54,79 @@ public static class StudioFiles
         return at < 0 ? html + data : html[..at] + data + html[at..];
     }
 
-    /// <summary>Reads a results file (.ppr: gzip JSON), for checks and summaries on this side.</summary>
+    /// <summary>
+    /// Reads a results file (.ppr), for checks and summaries on this side. Version 2 (written by Calculate in Plaxis
+    /// since 0.4.0) is gzip of "PPR2", the header's length, the header (JSON) and the numbers: each long list in the
+    /// header points into the numbers, stored byte plane by byte plane: {"$f": [offset, count]} 4-byte floats (NaN
+    /// missing) or {"$q": [offset, count, low, step]} 2-byte steps (65535 missing) for soil results.
+    /// Version 1 is plain gzip JSON. Both come back as plain JSON.
+    /// </summary>
     public static JsonObject ReadResults(string path)
     {
-        using var file = File.OpenRead(path);
-        using var gz = new GZipStream(file, CompressionMode.Decompress);
-        using var reader = new StreamReader(gz, Encoding.UTF8);
-        return JsonNode.Parse(reader.ReadToEnd()) as JsonObject ?? throw new InvalidDataException("This is not a results file.");
+        byte[] data;
+        using (var file = File.OpenRead(path))
+        using (var gz = new GZipStream(file, CompressionMode.Decompress))
+        using (var all = new MemoryStream())
+        {
+            gz.CopyTo(all);
+            data = all.ToArray();
+        }
+        if (data.Length < 8 || data[0] != 'P' || data[1] != 'P' || data[2] != 'R' || data[3] != '2')
+            return JsonNode.Parse(data) as JsonObject ?? throw new InvalidDataException("This is not a results file.");
+        var n = BitConverter.ToInt32(data, 4);
+        if (n < 0 || 8 + n > data.Length) throw new InvalidDataException("This results file is cut short.");
+        var head = JsonNode.Parse(data.AsSpan(8, n)) as JsonObject ?? throw new InvalidDataException("This is not a results file.");
+        var blob = new ArraySegment<byte>(data, 8 + n, data.Length - 8 - n);
+        head["phases"] = Unpack(head["phases"]?.DeepClone(), blob);
+        return head;
+    }
+
+    private static JsonNode? Unpack(JsonNode? node, ArraySegment<byte> blob)
+    {
+        switch (node)
+        {
+            case JsonObject o when o.Count == 1 && o["$f"] is JsonArray at:
+                {
+                    var offset = at[0]!.GetValue<int>();
+                    var count = at[1]!.GetValue<int>();
+                    if (offset < 0 || count < 0 || (long)offset + 4L * count > blob.Count) throw new InvalidDataException("This results file is cut short.");
+                    var raw = new byte[4];
+                    var list = new JsonArray();
+                    for (var i = 0; i < count; i++)
+                    {
+                        for (var p = 0; p < 4; p++) raw[p] = blob[offset + p * count + i];
+                        if (!BitConverter.IsLittleEndian) Array.Reverse(raw);
+                        var v = BitConverter.ToSingle(raw, 0);
+                        list.Add(float.IsNaN(v) ? null : JsonValue.Create(double.Parse(v.ToString("G7", System.Globalization.CultureInfo.InvariantCulture), System.Globalization.CultureInfo.InvariantCulture)));
+                    }
+                    return list;
+                }
+            case JsonObject o when o.Count == 1 && o["$q"] is JsonArray q:
+                {
+                    var offset = q[0]!.GetValue<int>();
+                    var count = q[1]!.GetValue<int>();
+                    var low = q[2]!.GetValue<double>();
+                    var step = q[3]!.GetValue<double>();
+                    if (offset < 0 || count < 0 || (long)offset + 2L * count > blob.Count) throw new InvalidDataException("This results file is cut short.");
+                    var list = new JsonArray();
+                    for (var i = 0; i < count; i++)
+                    {
+                        var code = blob[offset + i] | (blob[offset + count + i] << 8);
+                        list.Add(code == 65535 ? null : JsonValue.Create(double.Parse((low + code * step).ToString("G7", System.Globalization.CultureInfo.InvariantCulture), System.Globalization.CultureInfo.InvariantCulture)));
+                    }
+                    return list;
+                }
+            case JsonObject o:
+                {
+                    var copy = new JsonObject();
+                    foreach (var (k, v) in o) copy[k] = Unpack(v?.DeepClone(), blob);
+                    return copy;
+                }
+            case JsonArray a:
+                return new JsonArray(a.Select(x => Unpack(x?.DeepClone(), blob)).ToArray());
+            default:
+                return node;
+        }
     }
 
     /// <summary>

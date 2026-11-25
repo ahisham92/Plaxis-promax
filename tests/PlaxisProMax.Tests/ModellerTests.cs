@@ -137,6 +137,32 @@ internal static class ModellerTests
             check("results: the summary has the largest displacement and wall moment, with its sign",
                 p0["max_Utot"]!.GetValue<double>() == -0.03 && p0["plates"]![0]!["max_M"]!.GetValue<double>() == -250 && p0["anchors"]![0]!["F"]!.GetValue<double>() == -177, summary.ToJsonString());
 
+            // Version 2 results: the numbers in byte planes after the header, shared lists written once
+            var v2 = Path.Combine(scratch, "r2.ppr");
+            WriteV2(v2, """{"format":"ppr","version":2,"phases":[{"name":"P1","nodes":{"x":{"$f":[0,3]}},"node":{"Utot":{"$f":[12,3]}}},{"name":"P2","nodes":{"x":{"$f":[0,3]}}}]}""",
+                [0f, 12.5f, 60f], [0.001f, float.NaN, -0.0296f]);
+            var v2q = Path.Combine(scratch, "r2q.ppr");
+            using (var f = File.Create(v2q))
+            using (var gz = new GZipStream(f, CompressionLevel.Fastest))
+            {
+                var text = Encoding.UTF8.GetBytes("""{"format":"ppr","phases":[{"name":"P1","node":{"Utot":{"$q":[0,3,-0.5,0.25]}}}]}""");
+                gz.Write("PPR2"u8); gz.Write(BitConverter.GetBytes(text.Length)); gz.Write(text);
+                gz.Write(new byte[] { 0, 2, 0xFF, 0, 0, 0xFF }); // low bytes, then high bytes: 0, 2, 65535
+            }
+            var stepped = StudioFiles.ReadResults(v2q)["phases"]![0]!["node"]!["Utot"]!.AsArray();
+            check("results: soil results in 2-byte steps read back, with a missing value as null",
+                stepped[0]!.GetValue<double>() == -0.5 && stepped[1]!.GetValue<double>() == 0 && stepped[2] is null, stepped.ToJsonString());
+            var read2 = StudioFiles.ReadResults(v2);
+            var u = read2["phases"]![0]!["node"]!["Utot"]!.AsArray();
+            check("results: version 2 files read back, with a missing value as null and a shared list in both phases",
+                u[0]!.GetValue<double>() == 0.001 && u[1] is null && u[2]!.GetValue<double>() == -0.0296 && read2["phases"]![1]!["nodes"]!["x"]![1]!.GetValue<double>() == 12.5, read2.ToJsonString());
+            var keepAll = StudioServer.Keep(new JsonObject { ["results"] = new JsonArray(PlaxisRun.ResultGroups.Select(g => (JsonNode)JsonValue.Create(g)!).ToArray()) });
+            var keepSome = StudioServer.Keep(new JsonObject { ["results"] = new JsonArray("displacements", "bogus"), ["phases"] = new JsonArray("p5") });
+            var none = false;
+            try { StudioServer.Keep(new JsonObject { ["results"] = new JsonArray() }); } catch (InvalidOperationException) { none = true; }
+            check("results: keeping everything sends no choice, unknown groups are dropped, and keeping nothing is refused",
+                keepAll is null && keepSome!["results"]!.AsArray().Count == 1 && keepSome["phases"]![0]!.ToString() == "p5" && none, keepSome?.ToJsonString() ?? "");
+
             // The chat's edits
             var session = server.Session;
             session.Change(m => ModelPath.Apply(m, "set", "materials/id=" + m["materials"]![0]!["id"] + "/E", JsonValue.Create(12345)));
@@ -163,6 +189,23 @@ internal static class ModellerTests
         check("tools: starting a calculation always asks (licence), asking how it goes does not", ask.Ask && ask.Reason.Contains("licence") && !status.Ask, ask.Reason);
         check("shortcuts: made again after an update moves the program, not otherwise",
             Shortcuts.Due(null, "C:\\a\\PlaxisProMax.exe") && Shortcuts.Due("C:\\old\\PlaxisProMax.exe" + Shortcuts.Revision, "C:\\a\\PlaxisProMax.exe") && !Shortcuts.Due("C:\\a\\PlaxisProMax.exe" + Shortcuts.Revision, "C:\\a\\PlaxisProMax.exe"), "");
+    }
+
+    private static void WriteV2(string path, string head, params float[][] lists)
+    {
+        using var file = File.Create(path);
+        using var gz = new GZipStream(file, CompressionLevel.Fastest);
+        var text = Encoding.UTF8.GetBytes(head);
+        gz.Write("PPR2"u8);
+        gz.Write(BitConverter.GetBytes(text.Length));
+        gz.Write(text);
+        foreach (var list in lists)
+        {
+            var raw = new byte[list.Length * 4];
+            Buffer.BlockCopy(list, 0, raw, 0, raw.Length);
+            for (var p = 0; p < 4; p++)
+                for (var i = 0; i < list.Length; i++) gz.WriteByte(raw[4 * i + p]);
+        }
     }
 
     private static bool Regex(string text, string pattern) => System.Text.RegularExpressions.Regex.IsMatch(text, pattern);

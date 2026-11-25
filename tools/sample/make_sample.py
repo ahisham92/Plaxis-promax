@@ -284,14 +284,23 @@ def pack(model, phases):
             "units": model["units"], "model": model, "phases": phases, "missing": []}
 
 
+def _ppm():
+    """The builder's own results writer, so the samples are in the same format as Calculate in Plaxis writes."""
+    import importlib.util
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "src", "PlaxisProMax.Core", "Plaxis", "ppm_build.py")
+    spec = importlib.util.spec_from_file_location("ppm_build", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def main(out):
     os.makedirs(out, exist_ok=True)
     m2, m3 = excavation_2d(), pit_3d()
     for name, m, ph in (("excavation-2d", m2, sample_results_2d(m2)), ("pit-3d", m3, sample_results_3d(m3))):
         with open(os.path.join(out, name + ".ppm"), "w", encoding="utf-8") as f:
             json.dump(m, f, indent=1)
-        with gzip.open(os.path.join(out, name + ".ppr"), "wb") as f:
-            f.write(json.dumps(pack(m, ph), separators=(",", ":")).encode("utf-8"))
+        _ppm().write_pack(pack(m, ph), os.path.join(out, name + ".ppr"))
     print("Wrote samples to", out)
 
 

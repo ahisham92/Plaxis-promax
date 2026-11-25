@@ -97,7 +97,7 @@ const usable = (p) => !!(p && p.nodes && p.nodes.x && p.nodes.x.length);
 // ---- Loading ------------------------------------------------------------------------------------------------------
 async function loadBuffer(buf, name) {
   let p;
-  try { p = await PP.gunzipJson(buf); } catch (e) { PP.toast("This is not a Plaxis ProMax results file (.ppr)."); return; }
+  try { p = await PP.readPack(buf); } catch (e) { PP.toast("This is not a Plaxis ProMax results file (.ppr)."); return; }
   if (p.format !== "ppr") { PP.toast("This is not a Plaxis ProMax results file (.ppr)."); return; }
   pack = p; fileName = name || ""; cache.clear();
   ui.phase = Math.max(0, pack.phases.map(usable).lastIndexOf(true));

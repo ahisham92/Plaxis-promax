@@ -129,7 +129,7 @@ internal sealed class CalculateInPlaxisTool() : ModellerTool("calculate_in_plaxi
     "project, meshes and calculates every phase, copies the results into a results file (.ppr beside the model) and closes Plaxis, so the licence is " +
     "given back. action start (default) begins it; status tells how it is going; stop ends it and closes Plaxis. It takes minutes to hours: start it, " +
     "then ask for status now and then.",
-    """{"action":{"type":"string","enum":["start","status","stop"]},"stored_steps":{"type":"integer"},"one_by_one":{"type":"boolean"},"keep_open":{"type":"boolean"},"plaxis":{"type":"string","description":"Plaxis Input program to use (default: the newest found)"}}""",
+    """{"action":{"type":"string","enum":["start","status","stop"]},"stored_steps":{"type":"integer"},"one_by_one":{"type":"boolean"},"keep_open":{"type":"boolean"},"plaxis":{"type":"string","description":"Plaxis Input program to use (default: the newest found)"},"keep_phases":{"type":"array","items":{"type":"string"},"description":"Phases (names or ids) to keep in the results file; default all"},"keep_results":{"type":"array","items":{"type":"string","enum":["displacements","stresses","pore_pressures","plastic_points","structures"]},"description":"Kinds of results to keep; default all. Leaving some out keeps a big model's results file small"}}""",
     [], true)
 {
     protected override ToolResult Run(ToolArgs a)
@@ -145,7 +145,12 @@ internal sealed class CalculateInPlaxisTool() : ModellerTool("calculate_in_plaxi
             default:
                 var errors = ModelChecks.Check(s.Get().Model ?? throw new InvalidOperationException("No model is open in the Modeller.")).Where(f => f.Level == "error").ToList();
                 if (errors.Count > 0) return ToolResult.Error("The model has errors to fix first: " + string.Join("; ", errors.Select(e => e.Text)));
-                var run = s.StartRun(new PlaxisRun.Options(a.OptString("plaxis"), (int)Math.Clamp(a.OptLong("stored_steps") ?? 1, 1, 1000), a.OptBool("one_by_one", true), a.OptBool("keep_open")));
+                var run = s.StartRun(new PlaxisRun.Options(a.OptString("plaxis"), (int)Math.Clamp(a.OptLong("stored_steps") ?? 1, 1, 1000), a.OptBool("one_by_one", true), a.OptBool("keep_open"),
+                    StudioServer.Keep(new JsonObject
+                    {
+                        ["phases"] = a.Has("keep_phases") ? new JsonArray(a.StringList("keep_phases").Select(x => (JsonNode)JsonValue.Create(x)!).ToArray()) : null,
+                        ["results"] = a.Has("keep_results") ? new JsonArray(a.StringList("keep_results").Select(x => (JsonNode)JsonValue.Create(x)!).ToArray()) : null,
+                    })));
                 return new ToolResult(run.Status().ToJsonString());
         }
     }
