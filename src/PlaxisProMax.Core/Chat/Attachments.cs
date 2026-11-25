@@ -33,7 +33,7 @@ internal static class Attachments
             {
                 ".pdf" => Pdf(path),
                 ".dxf" => "CAD drawing (DXF): read its layers and geometry with read_drawing_file",
-                ".dwg" => "CAD drawing (DWG), which can't be read as it is: ask the user to save it as DXF (AutoCAD: Save As > DXF) and attach that, or bring it into Plaxis with Plaxis's own CAD import",
+                ".dwg" => "CAD drawing (DWG): read its layers and geometry with read_drawing_file",
                 ".doc" or ".ppt" => "older Word or PowerPoint file, which can't be read here. Ask the user to save it as .docx or .pptx (File > Save As) and attach that",
                 ".xls" or ".xlsb" => "older or binary Excel file, which can't be read here. Ask the user to save it as .xlsx (File > Save As) and attach that",
                 ".csv" or ".txt" or ".md" or ".log" or ".json" or ".xml" or ".ags" => "text; read it with the Read tool",

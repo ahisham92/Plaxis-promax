@@ -51,7 +51,43 @@ internal static class DrawingTests
             var dwg = Path.Combine(dir, "plan.dwg");
             File.WriteAllBytes(dwg, [0x41, 0x43, 0x31, 0x30]);
             var refused = ReadDrawingFileTool.Read(Args(JsonSerializer.Serialize(new { path = dwg })));
-            check("read_drawing_file: a DWG is refused with what to do", refused.IsError && refused.Text.Contains("save it as DXF"), refused.Text);
+            check("read_drawing_file: a damaged DWG says what to do", refused.IsError && refused.Text.Contains("Save it as DXF"), refused.Text);
+
+            // A real DWG: made here, read back with the same layers and geometry.
+            var madeDwg = MakeDrawingTool.Make(Args("""
+                {"title": "Section B", "format": "dwg", "entities": [
+                  {"kind": "polyline", "layer": "SOIL", "points": [[0,0],[40,0],[40,-20],[0,-20]], "closed": true},
+                  {"kind": "line", "layer": "WALL", "points": [[20,2.5],[20,-14]]},
+                  {"kind": "circle", "layer": "ANCHOR", "points": [[20,-2]], "radius": 0.3},
+                  {"kind": "text", "layer": "NOTES", "points": [[21,-14]], "text": "Toe -14.0", "height": 0.5}
+                ]}
+                """), dir);
+            check("make_drawing writes a DWG", !madeDwg.IsError && madeDwg.Text.Contains(".dwg") && madeDwg.Text.Contains("DWG drawing"), madeDwg.Text);
+            var dwgFile = Directory.GetFiles(dir, "Section B*.dwg").FirstOrDefault() ?? "";
+            var dwgLayers = ReadDrawingFileTool.Read(Args(JsonSerializer.Serialize(new { path = dwgFile })));
+            check("read_drawing_file reads a DWG's layers", !dwgLayers.IsError && dwgLayers.Text.Contains("SOIL") && dwgLayers.Text.Contains("WALL") && dwgLayers.Text.Contains("ANCHOR") && dwgLayers.Text.Contains("NOTES"), dwgLayers.Text);
+            var dwgWall = ReadDrawingFileTool.Read(Args(JsonSerializer.Serialize(new { path = dwgFile, layer = "WALL" })));
+            check("read_drawing_file reads a DWG layer's coordinates", !dwgWall.IsError && dwgWall.Text.Contains("[20,2.5]") && dwgWall.Text.Contains("[20,-14]"), dwgWall.Text);
+            var dwgSoil = ReadDrawingFileTool.Read(Args(JsonSerializer.Serialize(new { path = dwgFile, layer = "SOIL" })));
+            check("read_drawing_file reads a DWG's closed polyline", dwgSoil.Text.Contains("\"closed\":true") && dwgSoil.Text.Contains("[40,-20]"), dwgSoil.Text);
+            var dwgText = ReadDrawingFileTool.Read(Args(JsonSerializer.Serialize(new { path = dwgFile, layer = "NOTES" })));
+            check("read_drawing_file reads a DWG's text", dwgText.Text.Contains("Toe -14.0"), dwgText.Text);
+
+            // A block used twice, moved, scaled and turned: its lines come out where each reference puts them.
+            var blocks = new ACadSharp.CadDocument();
+            var pile = new ACadSharp.Tables.BlockRecord("PILE");
+            pile.Entities.Add(new ACadSharp.Entities.Line { StartPoint = new CSMath.XYZ(0, 0, 0), EndPoint = new CSMath.XYZ(1, 0, 0) });
+            blocks.BlockRecords.Add(pile);
+            var pilesLayer = new ACadSharp.Tables.Layer("PILES");
+            blocks.Layers.Add(pilesLayer);
+            blocks.Entities.Add(new ACadSharp.Entities.Insert(pile) { InsertPoint = new CSMath.XYZ(10, 5, 0), Layer = pilesLayer });
+            blocks.Entities.Add(new ACadSharp.Entities.Insert(pile) { InsertPoint = new CSMath.XYZ(0, 0, 0), XScale = 2, YScale = 2, ZScale = 2, Rotation = Math.PI / 2, Layer = pilesLayer });
+            var blockFile = Path.Combine(dir, "blocks.dwg");
+            using (var writer = new ACadSharp.IO.DwgWriter(blockFile, blocks)) writer.Write();
+            var inBlocks = ReadDrawingFileTool.Read(Args(JsonSerializer.Serialize(new { path = blockFile, layer = "PILES" })));
+            check("a DWG's blocks are opened up at each place, on the reference's layer",
+                !inBlocks.IsError && inBlocks.Text.Contains("\"count\":2") && inBlocks.Text.Contains("[[10,5],[11,5]]") && inBlocks.Text.Contains("[[0,0],[0,2]]"), inBlocks.Text);
+            check("MText codes are taken out", Dwg.Plain("{\\fArial|b0;Toe \\H2;level}\\P-14.0") == "Toe level -14.0", Dwg.Plain("{\\fArial|b0;Toe \\H2;level}\\P-14.0"));
             var junk = Path.Combine(dir, "junk.dxf");
             File.WriteAllText(junk, "AutoCAD Binary DXF\r\n\u001a\0");
             check("read_drawing_file: a file that is not a text DXF says so", ReadDrawingFileTool.Read(Args(JsonSerializer.Serialize(new { path = junk }))).IsError, "");
@@ -70,7 +106,7 @@ internal static class DrawingTests
             var note = PlaxisProMax.Chat.Attachments.Note([docx, file, dwg, Path.Combine(dir, "gone.pdf"), csvFile], Path.Combine(dir, "read"));
             check("attachments: a Word file's text comes with the message, a DXF and a DWG say how to read them",
                 !word.IsError && note.Contains("Word document; its text is below") && note.Contains("cu = 25 kPa") && note.Contains("read_drawing_file")
-                && note.Contains("save it as DXF") && note.Contains("not found on this PC") && note.Contains("Wall moments.csv (text; read it with the Read tool)"), note);
+                && note.Contains("CAD drawing (DWG)") && note.Contains("not found on this PC") && note.Contains("Wall moments.csv (text; read it with the Read tool)"), note);
             var longDoc = MakeDocumentTool.Make(Args(JsonSerializer.Serialize(new { format = "word", title = "Long report", content = string.Join("\n\n", Enumerable.Range(1, 900).Select(i => $"Paragraph {i} about the ground at borehole {i}.")) })), dir);
             var longNote = PlaxisProMax.Chat.Attachments.Note([Path.Combine(dir, "Long report.docx")], Path.Combine(dir, "read"));
             check("attachments: a long document's text goes to a file the note names",

@@ -304,7 +304,7 @@
   {
    "group": "Check",
    "title": "Model against the drawing",
-   "prompt": "Read the attached section drawing (DXF or PDF) and compare its levels and dimensions with the model. List what differs."
+   "prompt": "Read the attached section drawing (DWG, DXF or PDF) and compare its levels and dimensions with the model. List what differs."
   },
   {
    "group": "Check",

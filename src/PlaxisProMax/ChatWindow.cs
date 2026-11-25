@@ -551,7 +551,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         var pick = new OpenFileDialog
         {
             Multiselect = true, Title = "Attach files (borehole logs, reports, drawings, spreadsheets, pictures)",
-            Filter = "All files (*.*)|*.*|Documents (PDF, Word, Excel, PowerPoint, text)|*.pdf;*.docx;*.xlsx;*.xlsm;*.pptx;*.csv;*.txt;*.ags|CAD drawings (DXF)|*.dxf|Pictures|*.png;*.jpg;*.jpeg;*.gif;*.webp;*.bmp",
+            Filter = "All files (*.*)|*.*|Documents (PDF, Word, Excel, PowerPoint, text)|*.pdf;*.docx;*.xlsx;*.xlsm;*.pptx;*.csv;*.txt;*.ags|CAD drawings (DWG, DXF)|*.dwg;*.dxf|Pictures|*.png;*.jpg;*.jpeg;*.gif;*.webp;*.bmp",
         };
         if (pick.ShowDialog(this) != true) return;
         foreach (var file in pick.FileNames)

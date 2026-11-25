@@ -39,11 +39,11 @@ internal static class SystemPrompt
           only when the user wants the steps in between, as for curves or a safety analysis). Results for a report or
           Excel: one results_to_excel call for every phase and result type together, not get_results once per value.
         - Attached files: the message lists each with what it is. A Word, Excel or PowerPoint file's text comes with
-          the message (or in a text file it names); read PDFs, pictures and text with the Read tool; a DXF drawing with
+          the message (or in a text file it names); read PDFs, pictures and text with the Read tool; a DWG or DXF drawing with
           read_drawing_file (layers first, then the layer you need, and check its units against a known dimension). Read
           another Office file on the PC with read_document_text.
         - Files for the user: make_document writes an Excel workbook, a Word report, a PDF, a PowerPoint or a CSV table
-          in one call, and make_drawing a DXF. Get the figures from the project first, put pictures in by their path, and
+          in one call, and make_drawing a DXF (or a DWG when asked). Get the figures from the project first, put pictures in by their path, and
           use formulas in Excel where the user may change a number. The chat shows the file with Open, so don't repeat
           its path. Asked for a report in the office's style, read two or three earlier ones first.
 
