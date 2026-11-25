@@ -67,6 +67,7 @@ internal sealed partial class ChatWindow : IHistoryHost
         menu.Items.Add(BriefMenu());
         menu.Items.Add(new Separator());
         Item("Run self-test", "Checks the license, Claude Code, the connection to Plaxis, every tool that only reads, and the files it can make. Nothing in your project changes.", RunSelfTest);
+        Item("Beside Plaxis", "Puts this window, slim, beside the open PLAXIS Input or Output window. Plaxis itself is not moved.", () => { if (!SnapBesidePlaxis()) Note("No PLAXIS Input or Output window is open to stand beside."); });
         Item("Open folders", "Where Plaxis ProMax keeps your files, bugs, kept code and chats.", () => UserFoldersWindow.Open(this));
         menu.Items.Add(new Separator());
         foreach (var line in UsageLines()) menu.Items.Add(new MenuItem { Header = line, IsEnabled = false });

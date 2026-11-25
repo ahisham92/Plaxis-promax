@@ -14,7 +14,7 @@ namespace PlaxisProMax;
 /// </summary>
 internal static class Program
 {
-    public const string Version = "0.4.0";
+    public const string Version = "0.5.0";
 
     /// <summary>The arguments this start had, so Restart to update starts the new version the same way.</summary>
     public static string[] Args { get; private set; } = [];

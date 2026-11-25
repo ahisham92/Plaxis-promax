@@ -14,6 +14,30 @@ Plaxis ProMax has two windows that need no Plaxis and no Plaxis licence, as ETAB
 Both open from their own shortcuts, on the desktop and in the Start menu's Plaxis ProMax folder. The program makes
 them at its first start and points them at the new version after an update (`install.ps1` makes them as well).
 
+## The Plaxis-native look
+
+Both windows are laid out the way PLAXIS Input and Output are, so a Plaxis user finds things where they expect them.
+Only our own mark and icons are used: no Bentley logos, icons or artwork.
+
+- **Modeller (as Input):** the menu in Plaxis's order (File, Edit, View, Soil, Structures, Mesh, Flow conditions,
+  Phases, Calculate, then ProMax and Help), one row of tools with the five mode tabs as arrows on its right, the Phases
+  explorer (Staged construction), Selection explorer and Model explorer on the left, a side toolbar beside the drawing
+  with the tools of the mode, and a command line under the drawing.
+- **Viewer (as Output):** the phase and plot as lists in the toolbar, the legend on the left of the plot, the
+  Deformations, Stresses and Structures menus, a side toolbar (select, cross section, curve, tables), and the phases
+  with the values at the cursor on the right.
+- **The ProMax panel:** the chat, docked on the right like one more explorer. It shows what you asked, each step the
+  chat takes and its answers (tables with grid lines, as Plaxis draws them), an OK the chat is waiting for (Allow or
+  Don't allow), and a box to write to the chat. The command line's **ProMax steps** tab lists the same steps, and
+  its **Session** tab the messages of the checks and of Calculate in Plaxis; what is typed on the command line goes to
+  the chat too. View > ProMax panel (or the toolbar's ProMax button) hides and shows it. The chat window itself
+  stays open: the crew, history, files and settings are there, and **Chat window** brings it forward. The panel works
+  when the page was opened by Plaxis ProMax (the Modeller, or the Viewer from Results); a Viewer opened from its own
+  shortcut or from a shared HTML file has no chat to talk to, so it has no panel.
+- **The chat window beside real Plaxis:** when Plaxis Input or Output is open and the chat has no saved place yet, the
+  chat window stands, slim, to the right of the Plaxis window and as tall as it (or at the right of the screen when
+  there is no room). The ⋯ menu's **Beside Plaxis** does it again at any time. Plaxis itself is never moved or resized.
+
 ## When the licence is used
 
 Only **Calculate in Plaxis** uses Plaxis, and so a licence, and only while it runs:

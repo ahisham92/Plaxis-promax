@@ -9,7 +9,7 @@
     <LangVersion>latest</LangVersion>
     <RootNamespace>PlaxisProMax</RootNamespace>
     <AssemblyName>PlaxisProMax</AssemblyName>
-    <Version>0.4.0</Version>
+    <Version>0.5.0</Version>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>..\..\assets\logo\plaxis-promax.ico</ApplicationIcon>

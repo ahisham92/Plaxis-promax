@@ -360,6 +360,23 @@ public sealed class StudioServer : IDisposable
             case ("DELETE", "api/run"):
                 s.Run?.Stop();
                 return Ok(s.Run?.Status() ?? new JsonObject { ["state"] = "none" });
+            case ("GET", "api/promax"):
+                return Ok(ChatBridge.Read(long.TryParse(Query(r, "since"), out var seen) ? seen : 0));
+            case ("POST", "api/promax"):
+                {
+                    var text = Body(r)["text"]?.ToString() ?? "";
+                    if (text.Trim().Length == 0) throw new InvalidOperationException("Type what ProMax should do first.");
+                    return Ok(new JsonObject { ["sent"] = ChatBridge.Send(text) });
+                }
+            case ("POST", "api/promax/focus"):
+                ChatBridge.Focus();
+                return Ok(new JsonObject { ["ok"] = true });
+            case ("POST", "api/promax/answer"):
+                {
+                    var b = Body(r);
+                    ChatBridge.Answer((long?)b["id"] ?? 0, (bool?)b["allow"] ?? false);
+                    return Ok(new JsonObject { ["ok"] = true });
+                }
             case ("POST", "api/viewer"):
                 {
                     var results = Body(r)["results"]?.ToString();

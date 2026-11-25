@@ -31,7 +31,8 @@ internal static class ChatUi
     public const double S1 = 4, S2 = 8, S3 = 12, S4 = 16, S5 = 20, S6 = 24, S8 = 32;
     public const double BodySize = ChatStyles.Body, SmallSize = ChatStyles.Caption, CodeSize = ChatStyles.Caption, TitleSize = ChatStyles.Subtitle;
     public const double HeadingSize = ChatStyles.Title, GreetingSize = ChatStyles.Display;
-    public const double RadiusSmall = 8, Radius = 12;
+    // Square, Plaxis-like corners (the Plaxis-native look): small enough to read as a desktop tool window.
+    public const double RadiusSmall = 3, Radius = 4;
 
     public static readonly FontFamily Icons = new("Segoe Fluent Icons, Segoe MDL2 Assets");
     public static readonly FontFamily Mono = new("Cascadia Mono, Consolas, Courier New");

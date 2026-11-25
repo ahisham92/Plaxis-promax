@@ -57,7 +57,7 @@ internal sealed partial class ChatWindow
         SnapsToDevicePixels = true;
         TextOptions.SetTextFormattingMode(this, TextFormattingMode.Display);
 
-        var top = new DockPanel { Margin = new Thickness(ChatUi.S2, ChatUi.S2, ChatUi.S2, ChatUi.S2) };
+        var top = new DockPanel { Margin = new Thickness(ChatUi.S2, ChatUi.S1, ChatUi.S2, ChatUi.S1) };
         var history = ChatUi.IconButton(ChatUi.Paths.Menu, "Chat history", "Your chats: search, open, rename, pin, export or delete them.");
         history.Margin = new Thickness(0, 0, ChatUi.S1, 0);
         history.Click += (_, _) => { if (_drawerOpen) CloseDrawer(); else OpenDrawer(); };
@@ -103,8 +103,10 @@ internal sealed partial class ChatWindow
         names.Children.Add(_plaxisState);
         top.Children.Add(names);
 
+        // A Plaxis explorer's head: a grey band with a line under it, so the chat reads as one more Plaxis panel.
         var header = new Border { Child = top, BorderThickness = new Thickness(0, 0, 0, 1) };
-        header.SetResourceReference(Border.BorderBrushProperty, Brand.K.BorderSubtle);
+        header.SetResourceReference(Border.BackgroundProperty, Brand.K.Surface);
+        header.SetResourceReference(Border.BorderBrushProperty, Brand.K.Border);
         return header;
     }
 
@@ -114,6 +116,7 @@ internal sealed partial class ChatWindow
         var name = _conversation.Name.Trim();
         _chatName.Text = name.Length > 0 && (_sample || _conversation.Items.Count > 0) ? name : "Plaxis ProMax";
         _chatName.ToolTip = _chatName.Text;
+        if (!_sample) Modeller.ChatBridge.ChatName(_chatName.Text);
         _typeLabel.Text = ChatTypes.Label(ChatTypes.Of(_conversation));
         ShowPickers();
         ShowUsage();
@@ -507,7 +510,7 @@ internal sealed partial class ChatWindow
         panel.Children.Add(grid);
         Drawn(panel, ours: true);
         _lastAnswer = view;
-        if (save && text.Length > 0) _conversation.Items.Add(new ChatItem { Kind = "assistant", Text = text, Time = DateTime.UtcNow });
+        if (save && text.Length > 0) { _conversation.Items.Add(new ChatItem { Kind = "assistant", Text = text, Time = DateTime.UtcNow }); Bridge("assistant", text); }
         ScrollToEnd();
         return view;
     }

@@ -107,6 +107,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
 
         RestorePlace();
         Closing += (_, _) => SavePlace();
+        if (!sample) AttachBridge();
         _link.ConnectionChanged += connected => Dispatcher.BeginInvoke(() => ShowPlaxis(connected));
         if (!sample) Loaded += async (_, _) => await StartAsync();
         Closed += (_, _) =>
@@ -157,6 +158,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
             _plaxisState.Text = "Not connected to Plaxis";
             return;
         }
+        SnapFirstTime();
         var file = Path.GetFileNameWithoutExtension(s["filename"]?.ToString() ?? "");
         var project = file.Length > 0 ? file : s["title"]?.ToString() ?? "new project";
         _plaxisState.Text = $"{s["product"]} {s["version"]} · {project}";
@@ -422,6 +424,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
     private void SetBusy(bool busy)
     {
         _busy = busy;
+        if (!_sample) Modeller.ChatBridge.Busy(busy);
         _send.Visibility = busy ? Visibility.Collapsed : Visibility.Visible;
         _stop.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         _working.Text = busy ? "Working…" : "";
@@ -487,6 +490,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
             if (view.Tag is string { Length: > 0 } text)
             {
                 _conversation.Items.Add(new ChatItem { Kind = "assistant", Text = text, Time = DateTime.UtcNow });
+                Bridge("assistant", text);
                 _turnText.Append(text).Append("\n\n");
             }
         _streams.Clear();
@@ -586,6 +590,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         _conversation.Items.Add(item);
         ShowItem(item);
         ScrollToEnd();
+        if (item.Kind is "user" or "assistant" or "note" or "error") Bridge(item.Kind, item.Text);
     }
 
     private void Note(string text) => AddItem(new ChatItem { Kind = "note", Text = text, Time = DateTime.UtcNow });
@@ -604,6 +609,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         var row = AddStepRow(name, text, "running", "");
         row.Input = inputJson;
         _steps[id] = row;
+        Bridge("step", text, "running", name, id);
         _working.Text = StepNames.Running(name, text, !StepNames.ReadOnly(name));
         _strip.CoordinatorDoes(name);
     }
@@ -613,6 +619,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         if (!_steps.TryGetValue(id, out var step)) return;
         _steps.Remove(id);
         SetStep(step, failed ? "failed" : "done", result, pop: true);
+        Bridge("step", step.Line.Text, failed ? "failed" : "done", step.Tool, id);
         _conversation.Items.Add(new ChatItem { Kind = "tool", Name = step.Tool, Text = step.Line.Text, State = failed ? "failed" : "done", Result = result.Length > 2000 ? result.Substring(0, 2000) : result, Time = DateTime.UtcNow });
         _working.Text = _busy ? "Working…" : "";
         // A file the step made (a report, a workbook, a drawing): its card, saved with the chat.
@@ -692,15 +699,18 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
             _messages.Children.Add(card);
             ScrollToEnd();
             ChatUi.FlashIfAway(this);
-            long phoneId = 0;
+            long phoneId = 0, pageId = 0;
             void Answer(ApprovalAnswer a, string said)
             {
                 if (!answer.TrySetResult(a)) return;
+                if (pageId != 0) Modeller.ChatBridge.Answered(pageId);
                 buttons.IsEnabled = false;
                 panel.Children.Add(ChatUi.Small(said));
                 SettleOnPhone(ref phoneId, said);
             }
             AskOnPhone(request, id => phoneId = id, (a, said) => Answer(a, said + " (on your phone)"));
+            if (!_sample) pageId = Modeller.ChatBridge.Asking(request.Title, request.Reason,
+                allow => Dispatcher.BeginInvoke(() => Answer(allow ? ApprovalAnswer.Allow : ApprovalAnswer.Deny, allow ? "Allowed (in the Modeller)." : "Not allowed (in the Modeller).")));
             allow.Click += (_, _) => Answer(ApprovalAnswer.Allow, "Allowed.");
             task.Click += (_, _) => Answer(ApprovalAnswer.AllowRestOfTask, "Allowed for the rest of this task.");
             never.Click += (_, _) => Answer(ApprovalAnswer.DontAskAgain, "Allowed; it won't ask again for this (Settings can undo that).");

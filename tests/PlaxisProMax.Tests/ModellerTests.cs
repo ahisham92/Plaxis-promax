@@ -125,6 +125,32 @@ internal static class ModellerTests
             check("server: Calculate with no Plaxis Python says so plainly", run.Status == 400 && run.Text.Contains("Python"), run.Text);
             check("server: no run yet", Call("GET", "api/run")["state"]!.ToString() == "none", "");
 
+            // The ProMax panel: the chat's lines, writing to the chat, and an OK answered from the page
+            ChatBridge.Reset();
+            var none = Split(Send(server, "POST", "/s/" + server.Secret + "/api/promax", new JsonObject { ["text"] = "add a phase" }, null));
+            check("promax: with no chat window open, sending says so plainly", none.Status == 400 && none.Text.Contains("chat window"), none.Text);
+            var heard = new List<string>();
+            ChatBridge.Attach(t => { heard.Add(t); return true; }, () => heard.Add("<focus>"));
+            ChatBridge.Add("user", "add a phase");
+            ChatBridge.Add("step", "Adding phase 4", "running", "modeller_edit", "t1");
+            ChatBridge.Add("step", "Added phase 4", "done", "modeller_edit", "t1");
+            var read = Call("GET", "api/promax");
+            var items = read["items"]!.AsArray();
+            check("promax: a step that ends is one line, updated in place", items.Count == 2 && items[1]!["state"]!.ToString() == "done" && items[1]!["text"]!.ToString() == "Added phase 4", read.ToJsonString());
+            var seq = read["seq"]!.GetValue<long>();
+            check("promax: asking again from the last seen line sends nothing old", Call("GET", "api/promax?since=" + seq)["items"]!.AsArray().Count == 0, "");
+            var sent = Call("POST", "api/promax", new JsonObject { ["text"] = "  mesh it  " });
+            check("promax: text from the page goes to the chat", sent["sent"]!.GetValue<bool>() && heard.Contains("mesh it"), string.Join("|", heard));
+            Call("POST", "api/promax/focus");
+            check("promax: the page can bring the chat window forward", heard.Contains("<focus>"), "");
+            bool? allowed = null;
+            var askId = ChatBridge.Asking("Calculate in Plaxis?", "Uses the licence", a => allowed = a);
+            check("promax: an OK the chat waits for is shown to the page", Call("GET", "api/promax")["ask"]?["id"]?.GetValue<long>() == askId, "");
+            Call("POST", "api/promax/answer", new JsonObject { ["id"] = askId, ["allow"] = true });
+            var twice = Split(Send(server, "POST", "/s/" + server.Secret + "/api/promax/answer", new JsonObject { ["id"] = askId, ["allow"] = false }, null));
+            check("promax: Allow from the page answers the chat once", allowed == true && twice.Status == 400 && Call("GET", "api/promax")["ask"] is null, twice.Text);
+            ChatBridge.Reset();
+
             // Results file served to the Viewer
             var ppr = Path.Combine(scratch, "r.ppr");
             using (var f = File.Create(ppr)) using (var gz = new GZipStream(f, CompressionLevel.Fastest)) gz.Write(Encoding.UTF8.GetBytes("""{"format":"ppr","phases":[{"name":"Phase 1","ended":"OK","node":{"Utot":[0.001,-0.03,0.02]},"plates":[{"name":"P","struct":"wall","M":[10,-250,40]}],"anchors":[{"struct":"anc1","kind":"NodeToNodeAnchor","F":-177}]}]}"""));
