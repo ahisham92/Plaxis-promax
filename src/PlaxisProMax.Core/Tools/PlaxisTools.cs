@@ -200,10 +200,15 @@ public sealed class ToolRegistry
 
     public IPlaxisTool? Find(string name) => _tools.TryGetValue(name, out var tool) ? tool : null;
 
-    public static ToolRegistry CreateDefault() => new(
+    public static ToolRegistry CreateDefault()
+    {
+        ToolRegistry? self = null;
+        self = new(
     [
+        // Recipes and redo run other tools, so they are given the registry they are in.
+        new SaveRecipeTool(() => self!), new ListRecipesTool(), new RunRecipeTool(() => self!), new DeleteRecipeTool(), new RedoStepsTool(() => self!),
         // The crew (answered by the MCP server itself)
-        new ChatJobsTool(), new ChatQuestionsTool(), new OverToYouTool(), new MemoryNoteTool(), new RecallChatsTool(),
+        new ChatJobsTool(), new ChatQuestionsTool(), new OverToYouTool(), new MemoryNoteTool(), new RecallChatsTool(), new RunSelfTestTool(), new AskUserTool(), new WorkProgressTool(),
         new MakeDocumentTool(), new MakeDrawingTool(), new ReadDocumentTextTool(), new ReadDrawingFileTool(),
         // Look (read-only)
         new WorkerTool("status", "What is open in Plaxis: 2D or 3D, the version, the project, its units and phases. Call it first in a chat.", "{}", [], false, 30),
@@ -254,7 +259,7 @@ public sealed class ToolRegistry
         new WorkerTool("open_project", "Opens a Plaxis project file (.p2dx / .p3d).", """{"path":{"type":"string"}}""", ["path"], true, 600),
         new WorkerTool("save_project", "Saves the project, under path when given.", """{"path":{"type":"string"}}""", [], true, 600),
         // Reuse and rules
-        new FindKeptCodeTool(),
+        new FindKeptCodeTool(), new KeptCodeTool(),
         new RunPlaxisCodeTool(),
         new RememberRuleTool(),
         // Help (as in Sketch ProMax): bug reports, the activity log, and the chats-and-bugs export
@@ -262,6 +267,8 @@ public sealed class ToolRegistry
         new Bugs.GetActivityLogTool(),
         new Bugs.ExportChatsAndBugsTool(),
     ]);
+        return self;
+    }
 
     /// <summary>The input schema of a tool, as MCP lists it.</summary>
     internal static JsonElement Schema(IPlaxisTool tool)

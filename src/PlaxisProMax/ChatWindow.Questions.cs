@@ -77,6 +77,29 @@ internal sealed partial class ChatWindow
                 return true;
             };
             Closed += (_, _) => Handoff.Presenter = null;
+            // ask_user: an autopilot's question goes to this project's chat on the phone; the reply is handed back to it.
+            AskUserTool.Sender = q =>
+            {
+                if (!PhoneLink.Active) return false;
+                Dispatcher.BeginInvoke(() =>
+                {
+                    var topic = PhoneTopic();
+                    Note($"Asked on your phone: {q.Question} (assuming: {q.Assumed})");
+                    _ = Task.Run(async () =>
+                    {
+                        var (id, error) = await PhoneLink.AskAsync(AskRules.PhoneText(q), q.Assumed, DateTime.UtcNow.AddMinutes(Math.Max(1, AgentSettings.Load().AutopilotAskWaitMinutes)), topic);
+                        await Dispatcher.InvokeAsync(() =>
+                        {
+                            if (id == 0) { Note($"The question didn't reach your phone ({error})."); return; }
+                            _phoneAsks[id] = said => { Note($"You answered Q{q.Id} from your phone: {said}"); AskUserTool.Answer(q.Id, said); };
+                        });
+                    });
+                });
+                return true;
+            };
+            void LateAnswer(UserQuestion q) => Dispatcher.BeginInvoke(() => { _fromPhone.Enqueue(AskRules.LateLine(q)); SendQueuedFromPhone(); });
+            AskUserTool.Late += LateAnswer;
+            Closed += (_, _) => { AskUserTool.Sender = null; AskUserTool.Late -= LateAnswer; };
         }
         ShowQuestionsPill();
         return pill;

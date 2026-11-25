@@ -380,6 +380,8 @@ internal static class Autopilot
         "- Never stop to wait for the user's confirmation or go-ahead, even where an earlier message or a brief says to wait: " +
         "the run only stops when the goal is met, a limit pauses it or the user presses Stop. A choice you'd ask about: make it, " +
         "carry on, and list it under Decisions I made.\n" +
+        "- The one exception: a choice that would change the result a lot and that the goal doesn't settle may go to the user's phone with " +
+        "ask_user, with the answer you assume. Carry on meanwhile; if it says nobody can be asked, decide yourself.\n" +
         "- Keep every worker busy: never hold parts back for a slow job. Start every part that doesn't depend on it; a big part " +
         "with several steps is split across the free workers (Plaxis takes one command at a time, so the project changes go to one job at a time; the others read, work out parameters, read results and write files).\n" +
         "- When you say the goal is met, a review team checks every item the user asked for in the models and files. What " +

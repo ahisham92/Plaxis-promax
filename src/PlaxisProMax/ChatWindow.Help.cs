@@ -23,6 +23,7 @@ internal sealed partial class ChatWindow
     private readonly Border _updateBar = new() { Visibility = Visibility.Collapsed, Padding = new Thickness(ChatUi.S3, ChatUi.S2, ChatUi.S3, ChatUi.S2) };
     private readonly TextBlock _updateText = Brand.Text("", Brand.K.Text, 12);
     private DispatcherTimer? _updateTimer;
+    private readonly Button _whatsNew = Brand.Button("What's new");
 
     /// <summary>The bar under the header that says a newer version is ready, with Restart to update.</summary>
     private Border UpdateBar()
@@ -30,7 +31,8 @@ internal sealed partial class ChatWindow
         var restart = Brand.Button("Restart to update", Brand.Weight.Primary);
         restart.Click += (_, _) => RestartToUpdate();
         var row = new DockPanel();
-        var buttons = Brand.ButtonRow(restart);
+        _whatsNew.Click += (_, _) => { if (Updater.Staged is { } v) ShowWhatsNew(v); };
+        var buttons = Brand.ButtonRow(_whatsNew, restart);
         DockPanel.SetDock(buttons, Dock.Right);
         row.Children.Add(buttons);
         _updateText.TextWrapping = TextWrapping.Wrap;
@@ -49,6 +51,7 @@ internal sealed partial class ChatWindow
         BugReport.Screenshot = () => Dispatcher.Invoke(() => Picture(this));
         BugReport.Situation = () => Dispatcher.Invoke(SituationLines);
         ShowStaged();
+        SayUpdated();
         // A little after opening (the window and Plaxis first), then every 10 minutes: due once an hour by the wall clock,
         // so a PC that slept still checks when it wakes (Sketch ProMax's update loop).
         _updateTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
@@ -78,9 +81,40 @@ internal sealed partial class ChatWindow
         if (Updater.Staged is { } staged)
         {
             _updateText.Text = $"Plaxis ProMax {staged} is ready. It is used from the next start; your chat is kept.";
+            _whatsNew.Visibility = Updater.NotesFor(staged) is { Length: > 0 } ? Visibility.Visible : Visibility.Collapsed;
             _updateBar.Visibility = Visibility.Visible;
         }
         else _updateBar.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>The release notes of a version, as the last update check read them (Sketch ProMax's What's new).</summary>
+    internal void ShowWhatsNew(string version)
+    {
+        var notes = Updater.NotesFor(version);
+        var text = new TextBox
+        {
+            Text = string.IsNullOrWhiteSpace(notes) ? "The notes of this version weren't read yet. Settings > Check for updates reads them." : UpdateNotes.Plain(notes),
+            IsReadOnly = true, TextWrapping = TextWrapping.Wrap, BorderThickness = new Thickness(0), FontSize = 13,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(18, 12, 18, 12),
+        };
+        text.SetResourceReference(BackgroundProperty, Brand.K.Bg);
+        text.SetResourceReference(ForegroundProperty, Brand.K.Text);
+        var window = new Window { Title = "Plaxis ProMax: What's new", Width = 520, Height = 460, Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        Brand.Prepare(window);
+        var root = new DockPanel();
+        var header = Brand.Header("What's new", "Plaxis ProMax " + version);
+        DockPanel.SetDock(header, Dock.Top);
+        root.Children.Add(header);
+        root.Children.Add(text);
+        window.Content = root;
+        window.Show();
+    }
+
+    /// <summary>The first start of a newer version says so once, with the top of its notes.</summary>
+    private void SayUpdated()
+    {
+        if (UpdateNotes.TakeUpdated(Updater.CurrentText) is not { } line) return;
+        Note(line);
     }
 
     /// <summary>Starts the downloaded version with the same Plaxis connection and closes this one (the chat is saved; it picks it up).</summary>

@@ -14,7 +14,7 @@ namespace PlaxisProMax;
 /// </summary>
 internal static class Program
 {
-    public const string Version = "0.1.1";
+    public const string Version = "0.2.0";
 
     /// <summary>The arguments this start had, so Restart to update starts the new version the same way.</summary>
     public static string[] Args { get; private set; } = [];
@@ -31,7 +31,10 @@ internal static class Program
         var start = PlaxisInstall.Parse(args, Environment.GetEnvironmentVariable);
         // The password was for this process only: no child (Claude Code, its tools) inherits it.
         Environment.SetEnvironmentVariable("PLAXISPROMAX_PASSWORD", null);
+        Bugs.CrashGuard.Start();
         var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
+        // An error in a click or a redraw is written to Bugs\Crashes and the window carries on, as Sketch ProMax's does.
+        app.DispatcherUnhandledException += (_, e) => e.Handled = Bugs.CrashGuard.OnUi(e.Exception);
         var settings = AgentSettings.Load();
         var python = PlaxisInstall.FindPython(start.Python, settings.PlaxisPython);
         if (python is null)
@@ -51,13 +54,21 @@ internal static class Program
         ChatWindow? window = null;
         ChatMcp? mcp = null;
         var asker = new DeferredAsker(() => window);
-        mcp = new ChatMcp(ToolRegistry.CreateDefault(), new ToolContext(link, library, AgentSettings.Load), asker, Version);
+        var registry = ToolRegistry.CreateDefault();
+        var context = new ToolContext(link, library, AgentSettings.Load);
+        RunSelfTestTool.Registry = registry;
+        RunSelfTestTool.Version = Version;
+        RunSelfTestTool.Context = context;
+        mcp = new ChatMcp(registry, context, asker, Version);
         mcp.Start();
         try
         {
             window = new ChatWindow(link, start, () => mcp);
             app.MainWindow = window;
+            var shown = window;
+            Bugs.CrashGuard.Caught += text => shown.Dispatcher.BeginInvoke(() => shown.SayNote(text));
             window.Show();
+            if (Bugs.CrashGuard.TakeLastCrash() is { Length: > 0 } last) window.SayNote(last);
             return app.Run();
         }
         finally { mcp.Dispose(); }
