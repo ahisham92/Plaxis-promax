@@ -86,10 +86,10 @@ internal static class LicenseKey
     /// <summary>The programs a key can unlock, as they are written in a key.</summary>
     internal static class Programs
     {
-        public const string Sketch = "sketch", Plaxis = "plaxis";
-        public static readonly string[] All = [Sketch, Plaxis];
+        public const string Sketch = "sketch", Csi = "csi", Plaxis = "plaxis";
+        public static readonly string[] All = [Sketch, Csi, Plaxis];
 
-        public static string Name(string program) => program switch { Sketch => "Sketch ProMax", Plaxis => "Plaxis ProMax", _ => program };
+        public static string Name(string program) => program switch { Sketch => "Sketch ProMax", Csi => "CSI ProMax", Plaxis => "Plaxis ProMax", _ => program };
     }
 
     /// <summary><see cref="OtherProgram"/>: a good key for this PC that doesn't unlock this program.</summary>
@@ -175,7 +175,9 @@ internal static class LicenseKey
     private static License? Parse(string text)
     {
         var f = text.Split('|');
-        if (!(f.Length == 6 && f[0] == "1" || f.Length == 7 && f[0] == "2")) return null;
+        // Since Sketch ProMax 0.35.119 a key may end with the key of the owner's locked library (a 7th field in the first
+        // way, an 8th in the second); Plaxis ProMax doesn't use it, but reads the key.
+        if (!(f[0] == "1" && f.Length is 6 or 7 || f[0] == "2" && f.Length is 7 or 8)) return null;
         if (!DateTime.TryParseExact(f[4], "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var issued)) return null;
         DateTime? ends = null;
         if (f[5] != "-")
@@ -183,7 +185,7 @@ internal static class LicenseKey
             if (!DateTime.TryParseExact(f[5], "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var e)) return null;
             ends = e;
         }
-        if (f.Length == 6) return new License(f[1], f[2], f[3], issued, ends);
+        if (f[0] == "1") return new License(f[1], f[2], f[3], issued, ends);
         var programs = f[6].Split(',').Select(p => p.Trim()).Where(p => p.Length > 0).Distinct(StringComparer.Ordinal).ToList();
         return programs.Count == 0 ? null : new License(f[1], f[2], f[3], issued, ends, programs);
     }
