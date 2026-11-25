@@ -73,6 +73,10 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         var foot = Composer();
 
         var root = new DockPanel();
+        // Docked first, so the jobs column runs the whole height on the right of a wide window.
+        var side = Side();
+        DockPanel.SetDock(side, Dock.Right);
+        root.Children.Add(side);
         DockPanel.SetDock(header, Dock.Top);
         DockPanel.SetDock(foot, Dock.Bottom);
         root.Children.Add(header);
@@ -101,6 +105,8 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
             StopNow();
         };
 
+        RestorePlace();
+        Closing += (_, _) => SavePlace();
         _link.ConnectionChanged += connected => Dispatcher.BeginInvoke(() => ShowPlaxis(connected));
         if (!sample) Loaded += async (_, _) => await StartAsync();
         Closed += (_, _) =>

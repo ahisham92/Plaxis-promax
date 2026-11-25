@@ -115,6 +115,8 @@ internal sealed partial class ChatWindow
         _crew = null;
         _drafts.Clear();
         _phoneQuestions.Clear();
+        foreach (var card in _sideCards.Values) _sideList.Children.Remove(card);
+        _sideCards.Clear();
         _lastPick = null;
         _restartEngine = false;
         _typedMeanwhile.Clear();
@@ -225,6 +227,7 @@ internal sealed partial class ChatWindow
             _jobClock.Start();
         }
         else _jobClock?.Stop();
+        ShowSide();
         QuestionsChanged();
     }
 
@@ -235,7 +238,10 @@ internal sealed partial class ChatWindow
         var now = DateTime.UtcNow;
         var limit = ChatJobs.Limit;
         foreach (var job in jobs.Where(j => j.Active))
+        {
             if (_jobCards.TryGetValue(job.Number, out var card)) card.Render(job, now, limit);
+            if (_wide && _sideCards.TryGetValue(job.Number, out var beside)) beside.Render(job, now, limit);
+        }
         // A finished job's worker leaves the strip after a few seconds even when nothing else changes meanwhile.
         if (_crewPlan.Lingering) ShowJobs();
         else if (!jobs.Any(j => j.Open)) _jobClock?.Stop();

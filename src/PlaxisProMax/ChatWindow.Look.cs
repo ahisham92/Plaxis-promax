@@ -68,6 +68,9 @@ internal sealed partial class ChatWindow
         settings.Click += (_, _) => ShowSettings();
         DockPanel.SetDock(settings, Dock.Right);
         top.Children.Add(settings);
+        var big = BigButton();
+        DockPanel.SetDock(big, Dock.Right);
+        top.Children.Add(big);
         var newChat = ChatUi.IconButton(ChatUi.Paths.Plus, "New chat", "A new chat, or a new autopilot chat that works on its own to a goal. This one stays in the history.");
         newChat.Margin = new Thickness(ChatUi.S1, 0, 0, 0);
         newChat.Click += (_, _) => NewChatMenu(newChat);
@@ -150,7 +153,8 @@ internal sealed partial class ChatWindow
         AutomationProperties.SetLiveSetting(_workingBox, AutomationLiveSetting.Polite);
 
         _messages.Margin = new Thickness(0);
-        var conversation = new StackPanel { Margin = new Thickness(ChatUi.S4, 0, ChatUi.S4, ChatUi.S8) };
+        // Never wider than reads well: in a large window the column sits in the middle.
+        var conversation = new StackPanel { Margin = new Thickness(ChatUi.S4, 0, ChatUi.S4, ChatUi.S8), MaxWidth = ReadWidth };
         conversation.Children.Add(_home);
         conversation.Children.Add(_messages);
         conversation.Children.Add(_workingBox);
@@ -362,7 +366,7 @@ internal sealed partial class ChatWindow
         pickers.Children.Add(AwayPill());
         under.Children.Add(pickers);
 
-        var composer = new StackPanel { Margin = new Thickness(ChatUi.S3, ChatUi.S2, ChatUi.S3, ChatUi.S3) };
+        var composer = new StackPanel { Margin = new Thickness(ChatUi.S3, ChatUi.S2, ChatUi.S3, ChatUi.S3), MaxWidth = ReadWidth + 2 * ChatUi.S1 };
         composer.Children.Add(_promptPanel);
         composer.Children.Add(card);
         composer.Children.Add(under);
