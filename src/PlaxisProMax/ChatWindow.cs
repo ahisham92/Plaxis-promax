@@ -294,6 +294,8 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         if (!typed && TypedAnswers(text)) return;
         if (_questionsShown) HideQuestions(focus: false);
         HearAway(text);
+        var raw = text;
+        var files = typed ? _attached.ToList() : [];
         if (typed)
         {
             if (_attached.Count > 0)
@@ -314,6 +316,12 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         var handled = false;
         var plan = _crew?.AutopilotSend(text, out handled);
         if (handled) return;
+        SupersedeBriefs();
+        // A correction, a repeat or a plain question carries how to take it; a correction also leaves a lesson.
+        var hint = plan is null ? FocusHint(raw, files.Count > 0) : "";
+        if (plan is null && typed) LearnFrom(raw);
+        // A task that changes the project is first written as a brief to check (the setting in the ⋯ menu).
+        if (plan is null && typed && StartBrief(raw, text, files)) return;
         _mcp().NewTask();
         _strip.Heard();
         SetBusy(true);
@@ -321,7 +329,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         _lastActivity = DateTime.UtcNow;
         if (plan is not null) { _ = SendAsync(plan); return; }
         // A coordinator hears with each message which jobs are at work and what they changed so far (JobTruth).
-        _ = SendAsync(text + TakeAsides() + (IsCoordinator && _crew is { } crew ? JobTruth.Note(crew.Board.Snapshot()) : ""));
+        _ = SendAsync(text + hint + TakeAsides() + (IsCoordinator && _crew is { } crew ? JobTruth.Note(crew.Board.Snapshot()) : ""));
     }
 
     private async Task SendAsync(string text)
@@ -378,6 +386,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
 
     private void Stop()
     {
+        if (StopBrief()) return;
         var engine = _engine;
         if (engine is null) { SetBusy(false); return; }
         _working.Text = "Stopping…";
@@ -555,6 +564,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
             case "tool": AddStepRow(item.Name, item.Text, item.State, item.Result); break;
             case "pjob": _messages.Children.Add(ParallelJobCardFor(item)); break;
             case "file": _messages.Children.Add(FileCard(item)); break;
+            case "brief": _messages.Children.Add(BriefCard(item)); break;
             case "handoff": _messages.Children.Add(HandoffCard(item, Tools.Handoff.Find(item.Name))); break;
             case "error": AddNote(item.Text, Brand.K.DangerText); break;
             case "note" when item.Name == Crew.ApproveNote: _messages.Children.Add(ApproveCard(item)); break;

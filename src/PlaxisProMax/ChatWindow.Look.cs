@@ -34,7 +34,7 @@ internal sealed partial class ChatWindow
     private readonly Border _field = new();
     private readonly TextBlock _hint = Brand.Text("Ask anything about your Plaxis model, or tell me what to do…", Brand.K.Muted, ChatUi.BodySize);
     private readonly Border _workingBox = new() { Visibility = Visibility.Collapsed, Margin = new Thickness(0, ChatUi.S4, 0, 0) };
-    private readonly StackPanel _home = new() { Margin = new Thickness(0, ChatUi.S8, 0, 0) };
+    private HomeView _home = null!;
     private readonly Button _jump = new() { Visibility = Visibility.Collapsed };
     private readonly TextBlock _typeLabel = ChatUi.Small("");
     private readonly TextBlock _usageLabel = ChatUi.Small("");
@@ -194,47 +194,52 @@ internal sealed partial class ChatWindow
         return scroll;
     }
 
-    /// <summary>An empty chat: the mark, a greeting, and a few things to ask, each one click into the message box.</summary>
+    /// <summary>
+    /// An empty chat: Sketch ProMax's home screen (Chat/HomeView). The greeting, then Discover: Explore all features (what
+    /// Plaxis ProMax can do, grouped, with search), Saved prompts and Tailored prompts (by kind of project and stage of
+    /// the work), and a few things to start with. A prompt goes into the message box; its blanks ({phase}, {borehole},
+    /// {material}) are first picked from the open project's own names.
+    /// </summary>
     private void BuildHome()
     {
-        var mark = ChatUi.Mark(44);
-        AutomationProperties.SetName(mark, "Plaxis ProMax");
-        mark.HorizontalAlignment = HorizontalAlignment.Left;
-        _home.Children.Add(mark);
-        var hello = Brand.Text(_sample ? "Hey Ahmed!" : Greeting.Line(Greeting.Pick(Environment.UserName)), Brand.K.Text, 24, bold: true);
-        hello.FontFamily = ChatUi.Display;
-        hello.Margin = new Thickness(0, ChatUi.S4, 0, 0);
-        TextOptions.SetTextFormattingMode(hello, TextFormattingMode.Ideal);
-        _home.Children.Add(hello);
-        var sub = Brand.Text("What shall we do in Plaxis? Ask in your own words, attach a borehole log or a report, or start from one of these.", Brand.K.Muted, ChatUi.BodySize);
-        sub.Margin = new Thickness(0, ChatUi.S1, 0, ChatUi.S4);
-        _home.Children.Add(sub);
-        (string Title, string Line, string Prompt)[] ideas =
+        _home = new HomeView(prompt =>
+        {
+            _input.Text = prompt;
+            _input.CaretIndex = prompt.Length;
+            _input.Focus();
+        }, () => _sample ? [] : SavedPrompts.Load(SavedPrompts.DefaultFile), _sample ? null : ProjectChoices);
+        _home.AddStarters(
         [
             ("Model from a borehole log", "Soil layers, materials and boreholes from the log you attach.", "Build the soil model from the attached borehole log: one borehole per log, the layers with their levels, and a material for each layer. List what you read first."),
             ("Set up the construction phases", "Phases in order, with what is active in each.", "Set up the construction phases for this model in order, and tell me what is active in each before you calculate."),
             ("Calculate and say how it went", "Every phase, one at a time, saved as it goes.", "Calculate every phase one at a time, saving after each, and tell me how each one ended."),
             ("Results into Excel", "Deflection, moments and anchor forces per phase.", "Put the wall deflection, bending moments and anchor forces of every calculated phase into one Excel file beside the project."),
-        ];
-        foreach (var idea in ideas)
+        ]);
+        if (_sample) _home.ShowSample("Hey Ahmed!");
+    }
+
+    /// <summary>The open project's phases, boreholes and soil materials, for the blanks of a home screen prompt.</summary>
+    private async Task<Dictionary<string, List<string>>> ProjectChoices()
+    {
+        var found = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        if (!_link.Connected) return found;
+        try
         {
-            var text = new StackPanel();
-            text.Children.Add(ChatUi.Small(idea.Title, Brand.K.Text, bold: true));
-            var line = ChatUi.Small(idea.Line);
-            line.TextWrapping = TextWrapping.Wrap;
-            text.Children.Add(line);
-            var card = new Button { Content = text, HorizontalContentAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, ChatUi.S2), Padding = new Thickness(ChatUi.S4, ChatUi.S3, ChatUi.S4, ChatUi.S3), ToolTip = idea.Prompt };
-            card.SetResourceReference(StyleProperty, "SpmChatCard");
-            AutomationProperties.SetName(card, idea.Title + ". " + idea.Line);
-            var prompt = idea.Prompt;
-            card.Click += (_, _) =>
+            var args = new System.Text.Json.Nodes.JsonObject
             {
-                _input.Text = prompt;
-                _input.CaretIndex = prompt.Length;
-                _input.Focus();
+                ["collections"] = new System.Text.Json.Nodes.JsonArray("Phases", "Boreholes", "Materials"),
+                ["limit"] = PromptSlots.MaxChoices,
             };
-            _home.Children.Add(card);
+            var answer = await _link.CallAsync("list_model", args, 5000, CancellationToken.None);
+            if (!answer.Ok || answer.Result?["collections"] is not System.Text.Json.Nodes.JsonObject collections) return found;
+            List<string> Names(string collection) =>
+                (collections[collection]?["names"] as System.Text.Json.Nodes.JsonArray)?.Select(n => n?.ToString() ?? "").Where(n => n.Length > 0).ToList() ?? [];
+            found["phase"] = PromptSlots.Tidy(Names("Phases"), keepOrder: true);
+            found["borehole"] = PromptSlots.Tidy(Names("Boreholes"));
+            found["material"] = PromptSlots.Tidy(Names("Materials"));
         }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or OperationCanceledException or System.Text.Json.JsonException) { }
+        return found;
     }
 
     private void ShowWorking(bool busy)
@@ -447,6 +452,7 @@ internal sealed partial class ChatWindow
             try { SavedPrompts.Update(SavedPrompts.DefaultFile, l => SavedPrompts.Add(l, item.Text, DateTime.UtcNow)); }
             catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException) { return; }
             if (_promptPanel.Visibility == Visibility.Visible) ShowPrompts(SavedPrompts.Load(SavedPrompts.DefaultFile));
+            _home.SavedChanged();
             save.Content = ChatUi.Glyph(ChatUi.GlyphCheck, Brand.K.Muted);
         };
         head.Children.Add(save);

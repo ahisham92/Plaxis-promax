@@ -101,27 +101,33 @@ internal static class PromptLibraryTests
 {
     public static void Run(Action<string, bool, string> check)
     {
-        var tools = new[] { ("place_columns", "Places structural columns at points or grid intersections. More text."), ("reinforce_beam", "Adds bars to beams."), ("embodied_carbon", "Estimates embodied carbon.") };
+        var tools = new[] { ("create_boreholes", "Creates boreholes with their soil layers. More text."), ("generate_mesh", "Generates the mesh."), ("results_to_excel", "Writes results to Excel.") };
         var lib = PromptLibrary.Load(tools);
         var groups = lib.Groups.Select(g => g.Name).ToList();
-        check("library: ribbon-like groups", new[] { "Model", "Documents", "Check", "Issue", "Structure", "Steel", "Rebar", "Marine", "Carbon" }.All(groups.Contains), string.Join(",", groups));
+        check("library: the groups of Plaxis work", new[] { "Soil", "Structures", "Mesh", "Phases", "Calculate", "Results", "Reports", "Check", "Workflow" }.All(groups.Contains), string.Join(",", groups));
         check("library: hand-written capabilities in known groups", lib.Capabilities.Count(c => c.Tool == "") >= 30 && lib.Capabilities.All(c => groups.Contains(c.Group)), "");
-        check("library: a tool becomes a capability", lib.Capabilities.Any(c => c.Tool == "place_columns" && c.Group == "Structure" && c.Title == "Place columns" &&
-                                                                               c.Summary == "Places structural columns at points or grid intersections." && c.Prompt.Contains("place_columns")), "");
+        check("library: a tool becomes a capability", lib.Capabilities.Any(c => c.Tool == "create_boreholes" && c.Group == "Soil" && c.Title == "Create boreholes" &&
+                                                                               c.Summary == "Creates boreholes with their soil layers." && c.Prompt.Contains("create_boreholes")), "");
         check("library: counts per group add up", lib.Counts().Sum(c => c.Count) == lib.Capabilities.Count, "");
-        check("library: search every word", lib.Find(null, "carbon embodied").Any() && lib.Find("Rebar", "beam").Any(c => c.Tool == "reinforce_beam") && !lib.Find(null, "zzqx").Any(), "");
+        check("library: search every word", lib.Find(null, "borehole log").Any() && lib.Find("Mesh", "generates").Any(c => c.Tool == "generate_mesh") && !lib.Find(null, "zzqx").Any(), "");
+        var all = string.Join("\n", lib.Capabilities.Select(c => c.Title + " " + c.Prompt).Concat(lib.TailoredPrompts.Select(t => t.Title + " " + t.Prompt)).Concat(lib.Groups.Select(g => g.Blurb)));
+        check("library: nothing of Revit is left in it", !System.Text.RegularExpressions.Regex.IsMatch(all, "Revit|sheet set|title block|rebar|\\{level\\}|\\{grid\\}", System.Text.RegularExpressions.RegexOptions.IgnoreCase), "");
+        var unknown = System.Text.RegularExpressions.Regex.Matches(all, @"\{([a-z_]+)\}").Select(m => m.Groups[1].Value).Distinct().Where(n => PromptSlots.Find(n) is null).ToList();
+        check("library: every blank in a prompt is one the project can fill", unknown.Count == 0, string.Join(",", unknown));
+        var real = PlaxisProMax.Tools.ToolRegistry.CreateDefault().All.Select(t => t.Name).ToList();
+        var fromRegistry = PromptLibrary.Load(PlaxisProMax.Tools.ToolRegistry.CreateDefault().All.Select(t => (t.Name, t.Description)));
+        check("library: every real tool has a place", real.All(n => fromRegistry.Capabilities.Any(c => c.Tool == n && groups.Contains(c.Group))), "");
 
         check("library: three project types, four phases", lib.ProjectTypes.Count == 3 && lib.Phases.Count == 4, "");
         check("library: more than 64 tailored prompts", lib.TailoredPrompts.Count > 64, lib.TailoredPrompts.Count.ToString());
         var thin = lib.ProjectTypes.SelectMany(t => lib.Phases.Select(p => (t.Id, p.Id, n: lib.For(t.Id, p.Id).Count()))).Where(x => x.n < 5).ToList();
         check("library: every type and phase has ideas", thin.Count == 0, string.Join(", ", thin));
 
-        check("library: tool groups by name", PromptLibrary.GroupForTool("export_bar_schedule") == "Rebar" && PromptLibrary.GroupForTool("place_bracing") == "Steel" &&
-                                               PromptLibrary.GroupForTool("vessel_collision_check") == "Marine" && PromptLibrary.GroupForTool("issue_drawings") == "Issue" &&
-                                               PromptLibrary.GroupForTool("find_clashes") == "Check" && PromptLibrary.GroupForTool("create_sheets") == "Documents" &&
-                                               PromptLibrary.GroupForTool("carbon_view") == "Carbon" && PromptLibrary.GroupForTool("query_elements") == "Data" &&
-                                               PromptLibrary.GroupForTool("place_beams") == "Structure" && PromptLibrary.GroupForTool("import_image") == "Model", "");
-        check("library: humanize", PromptLibrary.Humanize("create_3d_view") == "Create 3D view" && PromptLibrary.Humanize("export_pdf") == "Export PDF", PromptLibrary.Humanize("create_3d_view"));
+        check("library: tool groups by name", PromptLibrary.GroupForTool("create_boreholes") == "Soil" && PromptLibrary.GroupForTool("generate_mesh") == "Mesh" &&
+                                               PromptLibrary.GroupForTool("add_phase") == "Phases" && PromptLibrary.GroupForTool("calculate") == "Calculate" &&
+                                               PromptLibrary.GroupForTool("get_results") == "Results" && PromptLibrary.GroupForTool("results_to_excel") == "Reports" &&
+                                               PromptLibrary.GroupForTool("list_model") == "Check" && PromptLibrary.GroupForTool("remember_rule") == "Workflow", "");
+        check("library: humanize", PromptLibrary.Humanize("create_3d_view") == "Create 3D view" && PromptLibrary.Humanize("results_to_excel") == "Results to excel", PromptLibrary.Humanize("results_to_excel"));
         check("library: first sentence", PromptLibrary.FirstSentence("One. Two.") == "One." && PromptLibrary.FirstSentence("v1.2 is fine") == "v1.2 is fine", "");
         check("library: damaged data is empty, not an error", PromptLibrary.Parse("{ nope", tools).Groups.Count == 0, "");
     }

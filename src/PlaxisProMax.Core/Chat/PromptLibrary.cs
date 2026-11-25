@@ -87,19 +87,17 @@ internal sealed class PromptLibrary
         return Parse(json, tools);
     }
 
-    // Tool name words to ribbon-like groups, first match wins; anything else is Model.
+    // Tool name words to groups, first match wins; anything else is Workflow.
     private static readonly (string Group, Regex Words)[] Rules =
     [
-        ("Carbon", new Regex("carbon", RegexOptions.CultureInvariant)),
-        ("Rebar", new Regex(@"rebar|reinforce|bar_schedule|mesh|^rft_|tendon|_pt_", RegexOptions.CultureInvariant)),
-        ("Steel", new Regex(@"steel|bracing|connection", RegexOptions.CultureInvariant)),
-        ("Marine", new Regex(@"marine|vessel|^port_|loading_plan|quay|fender|bollard", RegexOptions.CultureInvariant)),
-        ("Issue", new Regex(@"^issue_|revision|export_pdf|drawing_list|transmittal|export_files", RegexOptions.CultureInvariant)),
-        ("Check", new Regex(@"check|audit|clash|missing|verify|progress|owners|snapshot|monitor", RegexOptions.CultureInvariant)),
-        ("Workflow", new Regex(@"recipe|learned|_code|memory|self_test|field_test|activity|_tool$|workset|relinquish|editable|bug", RegexOptions.CultureInvariant)),
-        ("Data", new Regex(@"^query_|^get_|^list_|^read_|^select_|parameter|coordinates|material|^collect_|^export_|change_type|duplicate_type|rename", RegexOptions.CultureInvariant)),
-        ("Documents", new Regex(@"sheet|title_block|legend|schedule|tag|dimension|annotation|keynote|text|notes|callout|section|elevation|view|matchline|detail|spot|cloud", RegexOptions.CultureInvariant)),
-        ("Structure", new Regex(@"column|beam|slab|floor|raft|pile|foundation|footing|analytical|hollow_core|precast|structure|wall|grid|level|stairs|ramp|roof", RegexOptions.CultureInvariant)),
+        ("Reports", new Regex(@"excel|document|drawing|report|^make_|^read_d", RegexOptions.CultureInvariant)),
+        ("Results", new Regex(@"result|curve|output", RegexOptions.CultureInvariant)),
+        ("Calculate", new Regex(@"calculat", RegexOptions.CultureInvariant)),
+        ("Phases", new Regex(@"phase|stage", RegexOptions.CultureInvariant)),
+        ("Mesh", new Regex(@"mesh", RegexOptions.CultureInvariant)),
+        ("Soil", new Regex(@"borehole|soil|layer|water", RegexOptions.CultureInvariant)),
+        ("Structures", new Regex(@"plate|anchor|pile|wall|interface|load|structure|geogrid|beam", RegexOptions.CultureInvariant)),
+        ("Check", new Regex(@"^status$|^list_|^inspect$|check|review", RegexOptions.CultureInvariant)),
     ];
 
     /// <summary>The group a tool falls in by its name (the JSON's toolGroups can say otherwise).</summary>
@@ -107,7 +105,7 @@ internal sealed class PromptLibrary
     {
         foreach (var (group, words) in Rules)
             if (words.IsMatch(name)) return group;
-        return "Model";
+        return "Workflow";
     }
 
     /// <summary>"place_columns" → "Place columns".</summary>
@@ -132,7 +130,7 @@ internal sealed class PromptLibrary
     {
         var title = Humanize(name);
         var summary = FirstSentence(description);
-        var prompt = $"{title} ({name}): {summary}\nAsk me for what you need first, then do it in the open model.";
+        var prompt = $"{title} ({name}): {summary}\nAsk me for what you need first, then do it in the open project.";
         return new Capability(group, title, summary, prompt, name);
     }
 

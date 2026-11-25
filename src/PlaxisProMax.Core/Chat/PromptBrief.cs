@@ -153,7 +153,7 @@ internal static class PromptBriefs
     {
         BriefMode.Always => "Always",
         BriefMode.Off => "Off",
-        _ => "Model changes only",
+        _ => "Project changes only",
     };
 
     public static string Hint(BriefMode mode) => mode switch

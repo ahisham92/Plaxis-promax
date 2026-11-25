@@ -64,6 +64,7 @@ internal sealed partial class ChatWindow : IHistoryHost
         Item("Notes", "What you asked Plaxis ProMax to remember, for all projects and for this one.", OpenNotes);
         Item("Routines", "Work the crew does by itself at a set time, such as a nightly calculation.", OpenRoutines);
         Item("Saved prompts", "Prompts you saved to use again.", TogglePrompts);
+        menu.Items.Add(BriefMenu());
         menu.Items.Add(new Separator());
         foreach (var line in UsageLines()) menu.Items.Add(new MenuItem { Header = line, IsEnabled = false });
         menu.IsOpen = true;
@@ -385,6 +386,7 @@ internal sealed partial class ChatWindow : IHistoryHost
             {
                 var (now, ok) = SavedPrompts.Update(SavedPrompts.DefaultFile, change);
                 ShowPrompts(now);
+                _home.SavedChanged();
                 if (!ok) AddNote(failed, Brand.K.DangerText);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { AddNote(failed + " " + ex.Message, Brand.K.DangerText); }

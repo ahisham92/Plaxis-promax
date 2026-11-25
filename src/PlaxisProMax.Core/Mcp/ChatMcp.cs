@@ -52,6 +52,9 @@ internal sealed class ChatMcp : IDisposable
     /// <summary>A new user message: "Allow the rest of this task" no longer covers what follows.</summary>
     public void NewTask() => _taskApproved = false;
 
+    /// <summary>The user ran a brief: that approves the task, so its steps don't ask again (what always asks still does).</summary>
+    public void ApproveTask() => _taskApproved = true;
+
     /// <summary>Sent to Claude Code at initialize: what is kept, so every chat sees the kept code (Sketch ProMax bug 128).</summary>
     private string Instructions()
     {
