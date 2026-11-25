@@ -75,7 +75,21 @@ internal static class LicenseTests
             var both = LicenseKey.Sign(new LicenseKey.License("BOTH0001", code, "B", today, null, [LicenseKey.Programs.Plaxis, LicenseKey.Programs.Sketch]), other);
             check("license programs: a key for both unlocks both", LicenseKey.Verify(both, code, today, verifier: other) == LicenseKey.Check.Valid
                 && LicenseKey.Verify(both, code, today, verifier: other, program: LicenseKey.Programs.Plaxis) == LicenseKey.Check.Valid
-                && LicenseKey.Read(both, other)!.For.SequenceEqual(LicenseKey.Programs.All), "");
+                && LicenseKey.Read(both, other)!.For.SequenceEqual([LicenseKey.Programs.Sketch, LicenseKey.Programs.Plaxis]), "");
+
+            // Keys from Sketch ProMax's License manager since 0.35.119/0.35.120 end with the library key (25 Nov 2026).
+            {
+                string Signed(string payload) => LicenseKey.Prefix + B64(System.Text.Encoding.UTF8.GetBytes(payload)) + "." +
+                    B64(other.SignData(System.Text.Encoding.UTF8.GetBytes(payload), System.Security.Cryptography.HashAlgorithmName.SHA256));
+                var all3 = Signed($"2|ALL30001|{code}|Test Friend|2026-11-25|-|sketch,csi,plaxis|LIBRARYKEYTEXT");
+                check("license programs: a key for all three apps with the library key unlocks Plaxis ProMax",
+                    LicenseKey.Verify(all3, code, today, verifier: other, program: LicenseKey.Programs.Plaxis) == LicenseKey.Check.Valid
+                    && LicenseKey.Read(all3, other)!.For.SequenceEqual(LicenseKey.Programs.All), all3);
+                var sketchLib = Signed($"1|SKLIB001|{code}|Test Friend|2026-11-25|-|LIBRARYKEYTEXT");
+                check("license programs: a Sketch-only key with the library key reads, and isn't for Plaxis ProMax",
+                    LicenseKey.Read(sketchLib, other) is not null
+                    && LicenseKey.Verify(sketchLib, code, today, verifier: other, program: LicenseKey.Programs.Plaxis) == LicenseKey.Check.OtherProgram, "");
+            }
             check("license programs: still bound to its PC", LicenseKey.Verify(both, "SPM-TEST-0000-ABCD", today, verifier: other, program: LicenseKey.Programs.Plaxis) == LicenseKey.Check.WrongPc, "");
 
             check("plaxis license: Plaxis ProMax checks keys for Plaxis ProMax", LicenseState.Program == LicenseKey.Programs.Plaxis
@@ -97,4 +111,6 @@ internal static class LicenseTests
             .ToList();
         check("license: the owner's signing secret is not in the repository", leaked.Count == 0, string.Join(", ", leaked));
     }
+
+    private static string B64(byte[] b) => Convert.ToBase64String(b).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 }
