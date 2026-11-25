@@ -89,6 +89,10 @@ const PP = (() => {
     play: '<path d="M7 4l12 8-12 8z" fill="currentColor"/>',
     stop: '<rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor"/>',
     licence: '<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/>',
+    promax: '<path d="M12 2.5l2.2 5.6 5.8 2.2-5.8 2.2L12 18.1l-2.2-5.6-5.8-2.2 5.8-2.2z"/><path d="M19 15.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/>',
+    send: '<path d="M4 12l16-8-6 16-2.5-6.5z"/>',
+    panel: '<rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M15 4v16"/>',
+    terminal: '<rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M7 9l3 3-3 3M12 15h5"/>',
   };
   function icon(name, cls) {
     const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -116,7 +120,7 @@ const PP = (() => {
     let open = null;
     const close = () => { if (open) open.classList.remove("open"); open = null; };
     for (const [title, items] of spec) {
-      const m = el("div.menu");
+      const m = el("div.menu" + (title === "ProMax" ? ".promax" : ""));
       const b = el("button", title);
       const dd = el("div.dropdown");
       const fill = () => {
@@ -706,6 +710,147 @@ const PP = (() => {
   }
   function csv(rows) { return rows.map((r) => r.map((v) => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(",")).join("\r\n"); }
 
+
+  // ---- ProMax: the chat, inside the Modeller and the Viewer -----------------------------------------------------
+  // The chat window shows each message and step it makes; the page reads them from api/promax (ChatBridge) and
+  // shows them in its ProMax panel and its command line. What is typed in either goes to the chat. Offline (the
+  // screenshots), window.PPM_PROMAX holds sample lines and nothing is sent.
+  function promax({ api, sample }) {
+    const st = { items: [], busy: false, ask: null, attached: false, chat: "", seq: 0, offline: !api, listeners: [] };
+    if (sample) Object.assign(st, { items: sample.items || [], busy: !!sample.busy, ask: sample.ask || null, attached: true, chat: sample.chat || "" });
+    const emit = () => st.listeners.forEach((f) => f());
+    async function poll() {
+      if (!api) return;
+      try {
+        const r = await fetch(api + "promax?since=" + st.seq, { cache: "no-store" });
+        if (r.ok) {
+          const j = await r.json();
+          if (j.seq !== st.seq || j.busy !== st.busy || !!j.ask !== !!st.ask || j.attached !== st.attached) {
+            for (const it of j.items || []) { const i = st.items.findIndex((x) => x.key && x.key === it.key); if (i >= 0) st.items[i] = it; else st.items.push(it); }
+            if (st.items.length > 150) st.items = st.items.slice(-150);
+            Object.assign(st, { seq: j.seq, busy: j.busy, ask: j.ask || null, attached: j.attached, chat: j.chat || "" });
+            emit();
+          }
+        }
+      } catch (e) { /* the server is gone: the page says so elsewhere */ }
+      setTimeout(poll, st.busy ? 700 : 1500);
+    }
+    async function post(path, body) {
+      const r = await fetch(api + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body || {}) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || r.statusText);
+      return j;
+    }
+    async function send(text) {
+      text = (text || "").trim();
+      if (!text) return false;
+      if (!api) { toast("Sample only: open the Modeller from Plaxis ProMax to ask it."); return false; }
+      try {
+        const j = await post("promax", { text });
+        if (!j.sent) { toast("ProMax is still working on the last request. Send again when it is done, or type it in the chat window."); return false; }
+        return true;
+      } catch (e) { toast(e.message); return false; }
+    }
+    const focus = () => api ? post("promax/focus").catch((e) => toast(e.message)) : null;
+    const answer = (allow) => api && st.ask ? post("promax/answer", { id: st.ask.id, allow }).then(() => { st.ask = null; emit(); }).catch((e) => toast(e.message)) : null;
+    poll();
+    return { st, send, focus, answer, on: (f) => st.listeners.push(f) };
+  }
+
+  /** A short answer as HTML: paragraphs, **bold**, `code`, lists and pipe tables (the chat's answers are Markdown). */
+  function md(text) {
+    const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const inline = (t) => esc(t).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/`([^`]+)`/g, "<code>$1</code>").replace(/(^|\W)\*(\S.*?)\*(?=\W|$)/g, "$1<i>$2</i>");
+    const out = [], lines = String(text || "").split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      if (/^\s*\|.*\|\s*$/.test(l) && i + 1 < lines.length && /^\s*\|[\s:|-]+\|\s*$/.test(lines[i + 1])) {
+        const cells = (r) => r.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+        const head = cells(l); i += 2; const rows = [];
+        while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) rows.push(cells(lines[i++]));
+        i--;
+        const num = (c) => /^[−\-+]?[\d.,\s]+(%|\s*\w{0,6})?$/.test(c);
+        out.push("<table class=\"pgrid\"><tr>" + head.map((h) => "<th>" + inline(h) + "</th>").join("") + "</tr>" +
+          rows.map((r) => "<tr>" + r.map((c) => "<td" + (num(c) ? " class=\"num\"" : "") + ">" + inline(c) + "</td>").join("") + "</tr>").join("") + "</table>");
+      } else if (/^\s*[-*] /.test(l)) {
+        const items = [];
+        while (i < lines.length && /^\s*[-*] /.test(lines[i])) items.push("<li>" + inline(lines[i++].replace(/^\s*[-*] /, "")) + "</li>");
+        i--; out.push("<ul>" + items.join("") + "</ul>");
+      } else if (/^#{1,4} /.test(l)) out.push("<p><b>" + inline(l.replace(/^#+ /, "")) + "</b></p>");
+      else if (l.trim()) out.push("<p>" + inline(l) + "</p>");
+    }
+    return out.join("");
+  }
+
+  /** The docked ProMax panel: the conversation, an OK the chat waits for, and a box to write to it. */
+  function promaxPane(host, pm, { onClose } = {}) {
+    const msgs = el("div.pmx-msgs"), askBox = el("div"), state = el("span.pmx-state");
+    const box = el("textarea#pmx-input", { rows: 3, "aria-label": "Message ProMax", placeholder: "Ask ProMax to change the model or read the results…" });
+    const sendBtn = el("button.btn.primary.sm", { onclick: go }, icon("send"), "Send");
+    async function go() { if (await pm.send(box.value)) box.value = ""; }
+    box.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); go(); } });
+    host.innerHTML = "";
+    host.append(
+      el("div.panel-head.pmx-head", icon("promax", "ic"), el("b", "ProMax"), el("span.sub.pmx-chat"), el("span.spacer"),
+        el("button.btn.sm", { onclick: pm.focus, title: "Bring the chat window to the front: crew, history, files and settings are there" }, "Chat window"),
+        onClose ? el("button.x", { onclick: onClose, title: "Hide the ProMax panel (View > ProMax panel shows it again)" }, "×") : null),
+      el("div.pmx-bar", state), msgs, askBox,
+      el("div.pmx-ask", box, el("div.pmx-row", el("span.sub", "Enter sends · Shift+Enter new line"), el("span.spacer"), sendBtn)));
+    let shown = -1;
+    function render() {
+      host.querySelector(".pmx-chat").textContent = pm.st.chat ? "· " + pm.st.chat : "";
+      state.className = "pmx-state" + (pm.st.busy ? " busy" : pm.st.attached ? " ok" : "");
+      state.textContent = pm.st.busy ? "Working…" : pm.st.attached ? "Ready" : "Chat window not open";
+      box.disabled = sendBtn.disabled = !pm.st.attached && !pm.st.offline;
+      askBox.innerHTML = "";
+      if (pm.st.ask) askBox.append(el("div.pmx-approve", el("b", pm.st.ask.title), el("div", pm.st.ask.reason),
+        el("div.pmx-row", el("button.btn.primary.sm", { onclick: () => pm.answer(true) }, "Allow"), el("button.btn.sm", { onclick: () => pm.answer(false) }, "Don't allow"))));
+      const key = pm.st.items.length + ":" + pm.st.seq;
+      if (key === shown) return; shown = key;
+      msgs.innerHTML = "";
+      if (!pm.st.items.length) msgs.append(el("div.pmx-empty", el("b", "Ask ProMax here"), el("div", "It reads and changes this model, checks it, calculates it in Plaxis and reads the results. Each step it takes is also listed in the command line below the drawing.")));
+      for (const it of pm.st.items) {
+        if (it.kind === "user") msgs.append(el("div.pmx-you", it.text));
+        else if (it.kind === "assistant") msgs.append(el("div.pmx-ans", { html: md(it.text) }));
+        else if (it.kind === "step") msgs.append(el("div.pmx-step." + (it.state || "done"), el("span.k", it.state === "failed" ? "✕" : it.state === "running" ? "◌" : "✓"), el("span.t", it.text), it.tool ? el("span.tool.mono", it.tool) : null));
+        else msgs.append(el("div.pmx-note" + (it.kind === "error" ? ".err" : ""), it.text));
+      }
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+    pm.on(render); render();
+    return { render, focusBox: () => box.focus() };
+  }
+
+  /** The command line under the drawing: the page's own messages (Session) and ProMax's steps, and a line to ask ProMax. */
+  function commandLine(host, pm, { session } = {}) {
+    let tab = "steps";
+    const tabs = el("div.cmd-tabs"), log = el("div.cmd-log.mono");
+    const input = el("input#cmd-input.mono", { "aria-label": "Ask ProMax", placeholder: "Ask ProMax, for example: add a phase that excavates to −8 m   (Enter sends)" });
+    input.addEventListener("keydown", async (e) => { if (e.key === "Enter" && input.value.trim()) { if (await pm.send(input.value)) input.value = ""; } });
+    host.innerHTML = "";
+    host.append(tabs, log, el("div.cmd-in", el("span.p", "›"), input));
+    function render() {
+      tabs.innerHTML = "";
+      for (const [k, l] of [["session", "Session"], ["steps", "ProMax steps"]]) tabs.append(el("button" + (tab === k ? ".on" : ""), { onclick: () => { tab = k; render(); } }, l));
+      log.innerHTML = "";
+      if (tab === "steps") {
+        const lines = pm.st.items.filter((i) => i.kind === "step" || i.kind === "user");
+        if (!lines.length) log.append(el("div.c", "# Each step ProMax takes on this model is listed here, as it happens."));
+        for (const it of lines) {
+          if (it.kind === "user") { log.append(el("div.c", "# " + it.text.split("\n")[0].slice(0, 160))); continue; }
+          log.append(el("div", el("span.p", "›"), " ", el("span", it.tool || ""), "  ", el("span." + (it.state === "failed" ? "bad" : it.state === "running" ? "run" : "ok"), it.state === "failed" ? "Failed" : it.state === "running" ? "Running" : "OK"), "  ", el("span.d", it.text)));
+        }
+      } else {
+        const ms = (session && session()) || [];
+        if (!ms.length) log.append(el("div.c", "# Messages from the checks and from Calculate in Plaxis show here."));
+        for (const m of ms) log.append(el("div", el("span." + (m.level === "error" ? "bad" : m.level === "warning" ? "run" : "ok"), { error: "Error", warning: "Warning", info: "Info", ok: "OK" }[m.level] || m.level), "  ", el("span.d", m.text)));
+      }
+      log.scrollTop = log.scrollHeight;
+    }
+    pm.on(render); render();
+    return { render, show: (k) => { tab = k; render(); } };
+  }
+
   return { $, $$, el, icon, theme, css, isDark, menubar, dialog, toast, fmt, fmtFixed, clamp, niceStep, ramp, rgb, bandColours, levels, shade, mix, hex,
-    inside, segDist, area, delaunay, displayMesh, triIndex, bandPolygon, View2D, Orbit3D, faceNormal, norm, cross, chart, floating, download, gunzipJson, readPack, pickFile, csv };
+    inside, segDist, area, delaunay, displayMesh, triIndex, bandPolygon, View2D, Orbit3D, faceNormal, norm, cross, chart, floating, download, gunzipJson, readPack, pickFile, csv, promax, promaxPane, commandLine, md };
 })();

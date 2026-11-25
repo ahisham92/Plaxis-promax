@@ -378,7 +378,7 @@ internal sealed class MarkdownView : RichTextBox
                     CornerRadius = new CornerRadius(row == 0 && c == 0 ? inner : 0, row == 0 && c == columns - 1 ? inner : 0,
                         last && c == columns - 1 ? inner : 0, last && c == 0 ? inner : 0),
                 };
-                cell.SetResourceReference(Border.BorderBrushProperty, Brand.K.BorderSubtle);
+                cell.SetResourceReference(Border.BorderBrushProperty, Brand.K.Border); // grid lines, as Plaxis tables have
                 if (header) cell.SetResourceReference(Border.BackgroundProperty, Brand.K.Surface);
                 Grid.SetRow(cell, row);
                 Grid.SetColumn(cell, c);

@@ -6,7 +6,12 @@
 <title>Plaxis ProMax Viewer</title>
 <link rel="stylesheet" href="common.css">
 <style>
-  .body { grid-template-columns: 262px 1fr 268px; }
+  .body { grid-template-columns: 38px 1fr 270px 340px; }
+  .body.no-pmx { grid-template-columns: 38px 1fr 270px; }
+  .body.no-pmx #pmx { display: none; }
+  .vx { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+  .vx > section { display: flex; flex-direction: column; min-height: 0; }
+  .vx > section + section { border-top: 1px solid var(--border); }
   .phase-row { display: grid; grid-template-columns: 18px 1fr auto; gap: 6px; align-items: center; padding: 5px 10px; cursor: default; border-left: 3px solid transparent; }
   .phase-row:hover { background: var(--hover); }
   .phase-row.sel { background: var(--accent-soft); border-left-color: var(--accent); }
@@ -24,7 +29,8 @@
   .kv { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 4px 12px; font-size: 12.5px; }
   .kv span:nth-child(odd) { color: var(--muted); }
   .kv span:nth-child(even) { font-variant-numeric: tabular-nums; text-align: right; }
-  .scale { display: flex; flex-direction: column; gap: 3px; padding: 0 6px; justify-content: center; min-width: 180px; }
+  .scale { display: grid; grid-template-columns: 110px auto auto; align-items: center; gap: 6px; padding: 0 6px; }
+  .scale .t span:first-child, .scale .t span:last-child { display: none; }
   .scale .t { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; }
   .phase-pick { display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 0 6px; }
   .phase-pick .r { display: flex; gap: 4px; align-items: center; }
@@ -43,10 +49,11 @@
   </div>
   <div class="menubar" id="menubar"></div>
   <div class="ribbon" id="ribbon"></div>
-  <div class="body">
-    <div class="panel left" id="left"></div>
+  <div class="body" id="body">
+    <div class="sidebar" id="side"></div>
     <div class="stage" id="stage"><canvas id="cv"></canvas><div class="hud" id="hud"></div><div class="viewbtns" id="viewbtns"></div><div class="hint" id="hint"></div></div>
-    <div class="panel right" id="right"></div>
+    <div class="panel right" id="right"><div class="vx"><section id="left" style="flex: 0 0 40%"></section><section id="values" style="flex: 1 1 0"></section></div></div>
+    <div class="pmx" id="pmx"></div>
   </div>
   <div class="statusbar" id="status"></div>
 </div>
@@ -55,6 +62,7 @@
 "use strict";
 const SOURCE = "<!doctype html>\n" + document.documentElement.outerHTML;
 const { $, el, icon, fmt, clamp } = PP;
+const API = location.protocol.startsWith("http") && !/offline/.test(location.search) ? "api/" : null;
 
 // ---- Result types -------------------------------------------------------------------------------------------------
 // Each has where it lives (node or stress point), a label as Plaxis words it, a unit, and the group it is listed under.
@@ -192,12 +200,12 @@ function fit() {
     if (ui.view3d === "3d") v3.fit([c.xmin, c.ymin, c.zmin ?? -30], [c.xmax, c.ymax, 0]);
     else { const r = planeRect(); v2.fit(r[0], r[1], r[2], r[3], 70); }
   } else v2.fit(c.xmin, c.ymin ?? -30, c.xmax, Math.max(c.ymax ?? 0, ...((pack.model.boreholes || []).map((b) => b.top ?? 0))), 70);
-  if (!using3D() && v2.w > 900) {
-    // Leave the right-hand side to the legend, so it never covers the model.
+  if (!using3D() && v2.w > 700) {
+    // Leave the left-hand side to the legend (where PLAXIS Output has it), so it never covers the model.
     const r = is3D() ? planeRect() : [c.xmin, c.ymin ?? -30, c.xmax, Math.max(c.ymax ?? 0, ...((pack.model.boreholes || []).map((b) => b.top ?? 0)))];
-    const wm = Math.max(r[2] - r[0], 1e-6), hm = Math.max(r[3] - r[1], 1e-6), room = v2.w - 290;
+    const wm = Math.max(r[2] - r[0], 1e-6), hm = Math.max(r[3] - r[1], 1e-6), room = v2.w - 250;
     v2.s = Math.min(v2.s, (room - 100) / wm);
-    v2.ox = 50 + (room - 100 - wm * v2.s) / 2 - r[0] * v2.s;
+    v2.ox = 250 + 50 + (room - 100 - wm * v2.s) / 2 - r[0] * v2.s;
     v2.oy = (v2.h + hm * v2.s) / 2 + r[1] * v2.s;
   }
   fitted = true; draw();
@@ -432,7 +440,7 @@ function plateLegend(p, t) {
   return rows.length ? { title: t.label, unit: t.unit, rows } : { title: t.label, note: "No plate in this phase" };
 }
 function drawLegend(ctx, L) {
-  const w = 214, x = v2.w - w - 14, y = 14;
+  const w = 214, x = 14, y = 48; // on the left of the plot, as PLAXIS Output has it
   let h = 54 + (L.lv ? (L.lv.length) * 15 : 0) + (L.rows ? L.rows.length * 17 : 0) + (L.big != null ? 18 : 0) + (L.count != null ? 18 : 0) + (L.note ? 18 : 0) + (L.lv ? 34 : 0);
   ctx.save();
   ctx.fillStyle = PP.isDark() ? "rgba(50,55,63,.95)" : "rgba(255,255,255,.96)"; ctx.strokeStyle = PP.css("--border-subtle"); ctx.lineWidth = 1;
@@ -577,10 +585,10 @@ cv.addEventListener("click", (e) => {
   const r = cv.getBoundingClientRect(), [x, y] = v2.toWorld(e.clientX - r.left, e.clientY - r.top);
   if (ui.tool === "section") {
     ui.sectionPts.push([x, y]);
-    if (ui.sectionPts.length === 2) { ui.section = ui.sectionPts.slice(); ui.sectionPts = []; ui.tool = null; $("#hint").textContent = ""; showSection(); }
+    if (ui.sectionPts.length === 2) { ui.section = ui.sectionPts.slice(); ui.sectionPts = []; ui.tool = null; $("#hint").textContent = ""; renderSide(); showSection(); }
     draw(); return;
   }
-  if (ui.tool === "curve") { ui.tool = null; $("#hint").textContent = ""; ui.curve = { at: [x, y] }; showCurve(); draw(); return; }
+  if (ui.tool === "curve") { ui.tool = null; $("#hint").textContent = ""; renderSide(); ui.curve = { at: [x, y] }; showCurve(); draw(); return; }
 });
 function sectionLine(ctx) {
   const [a, b] = ui.section; ctx.save(); ctx.strokeStyle = "#f59e0b"; ctx.lineWidth = 2.5; ctx.setLineDash([8, 4]);
@@ -684,17 +692,24 @@ function setPhase(i) { if (i < 0 || i >= pack.phases.length) return; ui.phase = 
 function renderRibbon() {
   const r = $("#ribbon"); r.innerHTML = "";
   if (!pack) { r.append(el("div.group", el("div.row", el("button.tb.wide", { onclick: openFile }, icon("open"), "Open results")), el("div.label", "File"))); return; }
-  const tb = (label, ic, run, o = {}) => el("button.tb" + (o.on ? ".on" : "") + (o.wide ? ".wide" : ""), { title: o.title || label, onclick: run, disabled: o.disabled }, icon(ic), label);
-  const group = (label, ...kids) => el("div.group", el("div.row", ...kids), el("div.label", label));
-  const sel = el("select", { onchange: (e) => setPhase(+e.target.value) });
-  pack.phases.forEach((p, i) => { const o = el("option", { value: i }, `[${i}] ${p.name}`); if (i === ui.phase) o.selected = true; if (!usable(p)) o.disabled = true; sel.append(o); });
-  r.append(group("Phase", el("div.phase-pick", el("div.r", el("button.btn", { onclick: () => setPhase(ui.phase - 1), title: "Previous phase" }, icon("prev")), sel, el("button.btn", { onclick: () => setPhase(ui.phase + 1), title: "Next phase" }, icon("next"))))));
-  const quick = is3D() ? [["deformed", "Deformed", "deformed"], ["Utot", "|u|", "shading"], ["Ux", "ux", "shading"], ["Uz", "uz", "shading"]] :
-    [["deformed", "Deformed", "deformed"], ["Utot", "|u|", "shading"], ["Ux", "ux", "shading"], ["Uy", "uy", "shading"], ["SigyyE", "σ'yy", "shading"], ["PActive", "p active", "water"], ["Plastic", "Plastic", "plastic"], ["plate:M", "Plate M", "chart"]];
-  r.append(group("Results", ...quick.map(([k, l, ic]) => tb(l, ic, () => setType(k), { on: ui.type === k, disabled: !available(phase(), typeOf(k)) }))));
-  r.append(group("Display", tb("Shadings", "shading", () => { ui.shading = !ui.shading; draw(); renderRibbon(); }, { on: ui.shading }), tb("Contours", "contour", () => { ui.contours = !ui.contours; draw(); renderRibbon(); }, { on: ui.contours }),
-    tb("Arrows", "arrows", () => { ui.arrows = !ui.arrows; draw(); renderRibbon(); }, { on: ui.arrows }), tb("Mesh", "mesh", () => { ui.meshLines = !ui.meshLines; draw(); renderRibbon(); }, { on: ui.meshLines, title: "Lines of the display mesh" }),
-    tb("On deformed", "deformed", () => { ui.onDeformed = !ui.onDeformed; draw(); renderRibbon(); }, { on: ui.onDeformed, title: "Draw the result on the deformed shape" })));
+  // As in PLAXIS Output: the phase and the plot are lists in the toolbar; the tools stand in the side toolbar.
+  const tb = (label, ic, run, o = {}) => el("button.tb" + (o.on ? ".on" : "") + (o.wide ? ".wide" : "") + (o.iconOnly ? ".icon-only" : ""), { title: o.title || label, "aria-label": label, onclick: run, disabled: o.disabled }, icon(ic), o.iconOnly ? null : label);
+  const group = (label, ...kids) => el("div.group", { title: label }, el("div.row", ...kids), el("div.label", label));
+  r.append(group("File", tb("Open results", "open", openFile, { iconOnly: true }), tb("Export picture", "image", exportPicture, { iconOnly: true }), tb("Share with the results inside", "share", saveWithResults, { iconOnly: true })));
+  const sel = el("select#phase-pick", { "aria-label": "Phase", onchange: (e) => setPhase(+e.target.value) });
+  pack.phases.forEach((p, i) => { const o = el("option", { value: i }, `${p.name}${p.ended ? "  [" + (p.ended === "OK" ? "ended OK" : p.ended) + "]" : ""}`); if (i === ui.phase) o.selected = true; if (!usable(p)) o.disabled = true; sel.append(o); });
+  r.append(el("div.group", el("label.tfield", "Phase", el("button.btn", { onclick: () => setPhase(ui.phase - 1), title: "Previous phase (Page Up)", "aria-label": "Previous phase" }, icon("prev")), sel, el("button.btn", { onclick: () => setPhase(ui.phase + 1), title: "Next phase (Page Down)", "aria-label": "Next phase" }, icon("next")))));
+  const plot = el("select#plot-pick", { "aria-label": "Plot", onchange: (e) => setType(e.target.value) });
+  let og = null, g0 = "";
+  for (const t of TYPES) {
+    if ((t.d2 && is3D()) || (t.d3 && !is3D())) continue;
+    if (t.group !== g0) { g0 = t.group; og = el("optgroup", { label: g0 }); plot.append(og); }
+    const o = el("option", { value: t.key }, t.label); if (t.key === ui.type) o.selected = true; if (!available(phase(), t)) o.disabled = true; og.append(o);
+  }
+  r.append(el("div.group", el("label.tfield", "Plot", plot)));
+  r.append(group("Shown as", tb("Shadings", "shading", () => { ui.shading = !ui.shading; draw(); renderRibbon(); }, { on: ui.shading, iconOnly: true }), tb("Contour lines", "contour", () => { ui.contours = !ui.contours; draw(); renderRibbon(); }, { on: ui.contours, iconOnly: true }),
+    tb("Arrows", "arrows", () => { ui.arrows = !ui.arrows; draw(); renderRibbon(); }, { on: ui.arrows, iconOnly: true }), tb("Mesh lines", "mesh", () => { ui.meshLines = !ui.meshLines; draw(); renderRibbon(); }, { on: ui.meshLines, title: "Lines of the display mesh", iconOnly: true }),
+    tb("On the deformed mesh", "deformed", () => { ui.onDeformed = !ui.onDeformed; draw(); renderRibbon(); }, { on: ui.onDeformed, title: "Draw the result on the deformed shape", iconOnly: true })));
   const sc = el("input", { type: "range", min: -2, max: 2, step: 0.05, value: Math.log10(ui.scale), oninput: (e) => { ui.scale = Math.pow(10, +e.target.value); draw(); sv.textContent = "× " + fmt(ui.scale * ui.autoScale, 3); } });
   const sv = el("span", "× " + fmt(ui.scale * ui.autoScale, 3));
   r.append(group("Deformation scale", el("div.scale", sc, el("div.t", el("span", "smaller"), sv, el("span", "larger")), el("button.btn.sm", { onclick: () => { ui.scale = 1; renderRibbon(); draw(); } }, "Auto"))));
@@ -703,10 +718,22 @@ function renderRibbon() {
     const at = el("input", { type: "number", step: 1, value: ui.plane.at, style: { width: "70px", height: "26px", border: "1px solid var(--border)", borderRadius: "5px", background: "var(--field)", padding: "0 6px" }, onchange: (e) => { ui.plane.at = +e.target.value; draw(); } });
     r.append(group("View", tb("3D", "cube", () => { ui.view3d = "3d"; fitted = false; renderAll(); }, { on: ui.view3d === "3d" }), tb("Section", "section", () => { ui.view3d = "section"; fitted = false; renderAll(); }, { on: ui.view3d === "section" }), el("div.tbs", ax, el("div", at, " m"))));
   }
-  r.append(group("Tools", tb("Cross section", "section", () => { ui.tool = "section"; ui.sectionPts = []; $("#hint").textContent = "Click the start (A) and the end (A*) of the cross section."; }, { disabled: using3D() }),
-    tb("Curve", "curve", () => { ui.tool = "curve"; $("#hint").textContent = "Click a point: its displacements through every phase."; }, { disabled: using3D() }),
-    tb("Tables", "table", tables), tb("Picture", "image", exportPicture), tb("Share", "share", saveWithResults, { title: "Save one HTML file with these results inside, to send to a reviewer" })));
+  r.append(group("ProMax", tb("ProMax", "promax", togglePmx, { on: pmxOn, iconOnly: true, title: "Show or hide the ProMax panel" })));
+  renderSide();
 }
+function renderSide() {
+  const S = $("#side"); S.innerHTML = "";
+  if (!pack) return;
+  const b = (label, ic, run, o = {}) => el("button.tb" + (o.on ? ".on" : ""), { onclick: run, disabled: o.disabled, title: o.title || label, "aria-label": label }, icon(ic));
+  S.append(b("Select and read values", "select", () => { ui.tool = null; ui.sectionPts = []; $("#hint").textContent = ""; renderSide(); draw(); }, { on: !ui.tool }), el("hr"),
+    b("Cross section", "section", () => { ui.tool = "section"; ui.sectionPts = []; $("#hint").textContent = "Click the start (A) and the end (A*) of the cross section."; renderSide(); }, { on: ui.tool === "section", disabled: using3D() }),
+    b("Curve at a point", "curve", () => { ui.tool = "curve"; $("#hint").textContent = "Click a point: its displacements through every phase."; renderSide(); }, { on: ui.tool === "curve", disabled: using3D() }),
+    b("Tables", "table", tables), el("hr"), b("Zoom to the model (F)", "fit", fit));
+}
+// ---- The ProMax panel (the chat, when the Viewer was opened from Plaxis ProMax) -----------------------------------
+const PM = PP.promax({ api: API, sample: window.PPM_PROMAX });
+let pmxOn = !!(API || window.PPM_PROMAX); try { if (pmxOn) pmxOn = localStorage.getItem("ppm-pmx") !== "off"; } catch (e) { }
+function togglePmx() { pmxOn = !pmxOn; try { localStorage.setItem("ppm-pmx", pmxOn ? "on" : "off"); } catch (e) { } $("#body").classList.toggle("no-pmx", !pmxOn); renderRibbon(); requestAnimationFrame(() => draw()); }
 function renderLeft() {
   const L = $("#left"); L.innerHTML = "";
   if (!pack) return;
@@ -716,19 +743,11 @@ function renderLeft() {
     list.append(el("div.phase-row" + (i === ui.phase ? ".sel" : ""), { onclick: () => ok && setPhase(i), title: p.skipped || p.calc || "" },
       el("span.ok" + (bad ? ".bad" : ok ? "" : ".none"), bad ? "!" : ok ? "✓" : "–"), el("span.nm", `[${i}] ${p.name}`), el("span.ct", p.calc === "Safety" && p.SumMsf ? "ΣMsf " + fmt(p.SumMsf, 3) : (p.calc || "").replace(" procedure", ""))));
   });
-  const res = el("div");
-  let g = "";
-  for (const t of TYPES) {
-    if ((t.d2 && is3D()) || (t.d3 && !is3D())) continue;
-    if (t.group !== g) { g = t.group; res.append(el("div.rgrp", g)); }
-    const can = available(phase(), t);
-    res.append(el("div.rt" + (ui.type === t.key ? ".sel" : "") + (can ? "" : ".off"), { onclick: () => can && setType(t.key), title: can ? t.label : "Not in this results file for this phase" }, icon(t.icon), t.label));
-  }
-  L.append(el("div", { style: { display: "flex", flexDirection: "column", minHeight: 0, maxHeight: "42%" } }, el("div.panel-head", "Phases", el("span.sub", pack.phases.length)), el("div.panel-scroll", list)),
-    el("div.panel-head", "Results"), el("div.panel-scroll", res));
+  // The result types are in the Plot list and the Deformations, Stresses and Structures menus, as in Output.
+  L.append(el("div.panel-head", "Phases", el("span.sub", pack.phases.length)), el("div.panel-scroll", list));
 }
 function renderRight() {
-  const R = $("#right"); R.innerHTML = "";
+  const R = $("#values"); R.innerHTML = "";
   if (!pack) return;
   const p = phase(), box = el("div");
   box.append(el("div.rgrp", "Phase"), el("div.kv", el("span", "Name"), el("span", p.name), el("span", "Calculation"), el("span", p.calc || "–"), el("span", "Ended"), el("span", p.ended || "–"),
@@ -748,7 +767,7 @@ function renderRight() {
   }
   if ((p.anchors || []).length) { box.append(el("div.rgrp", "Anchors")); const kv = el("div.kv"); for (const a of p.anchors) kv.append(el("span", anchorName(a)), el("span", fmt(a.F, 4) + " kN")); box.append(kv); }
   if (pack.missing && pack.missing.length) box.append(el("div.rgrp", "Not in this file"), el("div", { style: { padding: "2px 12px", color: "var(--muted)", fontSize: "12px" } }, pack.missing.slice(0, 6).join("; ")));
-  R.append(el("div.panel-head", "Values"), el("div.panel-scroll", box));
+  R.append(el("div.panel-head", "Values", el("span.sub", p.name)), el("div.panel-scroll", box));
 }
 function status() {
   const s = $("#status"); s.innerHTML = "";
@@ -765,6 +784,7 @@ function menus() {
       { head: "Theme" }, ...["auto", "light", "dark"].map((t) => ({ label: { auto: "Same as Windows", light: "Light", dark: "Dark" }[t], run: () => { PP.theme(t); renderAll(); } }))]],
     ...["Deformations", "Stresses", "Pore pressures", "Structures"].map((g) => [g, () => TYPES.filter((t) => t.group === g && !(t.d2 && is3D()) && !(t.d3 && !is3D())).map((t) => ({ label: t.label, check: () => ui.type === t.key, enabled: () => !!pack && available(phase(), t), run: () => setType(t.key) }))]),
     ["Tools", [{ label: "Cross section", run: () => { ui.tool = "section"; ui.sectionPts = []; $("#hint").textContent = "Click the start (A) and the end (A*) of the cross section."; }, enabled: () => !!pack && !using3D() }, { label: "Curve at a point", run: () => { ui.tool = "curve"; $("#hint").textContent = "Click a point."; }, enabled: () => !!pack && !using3D() }, { label: "Tables", run: tables, enabled: () => !!pack }]],
+    ["ProMax", [{ label: "Show the ProMax panel", check: () => pmxOn, run: togglePmx, enabled: () => !!(API || window.PPM_PROMAX) }, { label: "Bring the chat window to the front", run: PM.focus, enabled: () => !!API }]],
     ["Help", [{ label: "About the Viewer", run: () => PP.dialog({ title: "Plaxis ProMax Viewer", size: "sm", body: el("div", el("p", "Shows the results of a Plaxis calculation with no Plaxis and no licence. Every value was copied from Plaxis Output when Plaxis ProMax calculated the model."), el("p", "Shadings and lines are drawn over a display mesh made from Plaxis's nodes and stress points; Plaxis's own element edges are not in the file."), el("p", "Mouse: wheel to zoom, right or middle drag to pan (3D: left drag rotates).")) }) }]],
   ]);
 }
@@ -776,13 +796,15 @@ document.addEventListener("keydown", (e) => {
   else if (e.key === "f" && pack) fit();
   else if (e.key === "PageDown" && pack) setPhase(ui.phase + 1);
   else if (e.key === "PageUp" && pack) setPhase(ui.phase - 1);
-  else if (e.key === "Escape") { ui.tool = null; ui.sectionPts = []; $("#hint").textContent = ""; draw(); }
+  else if (e.key === "Escape") { ui.tool = null; ui.sectionPts = []; $("#hint").textContent = ""; renderSide(); draw(); }
 });
 const stage = $("#stage");
 stage.addEventListener("dragover", (e) => { e.preventDefault(); });
 stage.addEventListener("drop", async (e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) loadBuffer(await f.arrayBuffer(), f.name); });
 async function start() {
   PP.theme(); $("#logo").append(icon("logo"));
+  $("#body").classList.toggle("no-pmx", !pmxOn);
+  PP.promaxPane($("#pmx"), PM, { onClose: togglePmx });
   renderAll();
   const embedded = document.getElementById("ppr-data");
   const q = new URLSearchParams(location.search);

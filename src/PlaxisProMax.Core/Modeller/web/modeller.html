@@ -6,8 +6,9 @@
 <title>Plaxis ProMax Modeller</title>
 <link rel="stylesheet" href="common.css">
 <style>
-  .body { grid-template-columns: 272px 1fr 312px; }
-  .center { display: grid; grid-template-rows: 1fr auto; min-height: 0; min-width: 0; }
+  .body { grid-template-columns: 290px 38px 1fr 340px; }
+  .body.no-pmx { grid-template-columns: 290px 38px 1fr; }
+  .body.no-pmx #pmx { display: none; }
   .soilcol { display: flex; gap: 14px; padding: 4px 0; }
   .soilcol .col { width: 46px; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; display: flex; flex-direction: column; }
   .soilcol .col div { border-bottom: 1px solid rgba(0,0,0,.18); }
@@ -61,8 +62,9 @@
   </div>
   <div class="menubar" id="menubar"></div>
   <div class="ribbon" id="ribbon"></div>
-  <div class="body">
+  <div class="body" id="body">
     <div class="panel left" id="left"></div>
+    <div class="sidebar" id="side"></div>
     <div class="center">
       <div class="stage" id="stage">
         <canvas id="cv"></canvas>
@@ -70,9 +72,9 @@
         <div class="viewbtns" id="viewbtns"></div>
         <div class="hint" id="hint"></div>
       </div>
-      <div class="messages" id="messages" hidden></div>
+      <div class="cmd" id="cmd"></div>
     </div>
-    <div class="panel right" id="right"></div>
+    <div class="pmx" id="pmx"></div>
   </div>
   <div class="statusbar" id="status"></div>
 </div>
@@ -742,7 +744,7 @@ function deleteSel() {
 }
 
 // ---- Panels --------------------------------------------------------------------------------------------------------
-function renderAll() { title(); renderRibbon(); renderLeft(); renderRight(); status(); renderMessages(); draw(); }
+function renderAll() { title(); renderRibbon(); renderLeft(); status(); renderMessages(); draw(); }
 function title() {
   $("#docname").textContent = model ? "— " + (model.title || "Untitled") + (filePath ? "  ·  " + filePath.split(/[\\/]/).pop() : "") + (dirty ? "  (not saved)" : "") : "";
   document.title = (model ? (model.title || "Untitled") + (dirty ? " •" : "") + " — " : "") + "Plaxis ProMax Modeller";
@@ -754,16 +756,12 @@ function title() {
 function renderRibbon() {
   const r = $("#ribbon"); r.innerHTML = "";
   if (!model) return;
-  const tb = (label, ic, run, opts = {}) => el("button.tb" + (opts.on ? ".on" : "") + (opts.wide ? ".wide" : "") + (opts.primary ? ".primary" : ""), { title: opts.title || label, onclick: run, disabled: opts.disabled }, icon(ic), label);
-  const group = (label, ...kids) => el("div.group", el("div.row", ...kids), el("div.label", label));
-  const modes = [["soil", "Soil", "soil"], ["structures", "Structures", "structures"], ["mesh", "Mesh", "mesh"], ["flow", "Flow conditions", "flow"], ["stages", "Staged construction", "stages"]];
-  const mr = el("div.modes");
-  modes.forEach(([k, l, ic], i) => { if (i) mr.append(el("span.mode-arrow", "›")); mr.append(el("button.mode" + (ui.mode === k ? ".on" : ""), { onclick: () => setMode(k) }, icon(ic), l)); });
-  r.append(el("div.group", mr));
-  r.append(group("File", tb("New", "new", () => newDialog()), tb("Open", "open", () => openDialog()), tb("Save", "save", () => save())));
-  r.append(group("Edit", el("div.tbs", tb("Undo", "undo", undo, { disabled: !undoStack.length }), tb("Redo", "redo", redo, { disabled: !redoStack.length })), tb("Delete", "trash", deleteSel, { disabled: !ui.sel || ui.sel === "project" })));
-  const tools = TOOLS[ui.mode === "structures" && is3D() ? "structures3D" : ui.mode];
-  r.append(group(ui.mode === "stages" ? "Objects" : "Draw", ...tools.map(([k, l, ic]) => tb(l, ic, () => setTool(k), { on: ui.tool === k, disabled: using3D() && k !== "select", title: using3D() && k !== "select" ? "Switch to the plan view to draw" : l }))));
+  // Plaxis-native: one row of tools with the mode tabs on its right; the drawing tools stand in the side toolbar.
+  const tb = (label, ic, run, opts = {}) => el("button.tb" + (opts.on ? ".on" : "") + (opts.wide ? ".wide" : "") + (opts.primary ? ".primary" : "") + (opts.iconOnly ? ".icon-only" : ""), { title: opts.title || label, "aria-label": label, onclick: run, disabled: opts.disabled }, icon(ic), opts.iconOnly ? null : label);
+  const group = (label, ...kids) => el("div.group", { title: label }, el("div.row", ...kids), el("div.label", label));
+  r.append(group("File", tb("New", "new", () => newDialog(), { iconOnly: true }), tb("Open", "open", () => openDialog(), { iconOnly: true }), tb("Save", "save", () => save(), { iconOnly: true })));
+  r.append(group("Edit", tb("Undo", "undo", undo, { disabled: !undoStack.length, iconOnly: true }), tb("Redo", "redo", redo, { disabled: !redoStack.length, iconOnly: true }), tb("Delete", "trash", deleteSel, { disabled: !ui.sel || ui.sel === "project", iconOnly: true })));
+  renderSide();
   if (ui.mode === "soil") r.append(group("Soil", tb("Modify soil layers", "layers", () => layersDialog(), { wide: true }), tb("Materials", "material", () => materialsDialog())));
   if (ui.mode === "structures") r.append(group("Define", tb("Materials", "material", () => materialsDialog())));
   if (ui.mode === "mesh") r.append(group("Mesh", el("div.tbs", ...COARSE.map((c) => tb(c, model.mesh.coarseness === c ? "check" : "mesh", () => change(() => { model.mesh.coarseness = c; delete model.mesh.factor; meshPreview(); }), { on: model.mesh.coarseness === c })).slice(0, 3)),
@@ -774,7 +772,28 @@ function renderRibbon() {
     el("div.tbs", el("div.lvl", "Level z", el("input", { type: "number", step: "0.5", value: ui.level, onchange: (e) => { ui.level = +e.target.value; } })))));
   r.append(group("Calculate", tb("Check", "check", checkModel), tb("Calculate in Plaxis", "calculate", calculateDialog, { primary: true, wide: true, title: "Builds the model in Plaxis, meshes and calculates it, reads the results and closes Plaxis (uses a Plaxis licence while it runs)" }),
     tb("Results", "viewer", openViewer, { disabled: !(ui.run && ui.run.results) && !model._results })));
+  r.append(group("ProMax", tb("ProMax", "promax", togglePmx, { on: pmxShown(), iconOnly: true, title: "Show or hide the ProMax panel" })));
+  const modes = [["soil", "Soil", "soil"], ["structures", "Structures", "structures"], ["mesh", "Mesh", "mesh"], ["flow", "Flow conditions", "flow"], ["stages", "Staged construction", "stages"]];
+  const at = modes.findIndex(([k]) => k === ui.mode);
+  const mr = el("div.modes", { role: "tablist", "aria-label": "Modes" });
+  modes.forEach(([k, l, ic], i) => mr.append(el("button.mode" + (ui.mode === k ? ".on" : i < at ? ".done" : ""), { role: "tab", "aria-selected": ui.mode === k ? "true" : "false", onclick: () => setMode(k) }, l)));
+  r.append(el("div.group.modes-group", mr));
 }
+function renderSide() {
+  const S = $("#side"); S.innerHTML = "";
+  if (!model) return;
+  const tools = TOOLS[ui.mode === "structures" && is3D() ? "structures3D" : ui.mode];
+  tools.forEach(([k, l, ic], i) => {
+    if (i === 1) S.append(el("hr"));
+    S.append(el("button.tb" + (ui.tool === k ? ".on" : ""), { onclick: () => setTool(k), disabled: using3D() && k !== "select", "aria-label": l, title: using3D() && k !== "select" ? l + " (switch to the plan view to draw)" : l }, icon(ic)));
+  });
+  S.append(el("hr"), el("button.tb", { onclick: fit, title: "Zoom to the model (F)", "aria-label": "Zoom to the model" }, icon("fit")));
+}
+// ---- The ProMax panel and the command line ------------------------------------------------------------------------
+const PM = PP.promax({ api: API, sample: window.PPM_PROMAX });
+let pmxOn = true; try { pmxOn = localStorage.getItem("ppm-pmx") !== "off"; } catch (e) { }
+const pmxShown = () => pmxOn;
+function togglePmx() { pmxOn = !pmxOn; try { localStorage.setItem("ppm-pmx", pmxOn ? "on" : "off"); } catch (e) { } $("#body").classList.toggle("no-pmx", !pmxOn); renderRibbon(); requestAnimationFrame(() => draw()); }
 function setMode(m) { ui.mode = m; ui.draft = []; ui.tool = "select"; if (m === "mesh" && !ui.mesh) meshPreview(); setTool("select"); renderAll(); }
 
 function treeNode(label, opts = {}) {
@@ -805,16 +824,18 @@ function renderLeft() {
     sel: ui.sel === s.id, onclick: sel(s.id), active: stages ? activeIn(s.id, ui.phase) : null, onactive: () => toggleActive(s.id), title: KIND_NAMES[s.type] })));
   if (!is3D()) grp("water", "Water levels", "water", model.waterlevels.map((w) => treeNode(w.name, { depth: 1, icon: "water", sel: ui.sel === w.id, onclick: sel(w.id) })));
 
+  // As in PLAXIS Input: the Phases explorer (Staged construction), the Selection explorer, then the Model explorer.
+  const box = el("div.explorers");
   if (stages) {
     const phases = el("div.tree");
     const depthOf = (p) => { let d = 0, q = p; const seen = new Set(); while (q && q.parent && !seen.has(q.id)) { seen.add(q.id); d++; q = phaseOf(q.parent); } return d; };
     for (const p of model.phases) phases.append(treeNode(p.name, { depth: Math.min(depthOf(p), 6), icon: "phase", sel: ui.phase === p.id, onclick: () => { ui.phase = p.id; ui.sel = p.id; setTool("select"); renderAll(); }, title: p.calc }));
-    L.append(el("div.split",
-      el("div", el("div.panel-head", "Phases", el("span.sub", model.phases.length), el("span.spacer"), el("button.btn.sm", { onclick: addPhase, title: "Add a phase after the selected one" }, "+ Add")), el("div.panel-scroll", phases)),
-      el("div", el("div.panel-head", "Model explorer", el("span.sub", "in " + (phaseOf(ui.phase) || {}).name)), el("div.panel-scroll", explorer))));
-  } else {
-    L.append(el("div.panel-head", "Model explorer"), el("div.panel-scroll", explorer));
+    box.append(el("section", { style: { flex: "0 0 24%" } }, el("div.panel-head", "Phases explorer", el("span.sub", model.phases.length), el("span.spacer"), el("button.btn.sm", { onclick: addPhase, title: "Add a phase after the selected one" }, "+ Add")), el("div.panel-scroll", phases)));
   }
+  box.append(el("section#selx", { style: { flex: stages ? "0 0 36%" : "0 0 46%" } }));
+  box.append(el("section", { style: { flex: "1 1 0" } }, el("div.panel-head", "Model explorer", stages ? el("span.sub", "in " + (phaseOf(ui.phase) || {}).name) : null), el("div.panel-scroll", explorer)));
+  L.append(box);
+  renderRight();
 }
 
 function prop(label, unit, input) { return el("div.row", el("label", label, unit ? el("span.u", "  [" + unit + "]") : null), input); }
@@ -831,7 +852,7 @@ function select(value, options, set) {
 function check(value, set) { return el("input", { type: "checkbox", checked: !!value, onchange: (e) => change(() => set(e.target.checked)) }); }
 
 function renderRight() {
-  const R = $("#right"); R.innerHTML = "";
+  const R = $("#selx"); if (!R) return; R.innerHTML = "";
   if (!model) return;
   const id = ui.sel, props = el("div.props");
   let head = "Project";
@@ -844,7 +865,7 @@ function renderRight() {
   else if (String(id).startsWith("layer")) { head = "Soil layer"; const Lp = layerPolygons().find((q) => q.id === id); props.append(el("div.sec", "Layer " + (Lp.index + 1)), prop("Material", "", el("span", (mat(Lp.material) || {}).name || "none")),
     ui.mode === "stages" ? prop("Active in this phase", "", el("input", { type: "checkbox", checked: activeIn(id, ui.phase), onchange: () => toggleActive(id) })) : null, el("div.actions", el("button.btn", { onclick: () => layersDialog() }, "Modify soil layers…"))); }
   else if (phaseOf(id)) { head = "Phase"; phaseProps(props); }
-  R.append(el("div.panel-head", head, el("span.spacer"), ui.sel && ui.sel !== "project" && !String(ui.sel).startsWith("layer") ? el("button.btn.sm.danger", { onclick: deleteSel, title: "Delete" }, icon("trash")) : null), el("div.panel-scroll", props));
+  R.append(el("div.panel-head", "Selection explorer", el("span.sub", head), el("span.spacer"), ui.sel && ui.sel !== "project" && !String(ui.sel).startsWith("layer") ? el("button.btn.sm.danger", { onclick: deleteSel, title: "Delete" }, icon("trash")) : null), el("div.panel-scroll", props));
 }
 function projectProps(p) {
   const c = model.contour;
@@ -933,13 +954,12 @@ function status() {
   s.append(el("span", API ? "Plaxis ProMax connected" : "Page only"));
 }
 function say(level, text) { ui.messages.unshift({ level, text, at: new Date() }); ui.messages = ui.messages.slice(0, 80); renderMessages(); }
+let cmdLine = null, shownMessages = 0;
 function renderMessages() {
-  const m = $("#messages");
-  if (!ui.messages.length || ui.hideMessages) { m.hidden = true; return; }
-  m.hidden = false; m.innerHTML = "";
-  m.append(el("div.panel-head", "Messages", el("span.sub", ui.messages.length), el("span.spacer"), el("button.btn.sm", { onclick: () => { ui.messages = []; renderMessages(); draw(); } }, "Clear")));
-  for (const x of ui.messages) m.append(el("div.msg." + x.level, el("span.k", { error: "Error", warning: "Warning", info: "Info", ok: "OK" }[x.level] || x.level), el("span", x.text)));
-  draw();
+  if (!cmdLine) return;
+  // A new message from a check or a run: the Session tab shows it (oldest first, as a command line reads).
+  if (ui.messages.length && ui.messages.length !== shownMessages && !ui.hideMessages) cmdLine.show("session"); else cmdLine.render();
+  shownMessages = ui.messages.length;
 }
 const toast = PP.toast;
 
@@ -1208,14 +1228,15 @@ function menus() {
     ["Edit", () => [{ label: "Undo", key: "Ctrl+Z", run: undo, enabled: () => undoStack.length > 0 }, { label: "Redo", key: "Ctrl+Y", run: redo, enabled: () => redoStack.length > 0 }, "-", { label: "Delete", key: "Del", run: deleteSel, enabled: () => !!ui.sel && ui.sel !== "project" }]],
     ["View", () => [{ label: "Zoom to model", key: "F", run: fit }, { label: "Zoom in", run: () => using3D() ? (v3.dist /= 1.25, draw()) : v2.zoom(1.25) }, { label: "Zoom out", run: () => using3D() ? (v3.dist *= 1.25, draw()) : v2.zoom(0.8) }, "-",
       { label: "Grid", check: () => ui.grid, run: () => { ui.grid = !ui.grid; draw(); } }, { label: "Snap to grid", check: () => ui.snap, run: () => { ui.snap = !ui.snap; status(); } }, { label: "Labels", check: () => ui.labels, run: () => { ui.labels = !ui.labels; draw(); } },
-      { label: "Messages", check: () => !ui.hideMessages, run: () => { ui.hideMessages = !ui.hideMessages; renderMessages(); } }, "-",
+      { label: "ProMax panel", check: pmxShown, run: togglePmx }, "-",
       { head: "Theme" }, ...["auto", "light", "dark"].map((t) => ({ label: { auto: "Same as Windows", light: "Light", dark: "Dark" }[t], check: () => (localStorage.getItem("ppm-theme") || "auto") === t, run: () => { PP.theme(t); renderAll(); } }))]],
     ["Soil", [{ label: "Borehole", run: () => { setMode("soil"); setTool("borehole"); } }, { label: "Modify soil layers…", run: () => layersDialog() }, { label: "Material sets…", run: () => materialsDialog() }]],
     ["Structures", () => TOOLS[is3D() ? "structures3D" : "structures"].filter((t) => t[0] !== "select").map(([k, l]) => ({ label: l, run: () => { setMode("structures"); if (is3D()) ui.view = "plan"; setTool(k); fit(); } }))],
     ["Mesh", [...COARSE.map((c) => ({ label: c, check: () => model.mesh.coarseness === c, run: () => { change(() => { model.mesh.coarseness = c; delete model.mesh.factor; }); setMode("mesh"); } })), "-", { label: "Preview mesh", run: () => { setMode("mesh"); meshPreview(); renderAll(); } }]],
     ["Flow conditions", [{ label: "Water level", run: () => { setMode("flow"); setTool("water"); } }]],
-    ["Staged construction", [{ label: "Add phase", run: () => { setMode("stages"); addPhase(); } }, { label: "Copy phase", run: () => { setMode("stages"); addPhase(true); } }]],
+    ["Phases", [{ label: "Add phase", run: () => { setMode("stages"); addPhase(); } }, { label: "Copy phase", run: () => { setMode("stages"); addPhase(true); } }]],
     ["Calculate", [{ label: "Check model", run: checkModel }, { label: "Calculate in Plaxis…", run: calculateDialog }, { label: "Open results in the Viewer", run: openViewer }]],
+    ["ProMax", [{ label: "Show the ProMax panel", check: pmxShown, run: togglePmx }, { label: "Bring the chat window to the front", run: PM.focus, enabled: () => !!API }, "-", { label: "Ask ProMax…", run: () => { if (!pmxOn) togglePmx(); pmx && pmx.focusBox(); } }]],
     ["Help", [{ label: "Keyboard shortcuts", run: () => PP.dialog({ title: "Keyboard shortcuts", size: "sm", body: el("table.grid", el("tbody", ...[["Ctrl+Z / Ctrl+Y", "Undo / redo"], ["Ctrl+S", "Save"], ["Ctrl+O", "Open"], ["Del", "Delete the selection"], ["Esc", "Cancel drawing, back to Select"], ["Enter", "Finish a polygon or water level"], ["F", "Zoom to the model"], ["Wheel", "Zoom"], ["Right or middle drag", "Pan (3D: rotate with the left button)"]].map(([k, v]) => el("tr", el("td.mono", k), el("td", v))))) }) },
       { label: "About the Modeller", run: () => PP.dialog({ title: "Plaxis ProMax Modeller", size: "sm", body: el("div", el("p", "Builds PLAXIS 2D and 3D models with no Plaxis open and no Plaxis licence. The model is saved as a Plaxis ProMax model (.ppm)."), el("p", "Calculate in Plaxis is the only step that uses Plaxis: it builds the model in Plaxis Input, meshes and calculates it, copies the results into a results file (.ppr) and closes Plaxis, giving its licence back. Mesh previews here are for the look only; Plaxis makes the real mesh.")) }) }]],
   ]);
@@ -1236,9 +1257,13 @@ function welcome() {
       ...Object.keys(samples).slice(0, 1).map((k) => el("button.opt", { onclick: () => load(JSON.parse(JSON.stringify(samples[k])), null) }, icon("layers"), el("div", el("b", "Open the sample"), el("span", samples[k].title)))))));
   $("#stage").append(w);
 }
+let pmx = null;
 async function start() {
   PP.theme();
   $("#logo").append(icon("logo"));
+  $("#body").classList.toggle("no-pmx", !pmxOn);
+  pmx = PP.promaxPane($("#pmx"), PM, { onClose: togglePmx });
+  cmdLine = PP.commandLine($("#cmd"), PM, { session: () => [...ui.messages].reverse() });
   try { if (window.PPM_SAMPLES) samples = window.PPM_SAMPLES; else if (API) samples = (await api("samples")).samples || {}; } catch (e) { }
   menus();
   let first = null;

@@ -1,16 +1,18 @@
-/* Plaxis ProMax Modeller and Viewer: shared look. Colours are tokens (light and dark), from the chat window's Brand. */
+/* Plaxis ProMax Modeller and Viewer: shared look, organised like PLAXIS Input and Output (the Plaxis-native look): a navy
+   title bar, the menu, one row of tools with the mode tabs as arrows, explorers with grey heads, a side toolbar beside the
+   drawing, a command line under it, and the ProMax panel docked on the right. Colours are tokens (light and dark). */
 :root {
-  --bg: #ffffff; --surface: #f1f5f9; --surface-2: #e2e8f0; --raised: #ffffff; --border: #cbd5e1; --border-subtle: #e2e8f0;
+  --bg: #ffffff; --surface: #f3f4f6; --surface-2: #e4e8ee; --panel: #fbfbfc; --head: #e4e8ee; --tab: #dfe5ee; --tab-done: #c9d9f6; --raised: #ffffff; --border: #cbd5e1; --border-subtle: #e2e8f0;
   --field: #ffffff; --input-border: #64748b; --text: #0f172a; --muted: #475569; --accent: #1d4ed8; --accent-hover: #1e40af;
   --accent-soft: #e8effd; --on-accent: #ffffff; --danger: #b91c1c; --ok: #15803d; --warn: #b45309; --focus: #1d4ed8;
-  --canvas: #fbfcfe; --canvas-grid: rgba(15, 23, 42, .06); --canvas-grid-major: rgba(15, 23, 42, .12); --canvas-text: #334155;
+  --canvas: #ffffff; --canvas-grid: rgba(15, 23, 42, .06); --canvas-grid-major: rgba(15, 23, 42, .12); --canvas-text: #334155;
   --head-1: #1d4ed8; --head-2: #0b1e4f; --shadow: 0 8px 28px rgba(15, 23, 42, .18); --shadow-sm: 0 1px 2px rgba(15, 23, 42, .08);
   --sel: #f59e0b; --hover: rgba(29, 78, 216, .12); --water: #2563eb;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #2b2f36; --surface: #353a42; --surface-2: #424852; --raised: #32373f; --border: #4b525c; --border-subtle: #434a54;
+    --panel: #30353c; --head: #3b414a; --tab: #424852; --tab-done: #2c3b5a; --bg: #2b2f36; --surface: #353a42; --surface-2: #424852; --raised: #32373f; --border: #4b525c; --border-subtle: #434a54;
     --field: #23272d; --input-border: #8a93a0; --text: #eceff3; --muted: #b4bcc8; --accent: #2563eb; --accent-hover: #1d4ed8;
     --accent-soft: #2c3b5a; --on-accent: #fff; --danger: #ff9a92; --ok: #6edc9a; --warn: #fbc96b; --focus: #93b4ff;
     --canvas: #1f2328; --canvas-grid: rgba(236, 239, 243, .05); --canvas-grid-major: rgba(236, 239, 243, .11); --canvas-text: #c8d0da;
@@ -19,7 +21,7 @@
   }
 }
 :root[data-theme="dark"] {
-  --bg: #2b2f36; --surface: #353a42; --surface-2: #424852; --raised: #32373f; --border: #4b525c; --border-subtle: #434a54;
+  --panel: #30353c; --head: #3b414a; --tab: #424852; --tab-done: #2c3b5a; --bg: #2b2f36; --surface: #353a42; --surface-2: #424852; --raised: #32373f; --border: #4b525c; --border-subtle: #434a54;
   --field: #23272d; --input-border: #8a93a0; --text: #eceff3; --muted: #b4bcc8; --accent: #2563eb; --accent-hover: #1d4ed8;
   --accent-soft: #2c3b5a; --on-accent: #fff; --danger: #ff9a92; --ok: #6edc9a; --warn: #fbc96b; --focus: #93b4ff;
   --canvas: #1f2328; --canvas-grid: rgba(236, 239, 243, .05); --canvas-grid-major: rgba(236, 239, 243, .11); --canvas-text: #c8d0da;
@@ -225,3 +227,118 @@ table.grid input:focus, table.grid select:focus { border-color: var(--focus); ba
 input[type=range] { accent-color: var(--accent); }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 35%, transparent); border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
+
+/* ==== Plaxis-native layout ========================================================================================= */
+.app { grid-template-rows: 32px 26px auto 1fr 24px; }
+.titlebar { background: var(--head-2); gap: 8px; }
+.titlebar .logo { border-radius: 4px; background: linear-gradient(135deg, #3b82f6, var(--head-1)); width: 20px; height: 20px; }
+.titlebar .badge { border-radius: 3px; }
+.menubar > .menu > button { border-radius: 2px; padding: 0 9px; }
+.menubar > .menu.promax > button { color: var(--accent); font-weight: 600; }
+.dropdown { border-radius: 3px; padding: 3px; }
+.dropdown button { border-radius: 2px; }
+
+/* One row of tools, the mode tabs on its right (as in PLAXIS Input) */
+.ribbon { background: var(--bg); min-height: 0; padding: 3px 6px; align-items: center; gap: 0; }
+.ribbon .group { flex-direction: row; align-items: center; padding: 0 6px; gap: 2px; border-right: 1px solid var(--border-subtle); }
+.ribbon .group .row { gap: 2px; }
+.ribbon .group .label { display: none; }
+.tb { flex-direction: row; min-width: 30px; height: 30px; padding: 0 6px; gap: 5px; border-radius: 3px; font-size: 12px; }
+.tb svg { width: 18px; height: 18px; }
+.tb.icon-only { padding: 0; width: 30px; }
+.tb.on { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.tb.primary { padding: 0 10px; }
+.tbs { flex-direction: row; }
+.tbs .tb { height: 26px; }
+.ribbon .modes-group { margin-left: auto; border-right: 0; padding-right: 0; }
+.modes { padding: 0; gap: 0; }
+.mode-arrow { display: none; }
+.mode { flex-direction: row; height: 30px; min-width: 0; padding: 0 16px 0 20px; margin-left: -7px; border: 0; border-radius: 0; background: var(--tab); color: var(--text);
+  font-weight: 600; font-size: 12px; gap: 6px; clip-path: polygon(0 0, calc(100% - 11px) 0, 100% 50%, calc(100% - 11px) 100%, 0 100%, 11px 50%); white-space: nowrap; }
+.mode:first-child { margin-left: 0; padding-left: 12px; clip-path: polygon(0 0, calc(100% - 11px) 0, 100% 50%, calc(100% - 11px) 100%, 0 100%); }
+.mode svg { width: 16px; height: 16px; }
+.mode:hover { background: color-mix(in srgb, var(--accent) 22%, var(--tab)); }
+.mode.done { background: var(--tab-done); }
+.mode.on { background: var(--accent); color: var(--on-accent); box-shadow: none; }
+
+/* Explorers: grey heads, plain trees */
+.panel { background: var(--panel); }
+.panel-head { height: 26px; background: var(--head); border-bottom: 1px solid var(--border); font-size: 12px; padding: 0 8px; }
+.panel-head .x { border: 0; background: none; width: 22px; height: 22px; border-radius: 3px; font-size: 15px; color: var(--muted); }
+.panel-head .x:hover { background: var(--hover); }
+.panel-head .ic { width: 15px; height: 15px; color: var(--accent); }
+.tree .node { height: 22px; }
+.tree .node.sel { background: color-mix(in srgb, var(--accent) 20%, var(--bg)); color: var(--text); }
+.tree .node .sw { border-radius: 0; width: 11px; height: 11px; border-color: rgba(0,0,0,.35); }
+.tree .node .act { border-radius: 2px; width: 13px; height: 13px; border: 1px solid var(--input-border); background: var(--field); }
+.tree .node .act.on { background: var(--field); color: var(--text); border-color: var(--input-border); }
+.explorers { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.explorers > section { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.explorers > section + section { border-top: 1px solid var(--border); }
+.props .sec { padding: 8px 10px 3px; font-size: 10.5px; }
+.props .row { padding: 1px 10px; min-height: 24px; }
+.props input, .props select, .field { height: 22px; border-radius: 2px; padding: 1px 5px; }
+.btn { border-radius: 3px; height: 28px; }
+.btn.sm { height: 24px; }
+.dialog { border-radius: 4px; }
+.dialog footer { border-radius: 0 0 4px 4px; }
+.welcome .card, .drop .card { border-radius: 4px; }
+
+/* The side toolbar beside the drawing */
+.sidebar { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0; background: var(--bg); border-right: 1px solid var(--border); width: 38px; }
+.sidebar .tb { width: 30px; padding: 0; justify-content: center; }
+.sidebar .tb span { display: none; }
+.sidebar hr { width: 22px; border: 0; border-top: 1px solid var(--border-subtle); margin: 3px 0; }
+
+/* Rulers and the command line */
+.center { display: grid; grid-template-rows: 1fr 150px; min-height: 0; min-width: 0; }
+.cmd { display: flex; flex-direction: column; min-height: 0; border-top: 1px solid var(--border); background: var(--bg); }
+.cmd-tabs { display: flex; background: var(--head); border-bottom: 1px solid var(--border); }
+.cmd-tabs button { border: 0; border-right: 1px solid var(--border); background: none; padding: 3px 12px; font-size: 12px; color: var(--muted); }
+.cmd-tabs button.on { background: var(--bg); color: var(--text); font-weight: 600; }
+.cmd-log { flex: 1; overflow: auto; padding: 4px 8px; line-height: 1.55; font-size: 11.5px; min-height: 0; }
+.cmd-log .c { color: var(--muted); }
+.cmd-log .p { color: var(--accent); }
+.cmd-log .ok { color: var(--ok); } .cmd-log .bad { color: var(--danger); } .cmd-log .run { color: var(--warn); }
+.cmd-log .d { color: var(--text); }
+.cmd-in { display: flex; align-items: center; gap: 6px; border-top: 1px solid var(--border-subtle); padding: 2px 8px; }
+.cmd-in .p { color: var(--accent); font-weight: 700; }
+.cmd-in input { flex: 1; border: 0; background: transparent; outline: none; height: 22px; font-size: 12px; }
+
+/* The ProMax panel (the chat, docked like an explorer) */
+.pmx { display: flex; flex-direction: column; min-height: 0; background: var(--panel); border-left: 1px solid var(--border); }
+.pmx-head { background: linear-gradient(color-mix(in srgb, var(--accent) 10%, var(--head)), var(--head)); }
+.pmx-head b { color: var(--accent); }
+.pmx-bar { display: flex; gap: 6px; align-items: center; padding: 4px 8px; border-bottom: 1px solid var(--border-subtle); background: var(--bg); font-size: 11.5px; }
+.pmx-state { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); }
+.pmx-state::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.pmx-state.ok::before { background: var(--ok); } .pmx-state.busy::before { background: var(--accent); }
+.pmx-msgs { flex: 1; overflow: auto; padding: 8px; display: flex; flex-direction: column; gap: 7px; min-height: 0; font-size: 12.5px; line-height: 1.45; }
+.pmx-you { align-self: flex-end; max-width: 88%; background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent); border-radius: 3px; padding: 5px 8px; white-space: pre-wrap; }
+.pmx-ans p { margin: 0 0 5px; } .pmx-ans ul { margin: 0 0 5px; padding-left: 18px; }
+.pmx-ans code { font-family: "Cascadia Mono", Consolas, monospace; font-size: 11.5px; background: var(--surface); padding: 0 3px; }
+.pmx-step { display: flex; align-items: center; gap: 6px; border: 1px solid var(--border-subtle); background: var(--bg); border-radius: 2px; padding: 3px 7px; }
+.pmx-step .k { color: var(--ok); font-weight: 700; width: 12px; text-align: center; }
+.pmx-step.running .k { color: var(--accent); } .pmx-step.failed .k { color: var(--danger); }
+.pmx-step .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pmx-step .tool { color: var(--muted); font-size: 10.5px; }
+.pmx-note { color: var(--muted); font-size: 12px; } .pmx-note.err { color: var(--danger); }
+.pmx-empty { color: var(--muted); padding: 10px 4px; display: flex; flex-direction: column; gap: 4px; } .pmx-empty b { color: var(--text); }
+.pmx-approve { margin: 0 8px 6px; border: 1px solid var(--warn); background: color-mix(in srgb, var(--warn) 10%, var(--bg)); border-radius: 3px; padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.pmx-ask { border-top: 1px solid var(--border); background: var(--bg); padding: 6px 8px; display: flex; flex-direction: column; gap: 5px; }
+.pmx-ask textarea { resize: none; border: 1px solid var(--input-border); border-radius: 2px; background: var(--field); padding: 5px 6px; font-size: 12.5px; }
+.pmx-ask textarea:focus { outline: 2px solid var(--focus); outline-offset: -1px; }
+.pmx-row { display: flex; align-items: center; gap: 6px; } .pmx-row .spacer { flex: 1; } .pmx-row .sub, .pmx-ask .sub { color: var(--muted); font-size: 11px; }
+table.pgrid { border-collapse: collapse; width: 100%; margin: 2px 0 6px; font-size: 11.5px; background: var(--bg); }
+table.pgrid th, table.pgrid td { border: 1px solid var(--border); padding: 2px 6px; text-align: left; }
+table.pgrid th { background: var(--head); font-weight: 600; }
+table.pgrid td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Output-style toolbar fields (phase, plot, shown as) */
+.tfield { display: flex; align-items: center; gap: 5px; padding: 0 4px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.tfield select { height: 24px; border: 1px solid var(--border); border-radius: 2px; background: var(--field); color: var(--text); padding: 0 4px; max-width: 340px; }
+.pmx-head .sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.pmx-head > b { flex: none; }
+.tfield .btn { height: 24px; padding: 0 5px; }
+.legend { border-radius: 2px; }
+.stage .hud .chip, .viewbtns button, .stage .hint { border-radius: 3px; }
