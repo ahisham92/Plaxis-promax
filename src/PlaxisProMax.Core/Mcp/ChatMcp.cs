@@ -105,7 +105,7 @@ internal sealed class ChatMcp : IDisposable
         if (isJob && JobPause.Enter(jobKey!) is { } paused) return new McpResult(paused, true);
         try
         {
-            if (isJob && tool.ModifiesModel && ChatJobs.IsCheck(jobKey!))
+            if (isJob && Changes(tool, name, args) && ChatJobs.IsCheck(jobKey!))
                 return new McpResult("This job only reads (it checks work, or reads before a plan is approved), so this change was not made. Report what you found instead.", true);
             return await RunAsync(session, tool, name, args, context, settings, facts, isJob ? jobKey : null, ct).ConfigureAwait(false);
         }
@@ -120,7 +120,8 @@ internal sealed class ChatMcp : IDisposable
         AgentSettings settings, ApprovalFacts facts, string? jobKey, CancellationToken ct)
     {
         var remembered = (ICollection<string>?)settings.NoAskTools ?? [];
-        var decision = ApprovalPolicy.Decide(name, tool.ModifiesModel, false, args, true, facts, settings.Approvals, remembered,
+        var changes = Changes(tool, name, args);
+        var decision = ApprovalPolicy.Decide(name, changes, false, args, true, facts, settings.Approvals, remembered,
             _taskApproved, Probe, [OutputFolder]);
         // An autopilot works with nobody at the computer: the user approved the goal and a backup was saved first, so the
         // change is allowed and kept in the run's log for its report.
@@ -199,6 +200,10 @@ internal sealed class ChatMcp : IDisposable
         // Messages sent to the job while it worked reach it with this step, not at the end of its run.
         if (jobKey is not null && !ct.IsCancellationRequested && ChatJobs.TakeAsides(jobKey, name) is { } aside)
             reply = reply with { Text = JobText.Add(reply.Text, null, aside) };
+        // A change that worked is kept in full, to be done again after a crash or on a fresh copy (redo_steps). A recipe keeps
+        // its own steps, and a redo is not kept twice.
+        if (changes && !reply.IsError && name is not (RunRecipeTool.ToolName or RedoStepsTool.ToolName) && !SavesOnly(name))
+            RedoLog.Write(ProjectName(), name, args, reply.Text);
         // Every call, worked or not, for the bug reports and the chats-and-bugs export (as Sketch ProMax logs them).
         ActivityLog.Write(ProjectName(), name, tool.ModifiesModel, args, !reply.IsError, reply.Text, clock.ElapsedMilliseconds);
         return reply;
@@ -211,9 +216,20 @@ internal sealed class ChatMcp : IDisposable
         catch (Exception) { return ""; }
     }
 
+    /// <summary>True when this call changes the project: the tool's own word, but listing the kept steps (redo_steps) only reads.</summary>
+    internal static bool Changes(IPlaxisTool tool, string name, IReadOnlyDictionary<string, JsonElement> args) =>
+        tool.ModifiesModel && !(name == RedoStepsTool.ToolName && RedoStepsTool.IsList(args));
+
+    /// <summary>Opening, starting and saving a project are not work to do again.</summary>
+    private static bool SavesOnly(string name) => name is "save_project" or "open_project" or "new_project" or "undo" or "go_to_mode";
+
     /// <summary>The code or commands the user should read before allowing, as plain text.</summary>
     internal static string Details(string tool, IReadOnlyDictionary<string, JsonElement> args)
     {
+        // A recipe or a redo runs steps that are not on the card themselves: the card shows each of them in full.
+        if (tool == RunRecipeTool.ToolName && args.TryGetValue("name", out var recipe) && recipe.ValueKind == JsonValueKind.String
+            && Recipes.Describe(recipe.GetString()!) is { Length: > 0 } recipeSteps)
+            return "Recipe \"" + recipe.GetString() + "\"" + (args.TryGetValue("values", out var vals) ? " with " + vals.GetRawText() : "") + "\n\n" + recipeSteps;
         if (args.TryGetValue("code", out var code) && code.ValueKind == JsonValueKind.String) return code.GetString()!;
         if (args.TryGetValue("commands", out var list) && list.ValueKind == JsonValueKind.Array)
             return string.Join("\n", list.EnumerateArray().Select(c => c.ValueKind == JsonValueKind.String ? c.GetString() : c.GetRawText()));

@@ -18,6 +18,11 @@ internal static class StepNames
         ["chat_questions"] = "Questions for you",
         ["over_to_you"] = "Over to you",
         ["run_self_test"] = "Self-test",
+        ["save_recipe"] = "Save a recipe",
+        ["list_recipes"] = "Look at the saved recipes",
+        ["run_recipe"] = "Run a recipe",
+        ["delete_recipe"] = "Delete a recipe",
+        ["redo_steps"] = "Do earlier steps again",
         ["memory_note"] = "Notes",
         ["recall_chats"] = "Earlier chats",
         ["status"] = "Look at Plaxis",
@@ -151,7 +156,7 @@ internal static class StepNames
     public static bool ReadOnly(string tool)
     {
         tool = Short(tool);
-        return tool is "status" or "inspect" or "remember_rule" or "chat_jobs" or "chat_questions" or "over_to_you" or "run_self_test" or "memory_note" or "recall_chats" or "make_document" or "make_drawing"
+        return tool is "status" or "inspect" or "remember_rule" or "chat_jobs" or "chat_questions" or "over_to_you" or "run_self_test" or "save_recipe" or "delete_recipe" or "memory_note" or "recall_chats" or "make_document" or "make_drawing"
                    or "Read" or "Glob" or "Grep" or "LS" or "TodoWrite" or "TaskCreate" or "TaskUpdate" or "WebFetch" or "WebSearch" or "ToolSearch"
                || tool.StartsWith("get_", StringComparison.Ordinal) || tool.StartsWith("list_", StringComparison.Ordinal)
                || tool.StartsWith("find_", StringComparison.Ordinal) || tool.StartsWith("read_", StringComparison.Ordinal);

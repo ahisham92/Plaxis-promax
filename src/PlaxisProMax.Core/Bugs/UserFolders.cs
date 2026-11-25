@@ -20,6 +20,8 @@ internal static class UserFolders
         new("Bugs", BugLog.Root, "Report bug zips (Reports), Export chats & bugs zips (Exports), crash notes (Crashes) and the bug log."),
         new("Self-test reports", SelfTest.Folder, "One report for each time the self-test ran."),
         new("Kept code", (library ?? new CodeLibrary()).Folder, "The code that worked and was kept to run again, one file each."),
+        new("Recipes", Recipes.Folder, "Saved recipes: steps the chat can run again, one .json file each."),
+        new("Work to do again", RedoLog.Folder, "Every change the chats made to each project, kept in full so it can be done again after a crash."),
         new("Chats", ChatStore.FolderPath, "The saved chats of every project."),
         new("Notes", System.IO.Path.GetDirectoryName(MemoryNotes.File) ?? AgentSettings.Folder, "memory.md: what you asked Plaxis ProMax to remember."),
         new("Activity log", ActivityLog.Folder, "Every tool call, one line each, one file a day."),
