@@ -1,4 +1,5 @@
 using System.Text.Json;
+using PlaxisProMax.Chat;
 using PlaxisProMax.Mcp;
 using PlaxisProMax.Plaxis;
 using PlaxisProMax.Settings;
@@ -85,6 +86,59 @@ internal static class RecipeTests
             Recipes.FolderOverride = null;
             RedoLog.FolderOverride = null;
             try { Directory.Delete(temp, true); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        }
+    }
+}
+
+/// <summary>ask_user: only in an autopilot with the phone on; ask, wait, the answer, and a late answer.</summary>
+internal static class AskUserTests
+{
+    public static void Run(Action<string, bool, string> check)
+    {
+        using var link = new PlaxisLink(TestPlaxis.WorkerStart);
+        var settings = new AgentSettings();
+        var context = new ToolContext(link, new CodeLibrary(Path.Combine(Path.GetTempPath(), "ppm-ask-" + Guid.NewGuid().ToString("N"))), () => settings);
+        var tool = new AskUserTool();
+        ToolResult Call(string json)
+        {
+            using var doc = JsonDocument.Parse(json);
+            return tool.ExecuteAsync(context, new ToolArgs(doc.RootElement.EnumerateObject().ToDictionary(p => p.Name, p => p.Value.Clone())), CancellationToken.None).GetAwaiter().GetResult();
+        }
+        AskUserTool.Clear();
+        try
+        {
+            check("ask_user outside an autopilot points to the Questions tab", Call("""{"question":"a","assumed":"b"}""") is { IsError: true } no && no.Text.Contains("chat_questions"), "");
+            AskUserTool.CanAskOverride = () => true;
+            check("ask_user needs the question and the assumption", Call("""{"question":"a"}""").IsError, "");
+            check("ask_user with nobody to send says so", Call("""{"question":"a","assumed":"b"}""") is { IsError: true } unsent && unsent.Text.Contains("couldn't be sent"), "");
+            var sent = new List<UserQuestion>();
+            AskUserTool.Sender = q => { sent.Add(q); return true; };
+            var asked = Call("""{"question":"Prestress 150 or 200 kN/m?","assumed":"150 kN/m"}""");
+            check("ask_user sends the question with its assumption", !asked.IsError && sent.Count == 1 && sent[0].Assumed == "150 kN/m" && asked.Text.Contains("\"id\":1"), asked.Text);
+            check("ask_user wait needs a known id", Call("""{"action":"wait","id":7}""").IsError, "");
+            _ = Task.Run(async () => { await Task.Delay(300); AskUserTool.Answer(1, "200"); });
+            var got = Call("""{"action":"wait","id":1}""");
+            check("ask_user wait returns the answer when it comes", got.Text.Contains("\"answered\":true") && got.Text.Contains("200") && got.Text.Contains("150 kN/m"), got.Text);
+            check("a second answer changes nothing", ((Action)(() => AskUserTool.Answer(1, "none")))is not null && Call("""{"action":"wait","id":1}""").Text.Contains("\"answer\":\"200\""), "");
+
+            // No reply in time: the job goes on; the answer that comes later is told to the chat.
+            Call("""{"question":"Second?","assumed":"yes"}""");
+            sent[1].Sent = DateTime.UtcNow.AddMinutes(-60);
+            var none = Call("""{"action":"wait","id":2}""");
+            check("ask_user: the wait is over, carry on with the assumption", none.Text.Contains("\"answered\":false") && none.Text.Contains("carry on with your assumption"), none.Text);
+            UserQuestion? late = null;
+            Action<UserQuestion> hear = q => late = q;
+            AskUserTool.Late += hear;
+            AskUserTool.Answer(2, "no");
+            AskUserTool.Late -= hear;
+            check("a late answer is told to the chat", late is { Id: 2, Answer: "no" }, "");
+            check("ask_user is not a project change and has a plain name", !tool.ModifiesModel && PlaxisProMax.Chat.StepNames.ReadOnly("ask_user") && PlaxisProMax.Chat.StepNames.Title("ask_user") == "Ask you on your phone", "");
+        }
+        finally
+        {
+            AskUserTool.CanAskOverride = null;
+            AskUserTool.Sender = null;
+            AskUserTool.Clear();
         }
     }
 }
