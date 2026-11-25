@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The window: Plaxis ProMax's chat beside Plaxis. Code-only WPF (no XAML), so it also builds off Windows. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>PlaxisProMax</RootNamespace>
+    <AssemblyName>PlaxisProMax</AssemblyName>
+    <Version>0.1.0</Version>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\..\assets\logo\plaxis-promax.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WPF" />
+    <ProjectReference Include="../PlaxisProMax.Core/PlaxisProMax.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\assets\logo\plaxis-promax-64.png" LogicalName="PlaxisProMax.logo-64.png" />
+    <EmbeddedResource Include="..\..\assets\logo\plaxis-promax.ico" LogicalName="PlaxisProMax.plaxis-promax.ico" />
+  </ItemGroup>
+</Project>

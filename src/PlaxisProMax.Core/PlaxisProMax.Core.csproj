@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Everything that doesn't draw a window: the chat engine (Claude Code), the MCP server, the Plaxis link and tools,
+       settings and updates. Plain net8.0 so it builds and its tests run on any machine. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>PlaxisProMax</RootNamespace>
+    <AssemblyName>PlaxisProMax.Core</AssemblyName>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The worker runs on Plaxis's own Python; it ships next to the program. -->
+    <None Include="Plaxis\plaxis_worker.py" CopyToOutputDirectory="PreserveNewest" Link="plaxis_worker.py" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="PlaxisProMax" />
+    <InternalsVisibleTo Include="PlaxisProMax.Tests" />
+  </ItemGroup>
+</Project>

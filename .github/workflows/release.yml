@@ -1,0 +1,69 @@
+# Publishes a GitHub Release whenever main carries a version that has no release yet (as Sketch ProMax does).
+# To ship: bump <Version> in src/PlaxisProMax/PlaxisProMax.csproj (and Program.Version) and merge to main.
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read version and check for an existing release
+        id: version
+        shell: pwsh
+        run: |
+          $v = ([xml](Get-Content src/PlaxisProMax/PlaxisProMax.csproj)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+          $code = (Select-String -Path src/PlaxisProMax/Program.cs -Pattern 'Version = "([^"]+)"').Matches[0].Groups[1].Value
+          if ($v -ne $code) { throw "Version mismatch: project $v, Program.Version $code" }
+          "version=$v" >> $env:GITHUB_OUTPUT
+          gh release view "v$v" --repo "${{ github.repository }}" 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0) { "exists=true" >> $env:GITHUB_OUTPUT } else { "exists=false" >> $env:GITHUB_OUTPUT }
+          exit 0
+      - uses: actions/setup-dotnet@v4
+        if: steps.version.outputs.exists == 'false'
+        with:
+          dotnet-version: 8.0.x
+      - uses: actions/setup-python@v5
+        if: steps.version.outputs.exists == 'false'
+        with:
+          python-version: '3.12'
+      - name: Tests
+        if: steps.version.outputs.exists == 'false'
+        shell: pwsh
+        run: |
+          python -m unittest discover -s tests/worker
+          if ($LASTEXITCODE -ne 0) { throw "Worker tests failed" }
+          dotnet run --project tests/PlaxisProMax.Tests -c Release
+          if ($LASTEXITCODE -ne 0) { throw "Checks failed" }
+      - name: Build and package
+        if: steps.version.outputs.exists == 'false'
+        shell: pwsh
+        run: |
+          .\build.ps1
+          $pkg = "package\PlaxisProMax"
+          New-Item -ItemType Directory -Force $pkg | Out-Null
+          Copy-Item dist $pkg -Recurse
+          Copy-Item install.ps1, Install.cmd, README.md $pkg
+          Compress-Archive -Path $pkg -DestinationPath "PlaxisProMax-${{ steps.version.outputs.version }}.zip"
+      - name: Publish release
+        if: steps.version.outputs.exists == 'false'
+        shell: pwsh
+        run: |
+          $v = "${{ steps.version.outputs.version }}"
+          $notes = "**Install:** extract the zip and double-click Install.cmd, or paste this line in PowerShell:`n`n``irm https://raw.githubusercontent.com/${{ github.repository }}/main/get.ps1 | iex```n"
+          $own = "docs/release-notes/$v.md"
+          if (Test-Path $own) { $notes = (Get-Content $own -Raw).Trim() + "`n`n" + $notes }
+          gh release create "v$v" "PlaxisProMax-$v.zip" --repo "${{ github.repository }}" --title "Plaxis ProMax $v" --notes $notes
