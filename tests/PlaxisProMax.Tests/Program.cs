@@ -47,6 +47,7 @@ Section("job checks", JobChecksTests.Run);
 Section("job truth", JobTruthTests.Run);
 Section("automatic model", ChatAutoTests.Run);
 Section("questions", ChatQuestionsTests.Run);
+Section("questions tool and hand-offs", QuestionsToolTests.Run);
 Section("chat work", ChatWorkTests.Run);
 Section("away", AwayTests.Run);
 Section("autopilot", AutopilotTests.Run);

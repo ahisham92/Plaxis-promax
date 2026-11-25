@@ -34,8 +34,8 @@ internal sealed class UserAsk
     public bool Open => !Closed && (Answer.Length == 0 || Unclear);
 
     /// <summary>
-    /// When it last went to the phone (default: not yet). Not saved: after Revit starts again an open question goes to the
-    /// phone once more, because only this Revit session can take the phone's answer to it.
+    /// When it last went to the phone (default: not yet). Not saved: after the window opens again an open question goes to the
+    /// phone once more, because only this window can take the phone's answer to it.
     /// </summary>
     [JsonIgnore] public DateTime PhoneAt { get; set; }
 
@@ -51,7 +51,7 @@ internal sealed class UserAsk
 /// numbered, where you don't see anything except these questions, which are sent to the coordinator ... if I don't understand
 /// the 4th question it updates it; you answer by the number and answer, or by choosing MCQs, or Other to type"; "once a question
 /// is answered it is removed from its tab"). The coordinator and the jobs ask with chat_questions; the user answers on the tab
-/// or types "4 yes" in the message box. Answers go to the coordinator together. No WPF or Revit (the tests compile it).
+/// or types "4 yes" in the message box. Answers go to the coordinator together. No WPF (the tests compile it).
 /// </summary>
 internal sealed class ChatQuestions
 {

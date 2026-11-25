@@ -34,7 +34,7 @@ jobs:
         run: |
           $p = Start-Process -FilePath dist\app\PlaxisProMax.exe -ArgumentList '--screenshots', "$pwd\screenshots" -Wait -PassThru
           Get-ChildItem screenshots
-          if ($p.ExitCode -ne 0 -or (Get-ChildItem screenshots\*.png).Count -lt 19) { throw "Screenshots failed ($($p.ExitCode))." }
+          if ($p.ExitCode -ne 0 -or (Get-ChildItem screenshots\*.png).Count -lt 21) { throw "Screenshots failed ($($p.ExitCode))." }
       - uses: actions/upload-artifact@v4
         with:
           name: PlaxisProMax-screenshots

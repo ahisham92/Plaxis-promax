@@ -94,9 +94,12 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         // Escape stops the answer from anywhere in the window.
         KeyDown += (_, e) =>
         {
-            if (e.Key != Key.Escape || e.Handled || !_busy) return;
+            if (e.Key != Key.Escape || e.Handled) return;
+            if (_questionsShown) { e.Handled = true; HideQuestions(focus: true); return; }
+            if (!_busy) return;
             e.Handled = true;
-            SendOrStop();
+            if (_crew is { Run.State: AutopilotRun.Running } crew) crew.AutopilotStop("you pressed Stop");
+            else Stop();
         };
 
         _link.ConnectionChanged += connected => Dispatcher.BeginInvoke(() => ShowPlaxis(connected));
@@ -254,6 +257,12 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
 
     private void SendOrStop()
     {
+        // "4 yes" answers question 4 of the Questions tab, also while the chat is busy.
+        if (_input.Text.Trim().Length > 0 && _attached.Count == 0 && TypedAnswers(_input.Text.Trim()))
+        {
+            _input.Clear();
+            return;
+        }
         if (_busy)
         {
             // While a run works, Stop on the composer ends the run (not only this answer, which it would start again).
@@ -279,6 +288,10 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
             Note("Claude Code isn't ready yet: install it or sign in with the card above.");
             return;
         }
+        // Written on the phone: "4 yes" answers a question there too.
+        if (!typed && TypedAnswers(text)) return;
+        if (_questionsShown) HideQuestions(focus: false);
+        HearAway(text);
         if (typed)
         {
             if (_attached.Count > 0)
@@ -460,8 +473,10 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         Save();
         ReplyToPhone(_turnText.ToString());
         _turnText.Clear();
+        CatchQuestions();
         SendQueuedFromPhone();
         AfterTurn(result);
+        DeliverAnswers(now: false);
         // A run in this chat: the plan waits for Approve, the run carries on, or its goal is reviewed.
         if (lost.Length > 0 && Autopilot.LostAccess(lost)) _crew?.AutopilotLostAccess(lost);
         else _crew?.AutopilotTurnEnded(stopped, !failed);
@@ -524,6 +539,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
             case "tool": AddStepRow(item.Name, item.Text, item.State, item.Result); break;
             case "pjob": _messages.Children.Add(ParallelJobCardFor(item)); break;
             case "file": _messages.Children.Add(FileCard(item)); break;
+            case "handoff": _messages.Children.Add(HandoffCard(item, Tools.Handoff.Find(item.Name))); break;
             case "error": AddNote(item.Text, Brand.K.DangerText); break;
             case "note" when item.Name == Crew.ApproveNote: _messages.Children.Add(ApproveCard(item)); break;
             default: AddNote(item.Text, Brand.K.Muted); break;

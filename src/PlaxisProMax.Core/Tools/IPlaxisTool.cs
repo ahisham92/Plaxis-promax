@@ -40,6 +40,9 @@ public sealed class ToolContext
 
     /// <summary>The chat this call came from (a new one starts the kept-code offers again), or "" outside a chat.</summary>
     public string Chat { get; init; } = "";
+
+    /// <summary>The parallel job that calls (its key), or null for the main chat.</summary>
+    public string? Job { get; init; }
 }
 
 public sealed record ToolResult(string Text, bool IsError = false, byte[]? PngImage = null)
