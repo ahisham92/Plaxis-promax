@@ -543,7 +543,11 @@ function hud() {
   const p = phase(), t = typeOf(ui.type);
   h.append(el("span.chip", el("b", p.name), "  ·  " + t.label + (is3D() && ui.view3d === "section" ? `  ·  section ${ui.plane.axis} = ${fmt(ui.plane.at, 2)} m` : "")));
   if (pack.sample) h.append(el("span.chip", { style: { color: "var(--warn)", fontWeight: 600 } }, "Sample results, made up for the demo: not from Plaxis"));
+  if (notOk(p)) h.append(el("span.chip", { style: { color: "var(--danger)", fontWeight: 600 } }, notOkText(p)));
 }
+// A phase whose calculation did not end OK: what it shows is where Plaxis stopped, not a result to report.
+function notOk(p) { return !!(p && p.ended && p.ended !== "OK"); }
+function notOkText(p) { return `Not a final result: this phase ended "${p.ended}" in Plaxis`; }
 
 // ---- Probe, tools ------------------------------------------------------------------------------------------------
 function probeAt(x, y) {
@@ -656,6 +660,8 @@ function tableRows(p, tab) {
 }
 function exportPicture() {
   draw();
+  // The warning goes into the picture too: a picture is what reaches a report.
+  if (notOk(phase()) && !using3D()) { const c = v2.ctx; c.font = "600 13px Segoe UI"; c.fillStyle = PP.css("--danger"); c.fillText(notOkText(phase()), 12, v2.h - 12); }
   cv.toBlob((b) => PP.download(`${pack.title} - ${phase().name} - ${typeOf(ui.type).label}.png`.replace(/[\\/:*?"<>|]+/g, "-"), b), "image/png");
 }
 async function saveWithResults() {

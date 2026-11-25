@@ -76,6 +76,21 @@ Why it is built this way:
 11. **Coordinator complexity before the basics worked** (bugs 88, 94, 97, 113, 131). The first versions are a simple
     chat. Parallel jobs come only once the simple chat has been proven on real projects.
 
+From CSI ProMax's field test on SAFE (25 Nov 2026):
+
+12. **A name from one program used in its sibling.** The test read the table "Story Definitions", which ETABS has and
+    SAFE does not. Here every name that differs between PLAXIS 2D and 3D, or between versions, is tried from a list
+    of candidates, and what Plaxis does not have is listed in the answer instead of failing the whole step. The
+    self-test only calls tools that need no names.
+13. **Results reported when nothing was calculated.** SAFE's check said "slab design: pass" with the analysis not
+    run, because an input table had rows. Here results are read only from phases that ended OK: Output opens on the
+    last of those, a phase with no results says how it ended, a run where some phases failed says so instead of
+    "Calculated", and the Viewer marks a phase that did not end OK as not a final result, in the picture too.
+14. **The wrong program's name in a message** ("ETABS refused" in SAFE, an "etabs" version in a SAFE model). The
+    product shown is read from Plaxis itself (is_2d or is_3d), never assumed.
+15. **The plug-in missing from the newer program** (ETABS 22 had it, ETABS 23 did not). Plaxis needs nothing put
+    into each Plaxis version: one script in Documents is run from any version's Expert menu.
+
 ## 4. Roadmap
 
 - **0.1 Connect and look:** the chat window, sign-in, connection to Input and Output, `plaxis_status`,
