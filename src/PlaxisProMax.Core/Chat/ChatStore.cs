@@ -21,6 +21,9 @@ internal static class ChatStore
     // ClaudeCli.Folder's "conversations", spelled out so the store builds without the Claude Code code (unit tests).
     private static string Folder => RootOverride ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PlaxisProMax", "chat", "conversations");
 
+    /// <summary>Where the chats are kept (the Open folders window).</summary>
+    public static string FolderPath => Folder;
+
     private static string Hash(string key)
     {
         using var sha = SHA256.Create();

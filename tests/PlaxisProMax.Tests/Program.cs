@@ -61,6 +61,7 @@ Section("plan usage", PlanUsageTests.Run);
 Section("notes, earlier chats and routines", MoreTests.Run);
 Section("documents", DocumentTests.Run);
 Section("drawings and tables", DrawingTests.Run);
+Section("self-test, crash guard and folders", SelfTestTests.Run);
 
 try { Directory.Delete(scratch, true); } catch (Exception) { }
 Console.WriteLine(failures == 0 ? "All checks passed." : $"{failures} check(s) failed.");

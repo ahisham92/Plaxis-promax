@@ -109,6 +109,7 @@ internal static class Screenshots
             return true;
         });
         Shoot(ChatWindow.NotesWindow(null), Path.Combine(folder, "15-notes.png"));
+        Shoot(new UserFoldersWindow(), Path.Combine(folder, "26-folders.png"));
 
         var nightly = new Routine { Id = "r1", Name = Routines.Presets[0].Name, Task = Routines.Presets[0].Task, Time = Routines.Presets[0].Time, Created = now.AddDays(-9) };
         nightly.Runs.Add(new RoutineRun { Started = now.AddHours(-7), Due = DateTime.Today.AddHours(1), State = JobBoard.Done, Ended = now.AddHours(-6.6), Job = 4, ChatTitle = "Routine · Nightly calculation", Model = "Quay wall",
