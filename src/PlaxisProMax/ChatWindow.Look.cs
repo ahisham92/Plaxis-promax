@@ -77,6 +77,9 @@ internal sealed partial class ChatWindow
         more.Click += (_, _) => ShowMenu(more);
         DockPanel.SetDock(more, Dock.Right);
         top.Children.Add(more);
+        var shrink = ShrinkButton();
+        DockPanel.SetDock(shrink, Dock.Right);
+        top.Children.Add(shrink);
 
         var mark = ChatUi.Mark(24);
         AutomationProperties.SetName(mark, "Plaxis ProMax");

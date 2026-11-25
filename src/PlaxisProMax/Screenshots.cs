@@ -49,6 +49,8 @@ internal static class Screenshots
         More(link, folder);
         var files = new ChatWindow(link, new PlaxisInstall.StartArgs(null, null, null, false), () => null!, sample: true);
         Shoot(files, Path.Combine(folder, "18-files.png"), w => ((ChatWindow)w).ShowSampleFiles(Path.Combine(Path.GetTempPath(), "ppm-made-" + Guid.NewGuid().ToString("N"))));
+        var shrunk = new ChatWindow(link, new PlaxisInstall.StartArgs(null, null, null, false), () => null!, sample: true);
+        Shoot(shrunk, Path.Combine(folder, "19-shrink.png"), w => ((ChatWindow)w).ShowSampleShrunk());
         var home = new ChatWindow(link, new PlaxisInstall.StartArgs(null, null, null, false), () => null!, sample: true);
         Shoot(home, Path.Combine(folder, "17-home.png"), w => ((ChatWindow)w).ShowSampleHome());
         app.Shutdown();
