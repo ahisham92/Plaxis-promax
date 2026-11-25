@@ -13,7 +13,7 @@ namespace PlaxisProMax.Chat;
 internal static class ChatFiles
 {
     /// <summary>The file types shown as a card.</summary>
-    public static readonly string[] Kinds = [".xlsx", ".xlsm", ".csv", ".docx", ".pptx", ".pdf", ".dxf"];
+    public static readonly string[] Kinds = [".xlsx", ".xlsm", ".csv", ".docx", ".pptx", ".pdf", ".dxf", ".dwg"];
 
     /// <summary>At most this many files per step; the rest are in the same folder (Show in folder).</summary>
     public const int Most = 6;
@@ -67,6 +67,7 @@ internal static class ChatFiles
         ".pptx" => "PowerPoint presentation",
         ".pdf" => "PDF",
         ".dxf" => "DXF drawing",
+        ".dwg" => "DWG drawing",
         _ => "File",
     };
 

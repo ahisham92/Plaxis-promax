@@ -212,6 +212,67 @@ def op_inspect(args):
     return result
 
 
+_ECHO_LINE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_\[\]\.]*)\s*[:=]\s*(.*?)\s*$")
+SNAPSHOT_PER_COLLECTION = 2000
+SNAPSHOT_PROPS = 120
+
+
+def _echo_props(obj):
+    """An object's properties from Plaxis's own echo of it (one request instead of one per property); {} when it gives none."""
+    text = _safe(lambda: obj.echo(), None)
+    if not isinstance(text, str):
+        return {}
+    props = {}
+    for line in text.splitlines():
+        m = _ECHO_LINE.match(line)
+        if m and m.group(2) != "" and len(props) < SNAPSHOT_PROPS:
+            props[m.group(1)] = m.group(2)
+    return props if len(props) >= 2 else {}
+
+
+def _read_props(obj):
+    props = {}
+    for name in _members(obj):
+        if len(props) >= SNAPSHOT_PROPS:
+            break
+        member = _safe(lambda: getattr(obj, name), None)
+        if member is None or (callable(member) and not hasattr(member, "value")):
+            continue
+        v = _value_of(obj, name)
+        if v is not None:
+            props[name] = v
+    return props
+
+
+def op_snapshot(args):
+    """Every object of the model with its properties, by collection and name, to keep and to compare later."""
+    s_i, g_i = _input()
+    only = set(args.get("collections") or [])
+    use_echo = args.get("echo", True)
+    out, cut = {}, []
+    for name in COLLECTIONS:
+        if only and name not in only:
+            continue
+        items = _safe(lambda: list(getattr(g_i, name)), None)
+        if items is None:
+            continue
+        objects, seen = {}, {}
+        for item in items[:SNAPSHOT_PER_COLLECTION]:
+            label = str(_label(item))
+            seen[label] = seen.get(label, 0) + 1
+            key = label if seen[label] == 1 else "{} ({})".format(label, seen[label])
+            props = _echo_props(item) if use_echo else {}
+            objects[key] = props or _read_props(item)
+        if len(items) > SNAPSHOT_PER_COLLECTION:
+            cut.append("{}: the first {} of {}".format(name, SNAPSHOT_PER_COLLECTION, len(items)))
+        if objects or name in ("Phases", "Materials"):
+            out[name] = objects
+    result = {"collections": out}
+    if cut:
+        result["cut"] = cut
+    return result
+
+
 # ---- Changing the model -------------------------------------------------------------------------------------------
 
 

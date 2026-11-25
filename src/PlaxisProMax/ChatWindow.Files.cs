@@ -149,10 +149,36 @@ internal sealed partial class ChatWindow
         });
     }
 
+    private int _preparing;
+
     private void AttachFiles(IEnumerable<string> files)
     {
         foreach (var file in files)
-            if (File.Exists(file) && !_attached.Contains(file)) _attached.Add(file);
+        {
+            if (!File.Exists(file) || _attached.Contains(file)) continue;
+            _attached.Add(file);
+            PrepareLargePdf(file);
+        }
         ShowChips();
+    }
+
+    /// <summary>
+    /// A large PDF is split and its text read as soon as it is attached, off the window's thread, so Send finds the parts
+    /// ready (they are kept by the file's path, size and time) and the window never stands still on a big report.
+    /// </summary>
+    private void PrepareLargePdf(string file)
+    {
+        try
+        {
+            if (!file.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) || new FileInfo(file).Length < 4 * 1024 * 1024) return;
+        }
+        catch (IOException) { return; }
+        _preparing++;
+        _ = Task.Run(() =>
+        {
+            try { Attachments.Note([file], ClaudeCli.AttachmentsFolder); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* Send says what went wrong */ }
+            finally { Dispatcher.BeginInvoke(() => _preparing--); }
+        });
     }
 }

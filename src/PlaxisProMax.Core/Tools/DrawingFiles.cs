@@ -7,8 +7,8 @@ namespace PlaxisProMax.Tools;
 /// <summary>
 /// CAD drawings as files, without AutoCAD: DXF is plain text (pairs of a group code and a value), so it is read and
 /// written here by hand. Reading gives the layers and the geometry on them (lines, polylines, circles, arcs, points,
-/// texts) in the drawing's own units; writing makes an R12 DXF every CAD program opens. DWG is a closed binary format:
-/// it is not read here (save it as DXF, or bring it into Plaxis with Plaxis's own import). No Plaxis or WPF.
+/// texts) in the drawing's own units; writing makes an R12 DXF every CAD program opens. DWG files are read and written
+/// by <see cref="Dwg"/> into the same entities. No Plaxis or WPF.
 /// </summary>
 internal static class Dxf
 {
@@ -22,7 +22,7 @@ internal static class Dxf
         for (var i = 0; i + 1 < lines.Length; i += 2)
         {
             if (!int.TryParse(lines[i].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var code))
-                throw new InvalidDataException(pairs.Count == 0 ? "This is not a text DXF (a binary DXF or a DWG can't be read: save it as DXF from the CAD program)." : $"Line {i + 1} is not a DXF group code.");
+                throw new InvalidDataException(pairs.Count == 0 ? "This is not a text DXF (a binary DXF can't be read: save it as a text DXF or a DWG from the CAD program)." : $"Line {i + 1} is not a DXF group code.");
             pairs.Add((code, lines[i + 1].Trim()));
         }
         var start = pairs.FindIndex(p => p.Code == 2 && p.Value == "ENTITIES");
@@ -104,6 +104,8 @@ internal static class Dxf
         return sb.ToString();
     }
 
+    internal static string LayerName(string name) => Layer(name);
+
     private static string Layer(string name)
     {
         var clean = new string((name ?? "").Trim().Select(ch => char.IsLetterOrDigit(ch) || ch is '_' or '-' or '$' ? ch : '_').ToArray());
@@ -111,22 +113,21 @@ internal static class Dxf
     }
 }
 
-/// <summary>read_drawing_file: what is in a DXF drawing, by layer, so its lines can become soil contours, walls or excavation lines.</summary>
+/// <summary>read_drawing_file: what is in a DWG or DXF drawing, by layer, so its lines can become soil contours, walls or excavation lines.</summary>
 internal sealed class ReadDrawingFileTool : IPlaxisTool
 {
     public const int DefaultMost = 200, Most = 2000;
 
     public string Name => "read_drawing_file";
     public string Description =>
-        "Reads a CAD drawing saved as DXF on this PC: first call it with only the path for the layers (how many lines, polylines, " +
+        "Reads a CAD drawing on this PC, DWG or DXF: first call it with only the path for the layers (how many lines, polylines, " +
         "circles, arcs, points and texts each has) and the drawing's extents; then with layer for that layer's geometry as " +
         "coordinates in the drawing's own units (check them against a known dimension before using them: drawings are often in mm). " +
-        "Use the coordinates for the soil contour, walls, excavation lines or structures. A DWG can't be read: ask the user to " +
-        "save it as DXF (in AutoCAD: Save As > DXF), or bring it into Plaxis with Plaxis's own CAD import. A drawing as PDF or " +
-        "picture: use the Read tool. Not a change to the project.";
+        "Use the coordinates for the soil contour, walls, excavation lines or structures. Blocks in a DWG are opened up into " +
+        "their own lines at each place they are used. A drawing as PDF or picture: use the Read tool. Not a change to the project.";
     public string PropertiesJson => """
     {
-      "path": {"type": "string", "description": "The DXF file's full path."},
+      "path": {"type": "string", "description": "The DWG or DXF file's full path."},
       "layer": {"type": "string", "description": "Only this layer's geometry (the name as listed). Leave out for the list of layers."},
       "kinds": {"type": "array", "items": {"type": "string", "enum": ["line", "polyline", "circle", "arc", "point", "text"]}, "description": "With layer: only these kinds."},
       "most": {"type": "integer", "description": "With layer: at most this many entities (default 200, up to 2000)."}
@@ -137,17 +138,31 @@ internal sealed class ReadDrawingFileTool : IPlaxisTool
 
     public Task<ToolResult> ExecuteAsync(ToolContext context, ToolArgs args, CancellationToken ct) => Task.FromResult(Read(args));
 
+    private static bool IsDwg(string path) => Path.GetExtension(path).Equals(".dwg", StringComparison.OrdinalIgnoreCase);
+
+    // The last drawing read, so asking for its layers and then for one layer reads a big DWG once.
+    private static (string Path, DateTime Written, long Size, List<Dxf.Entity> Entities)? _last;
+    private static readonly object LastGate = new();
+
+    private static List<Dxf.Entity> Cached(string path)
+    {
+        var info = new FileInfo(path);
+        lock (LastGate)
+            if (_last is { } l && l.Path == info.FullName && l.Written == info.LastWriteTimeUtc && l.Size == info.Length) return l.Entities;
+        var read = IsDwg(path) ? Dwg.Read(path) : Dxf.Read(Encoding.UTF8.GetString(SharedRead.AllBytes(path)));
+        lock (LastGate) _last = (info.FullName, info.LastWriteTimeUtc, info.Length, read);
+        return read;
+    }
+
     internal static ToolResult Read(ToolArgs args)
     {
         var path = (args.OptString("path") ?? "").Trim().Trim('"');
-        if (path.Length == 0) return ToolResult.Error("Give the DXF file's full path in 'path'.");
+        if (path.Length == 0) return ToolResult.Error("Give the drawing's full path in 'path'.");
         if (!File.Exists(path)) return ToolResult.Error($"There is no file at {path}.");
-        if (Path.GetExtension(path).Equals(".dwg", StringComparison.OrdinalIgnoreCase))
-            return ToolResult.Error("A DWG can't be read here (it is a closed format). Ask the user to save it as DXF (AutoCAD: Save As > DXF), or bring it into Plaxis with Plaxis's own CAD import.");
         List<Dxf.Entity> all;
-        try { all = Dxf.Read(Encoding.UTF8.GetString(SharedRead.AllBytes(path))); }
+        try { all = Cached(path); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException) { return ToolResult.Error($"Couldn't read {Path.GetFileName(path)}: {ex.Message}"); }
-        if (all.Count == 0) return ToolResult.Error("The drawing has no lines, polylines, circles, arcs, points or texts in its model space (blocks are not read: explode them in the CAD program and save again).");
+        if (all.Count == 0) return ToolResult.Error("The drawing has no lines, polylines, circles, arcs, points or texts in its model space" + (IsDwg(path) ? " (it may be drawn in a layout: copy it to model space and save again)." : " (blocks in a DXF are not read: explode them in the CAD program and save again, or attach the DWG)."));
         var points = all.SelectMany(e => e.Points).ToList();
         var extents = new { min = new[] { points.Min(p => p[0]), points.Min(p => p[1]) }, max = new[] { points.Max(p => p[0]), points.Max(p => p[1]) } };
         var layer = args.OptString("layer");
@@ -181,12 +196,12 @@ internal sealed class ReadDrawingFileTool : IPlaxisTool
     }
 }
 
-/// <summary>make_drawing: a DXF file of lines, polylines, circles, points and texts (a section, a mesh outline, a deflected shape).</summary>
+/// <summary>make_drawing: a DXF or DWG file of lines, polylines, circles, points and texts (a section, a mesh outline, a deflected shape).</summary>
 internal sealed class MakeDrawingTool : IPlaxisTool
 {
     public string Name => "make_drawing";
     public string Description =>
-        "Make a CAD drawing for the user as a DXF file (opens in AutoCAD and every CAD program): the model's geometry, a cross-section, " +
+        "Make a CAD drawing for the user as a DXF file (default; opens in AutoCAD and every CAD program) or a DWG file (format dwg, when the user asks for DWG): the model's geometry, a cross-section, " +
         "the excavation stages, a deflected shape, result points with their values as texts. Give 'entities', each with a kind " +
         "(polyline, line, circle, point, text), a layer name and points in the project's units; polylines can be closed; a text " +
         "has its words in 'text' and its height in 'height'. The file goes to Documents\\Plaxis ProMax\\Made in chat unless folder " +
@@ -203,7 +218,8 @@ internal sealed class MakeDrawingTool : IPlaxisTool
         "text": {"type": "string"},
         "height": {"type": "number", "description": "text: its height in drawing units (default 0.25)."}
       }, "required": ["kind", "points"]}},
-      "file_name": {"type": "string", "description": "The file name without folder (default: the title). .dxf is added."},
+      "format": {"type": "string", "enum": ["dxf", "dwg"], "description": "Default dxf. dwg only when the user asks for a DWG."},
+      "file_name": {"type": "string", "description": "The file name without folder (default: the title). The extension is added."},
       "folder": {"type": "string", "description": "Where to save it. Leave it out unless the user asked for a place."}
     }
     """;
@@ -237,6 +253,9 @@ internal sealed class MakeDrawingTool : IPlaxisTool
                 Text: e.TryGetProperty("text", out var t) && t.ValueKind == JsonValueKind.String ? t.GetString()! : ""));
         }
         if (entities.Count == 0) return ToolResult.Error("Give the drawing's 'entities' (polylines, lines, circles, points, texts).");
+        var format = (args.OptString("format") ?? "dxf").Trim().TrimStart('.').ToLowerInvariant();
+        if (format is not ("dxf" or "dwg")) return ToolResult.Error("format is dxf or dwg.");
+        var dwg = format == "dwg";
         string folder;
         try { folder = OutputPaths.Checked(args.OptString("folder")) is { Length: > 0 } f ? f.Trim().Trim('"') : defaultFolder; }
         catch (ArgumentException ex) { return ToolResult.Error(ex.Message); }
@@ -245,11 +264,12 @@ internal sealed class MakeDrawingTool : IPlaxisTool
         try
         {
             Directory.CreateDirectory(folder);
-            var path = OfficeDocs.FreePath(folder, name, ".dxf");
-            File.WriteAllText(path, Dxf.Write(entities), new UTF8Encoding(false));
+            var path = OfficeDocs.FreePath(folder, name, dwg ? ".dwg" : ".dxf");
+            if (dwg) Dwg.Write(path, entities);
+            else File.WriteAllText(path, Dxf.Write(entities), new UTF8Encoding(false));
             return ToolResult.Ok(new
             {
-                file = path, format = "DXF drawing", title, entities = entities.Count,
+                file = path, format = dwg ? "DWG drawing" : "DXF drawing", title, entities = entities.Count,
                 layers = entities.Select(e => e.Layer).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
                 shown = "The chat shows this file as a card with Open, Show in folder and Save a copy. Say in a line what is in it; don't repeat the path.",
             });

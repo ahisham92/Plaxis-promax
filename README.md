@@ -43,4 +43,10 @@ pwsh ./build.ps1                                  # self-contained win-x64 into 
 
 ## Status
 
-0.2.0, with everything from Sketch ProMax that applies to Plaxis. Tested against a fake Plaxis only; the field test on real PLAXIS 2D and 3D is next (the self-test report lists the steps).
+0.3.0, with everything from Sketch ProMax that applies to Plaxis. Tested against a fake Plaxis only; the field test on real PLAXIS 2D and 3D is next (the self-test report lists the steps).
+
+## Libraries used
+
+- ACadSharp (MIT licence): reads and writes DWG drawings.
+- PdfPig (Apache 2.0 licence): reads the text of PDFs and splits large ones.
+- QRCoder (MIT licence): the QR code for the phone.

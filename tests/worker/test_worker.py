@@ -50,6 +50,24 @@ class WorkerTests(unittest.TestCase):
         worker._state.update({"s_i": None, "g_i": None, "input_port": None})
         self.assertEqual(call("status")["error"], "Not connected to Plaxis yet.")
 
+    def test_snapshot_reads_every_object_with_its_properties(self):
+        call("create_soil_material", name="Clay", properties={"gammaUnsat": 16})
+        snap = call("snapshot")
+        self.assertTrue(snap["ok"], snap)
+        cols = snap["result"]["collections"]
+        self.assertIn("Initial phase", cols["Phases"])
+        self.assertEqual(cols["Phases"]["Initial phase"]["DeformCalcType"], "K0 procedure")
+        self.assertIn("Clay", cols["Materials"])
+        only = call("snapshot", collections=["Phases"])["result"]["collections"]
+        self.assertEqual(list(only), ["Phases"])
+
+    def test_snapshot_reads_properties_from_an_echo(self):
+        class Echoing:
+            def echo(self):
+                return "Plate_1\n  EA: 12000\n  EI: 300\n  Material = Sheet pile"
+        self.assertEqual(worker._echo_props(Echoing()), {"EA": "12000", "EI": "300", "Material": "Sheet pile"})
+        self.assertEqual(worker._echo_props(object()), {})
+
     def test_unknown_op(self):
         self.assertFalse(call("explode")["ok"])
 

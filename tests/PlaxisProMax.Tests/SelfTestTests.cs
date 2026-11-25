@@ -26,7 +26,7 @@ internal static class SelfTestTests
             foreach (var format in new[] { "excel", "word", "pdf", "powerpoint", "csv" })
                 check("self-test makes " + format, offline.Results.Any(r => r.Step == "Makes a file: " + format && r.Status == "pass"), Dump(offline));
             check("self-test reads the Excel back", offline.Results.Any(r => r.Step == "Reads a file back" && r.Status == "pass"), Dump(offline));
-            check("self-test makes and reads a DXF", offline.Results.Count(r => r.Step.Contains("drawing") && r.Status == "pass") == 2, Dump(offline));
+            check("self-test makes and reads a DXF and a DWG", offline.Results.Count(r => r.Step.Contains("drawing") && r.Status == "pass") == 3 && offline.Results.Any(r => r.Step == "Splits a long PDF" && r.Status == "pass"), Dump(offline));
             check("self-test lists the changing tools as not run", offline.Results.Any(r => r.Step == "Tools that change the project" && r.Status == "skip" && r.Message.Contains("run_plaxis_code")), Dump(offline));
             check("self-test keeps the last report", ReferenceEquals(SelfTest.Last, offline), "");
 

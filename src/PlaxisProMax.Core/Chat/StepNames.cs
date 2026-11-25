@@ -19,6 +19,8 @@ internal static class StepNames
         ["over_to_you"] = "Over to you",
         ["run_self_test"] = "Self-test",
         ["ask_user"] = "Ask you on your phone",
+        ["model_snapshot"] = "Snapshot of the project",
+        ["read_pdf_part"] = "Read a part of a large PDF",
         ["kept_code"] = "Look at the kept code",
         ["work_progress"] = "Keep the plan and progress",
         ["save_recipe"] = "Save a recipe",
@@ -159,7 +161,7 @@ internal static class StepNames
     public static bool ReadOnly(string tool)
     {
         tool = Short(tool);
-        return tool is "status" or "inspect" or "remember_rule" or "chat_jobs" or "chat_questions" or "over_to_you" or "run_self_test" or "ask_user" or "kept_code" or "work_progress" or "save_recipe" or "delete_recipe" or "memory_note" or "recall_chats" or "make_document" or "make_drawing"
+        return tool is "status" or "inspect" or "remember_rule" or "chat_jobs" or "chat_questions" or "over_to_you" or "run_self_test" or "ask_user" or "model_snapshot" or "kept_code" or "work_progress" or "save_recipe" or "delete_recipe" or "memory_note" or "recall_chats" or "make_document" or "make_drawing"
                    or "Read" or "Glob" or "Grep" or "LS" or "TodoWrite" or "TaskCreate" or "TaskUpdate" or "WebFetch" or "WebSearch" or "ToolSearch"
                || tool.StartsWith("get_", StringComparison.Ordinal) || tool.StartsWith("list_", StringComparison.Ordinal)
                || tool.StartsWith("find_", StringComparison.Ordinal) || tool.StartsWith("read_", StringComparison.Ordinal);

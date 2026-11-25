@@ -65,6 +65,10 @@ internal static class Screenshots
         Shoot(explore, Path.Combine(folder, "22-explore.png"), w => ((ChatWindow)w).ShowSampleHome("explore"));
         var tailored = new ChatWindow(link, new PlaxisInstall.StartArgs(null, null, null, false), () => null!, sample: true);
         Shoot(tailored, Path.Combine(folder, "23-tailored.png"), w => ((ChatWindow)w).ShowSampleHome("tailored"));
+        var changed = new ChatWindow(link, new PlaxisInstall.StartArgs(null, null, null, false), () => null!, sample: true);
+        Shoot(changed, Path.Combine(folder, "27-what-changed.png"), w => ((ChatWindow)w).ShowSampleChanges(Path.Combine(Path.GetTempPath(), "ppm-made-" + Guid.NewGuid().ToString("N"))));
+        var bigPdf = new ChatWindow(link, new PlaxisInstall.StartArgs(null, null, null, false), () => null!, sample: true);
+        Shoot(bigPdf, Path.Combine(folder, "28-large-pdf-and-dwg.png"), w => ((ChatWindow)w).ShowSampleLargeFiles());
         app.Shutdown();
         return 0;
     }
@@ -215,6 +219,52 @@ internal sealed partial class ChatWindow
         ShowItem(new ChatItem { Kind = "assistant", Text = "Both files are ready. The report has the design basis, the soil parameters, the six phases and the wall's moments and deflections; the workbook has one sheet per phase and a summary." });
         _attached.Add(@"C:\Jobs\Harbour wall\Design basis rev B.pdf");
         _attached.Add(@"C:\Jobs\Harbour wall\Section A.dxf");
+        ShowChips();
+    }
+
+    /// <summary>What changed since a snapshot: the table in the chat and the CSV with every change.</summary>
+    internal void ShowSampleChanges(string folder)
+    {
+        _plaxisState.Text = "PLAXIS 2D 2024.2 · Harbour wall";
+        _conversation.Name = "What changed since issue A";
+        ShowTitle();
+        ShowItem(new ChatItem { Kind = "user", Text = "What changed in the model since issue A?" });
+        ShowItem(new ChatItem { Kind = "tool", Name = "model_snapshot", Text = "Snapshot of the project: compare issue A with now", State = "done" });
+        Directory.CreateDirectory(folder);
+        var csv = Path.Combine(folder, "Changes Harbour wall 2026-11-25 0910.csv");
+        File.WriteAllBytes(csv, new byte[6 * 1024]);
+        ShowItem(new ChatItem { Kind = "file", Name = "model_snapshot", Files = [csv] });
+        ShowItem(new ChatItem { Kind = "assistant", Text = "Since **issue A** (20 November) 1 object was added and 5 properties changed.\n\n" +
+            "| What | Change | Before | After |\n|---|---|---|---|\n" +
+            "| Soft clay | cref | 5 kPa | 8 kPa |\n" +
+            "| Soft clay | E50ref | 4000 | 5500 |\n" +
+            "| Wall | Material | AZ 26 | AZ 36 |\n" +
+            "| Anchor row 2 | Level | -3.5 m | -4.0 m |\n" +
+            "| Excavate to -6 | Water level | -5.5 m | -6.5 m |\n" +
+            "| Surcharge 2 | added | | 20 kN/m² |\n\n" +
+            "The wall section and the anchor level change the design; the file has every change." });
+    }
+
+    /// <summary>A report too large to send whole, split into parts by itself, and a DWG read directly.</summary>
+    internal void ShowSampleLargeFiles()
+    {
+        _plaxisState.Text = "PLAXIS 2D 2024.2 · Harbour wall";
+        _conversation.Name = "Ground report and section";
+        ShowTitle();
+        ShowItem(new ChatItem { Kind = "user", Text = "Take the design parameters of the soft clay from the ground report and the wall levels from the section drawing." });
+        ShowItem(new ChatItem { Kind = "tool", Name = "Grep", Text = "Search: Ground investigation report - text.txt", State = "done" });
+        ShowItem(new ChatItem { Kind = "tool", Name = "read_pdf_part", Text = "Ground investigation report - part 3 (pages 201-300).pdf", State = "done" });
+        ShowItem(new ChatItem { Kind = "tool", Name = "read_pdf_part", Text = "Ground investigation report - part 5 (pages 401-460).pdf", State = "done" });
+        ShowItem(new ChatItem { Kind = "tool", Name = "read_drawing_file", Text = "Read a drawing: Section A.dwg", State = "done" });
+        ShowItem(new ChatItem { Kind = "assistant", Text = "The report has 460 pages and 64 MB, so I read it in 5 parts; the parameters are in parts 3 and 5.\n\n" +
+            "| Soft clay | Value | Page |\n|---|---|---|\n" +
+            "| Unit weight | 16.5 kN/m³ | 214 |\n" +
+            "| cu | 25 kPa at -2 m, +1.8 kPa/m | 231 |\n" +
+            "| Cc / Cs | 0.42 / 0.06 | 408 |\n" +
+            "| OCR | 1.3 | 412 |\n\n" +
+            "From **Section A.dwg** (layer WALL, drawn in mm): top of wall +2.50, toe -14.00, anchor rows at -1.50 and -3.50." });
+        _attached.Add(@"C:\Jobs\Harbour wall\Ground investigation report.pdf");
+        _attached.Add(@"C:\Jobs\Harbour wall\Section A.dwg");
         ShowChips();
     }
 

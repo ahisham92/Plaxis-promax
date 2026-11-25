@@ -285,6 +285,11 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
     private void Send(string text, bool typed)
     {
         if (text.Length == 0 && (!typed || _attached.Count == 0)) return;
+        if (typed && _attached.Count > 0 && _preparing > 0)
+        {
+            Note("Still reading the large PDF you attached (it is split into parts the chat can read whole). Press Send again in a moment.");
+            return;
+        }
         // A PC without a valid key: the License window, and nothing is sent (as in Sketch ProMax).
         if (LicenseWindow.BlockIfLocked())
         {
@@ -551,12 +556,10 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         var pick = new OpenFileDialog
         {
             Multiselect = true, Title = "Attach files (borehole logs, reports, drawings, spreadsheets, pictures)",
-            Filter = "All files (*.*)|*.*|Documents (PDF, Word, Excel, PowerPoint, text)|*.pdf;*.docx;*.xlsx;*.xlsm;*.pptx;*.csv;*.txt;*.ags|CAD drawings (DXF)|*.dxf|Pictures|*.png;*.jpg;*.jpeg;*.gif;*.webp;*.bmp",
+            Filter = "All files (*.*)|*.*|Documents (PDF, Word, Excel, PowerPoint, text)|*.pdf;*.docx;*.xlsx;*.xlsm;*.pptx;*.csv;*.txt;*.ags|CAD drawings (DWG, DXF)|*.dwg;*.dxf|Pictures|*.png;*.jpg;*.jpeg;*.gif;*.webp;*.bmp",
         };
         if (pick.ShowDialog(this) != true) return;
-        foreach (var file in pick.FileNames)
-            if (!_attached.Contains(file)) _attached.Add(file);
-        ShowChips();
+        AttachFiles(pick.FileNames);
     }
 
     // ---- What the chat shows ---------------------------------------------------------------------------------------

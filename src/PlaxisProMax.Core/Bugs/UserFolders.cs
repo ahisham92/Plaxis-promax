@@ -22,6 +22,7 @@ internal static class UserFolders
         new("Kept code", (library ?? new CodeLibrary()).Folder, "The code that worked and was kept to run again, one file each."),
         new("Recipes", Recipes.Folder, "Saved recipes: steps the chat can run again, one .json file each."),
         new("Work to do again", RedoLog.Folder, "Every change the chats made to each project, kept in full so it can be done again after a crash."),
+        new("Snapshots", ModelSnapshots.Root, "The snapshots of each project, to compare with the project later."),
         new("Chats", ChatStore.FolderPath, "The saved chats of every project."),
         new("Notes", System.IO.Path.GetDirectoryName(MemoryNotes.File) ?? AgentSettings.Folder, "memory.md: what you asked Plaxis ProMax to remember."),
         new("Activity log", ActivityLog.Folder, "Every tool call, one line each, one file a day."),

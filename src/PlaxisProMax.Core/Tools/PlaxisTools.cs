@@ -208,8 +208,8 @@ public sealed class ToolRegistry
         // Recipes and redo run other tools, so they are given the registry they are in.
         new SaveRecipeTool(() => self!), new ListRecipesTool(), new RunRecipeTool(() => self!), new DeleteRecipeTool(), new RedoStepsTool(() => self!),
         // The crew (answered by the MCP server itself)
-        new ChatJobsTool(), new ChatQuestionsTool(), new OverToYouTool(), new MemoryNoteTool(), new RecallChatsTool(), new RunSelfTestTool(), new AskUserTool(), new WorkProgressTool(),
-        new MakeDocumentTool(), new MakeDrawingTool(), new ReadDocumentTextTool(), new ReadDrawingFileTool(),
+        new ChatJobsTool(), new ChatQuestionsTool(), new OverToYouTool(), new MemoryNoteTool(), new RecallChatsTool(), new RunSelfTestTool(), new AskUserTool(), new WorkProgressTool(), new ModelSnapshotTool(),
+        new MakeDocumentTool(), new MakeDrawingTool(), new ReadDocumentTextTool(), new ReadDrawingFileTool(), new Mcp.ReadPdfPartTool(),
         // Look (read-only)
         new WorkerTool("status", "What is open in Plaxis: 2D or 3D, the version, the project, its units and phases. Call it first in a chat.", "{}", [], false, 30),
         new WorkerTool("list_model", "Every collection of the open model (Materials, Boreholes, Plates, Phases...) with its count and names.",

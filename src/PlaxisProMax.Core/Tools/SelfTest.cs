@@ -49,6 +49,9 @@ internal static class SelfTest
         "Start Plaxis ProMax from Plaxis (Expert > Python > Run script > \"Plaxis ProMax.py\"): the window opens and its header names the project.",
         "Ask \"What is in this project?\": the answer names the units, layers, structures and phases of the project that is open.",
         "Attach a borehole log (PDF or Excel) and ask for the soil model: it lists the layers it read, asks before it builds, and the boreholes appear in Plaxis.",
+        "Attach a DWG from AutoCAD and ask what is on its layers: the layer names and a known dimension come back right.",
+        "Attach a report of more than 100 pages or 18 MB and ask for a value from it: the chat says it read it in parts and gives the page.",
+        "Ask for a snapshot, change a material parameter in Plaxis by hand, then ask what changed: the parameter is listed with before and after.",
         "Ask for a change (a new phase): a brief card shows first; Run this makes the change and Plaxis shows the phase.",
         "Decline an approval card once: nothing changes in Plaxis and the chat asks what you want instead.",
         "Ask for two separate things at once in a chat With coordinator: two job cards show, and their steps in Plaxis take turns.",
@@ -171,7 +174,24 @@ internal static class SelfTest
                 return read.IsError || !read.Text.Contains("WALL", StringComparison.Ordinal) ? throw new InvalidOperationException("The drawing read back has no WALL layer: " + Short(read.Text, 200)) : "Its layers were read back.";
             });
 
-            // ---- Not run ------------------------------------------------------------------------------------------------
+await Check("Makes and reads a drawing (DWG)", () =>
+            {
+                var made = MakeDrawingTool.Make(Args("""{"title":"Self-test","format":"dwg","entities":[{"kind":"line","points":[[0,0],[10,0]],"layer":"WALL"}]}"""), temp);
+                if (made.IsError) throw new InvalidOperationException(made.Text);
+                var dwg = FileIn(made.Text);
+                if (dwg is null || !File.Exists(dwg)) throw new InvalidOperationException("No drawing was written.");
+                var read = ReadDrawingFileTool.Read(Args(JsonSerializer.Serialize(new { path = dwg })));
+                return read.IsError || !read.Text.Contains("WALL", StringComparison.Ordinal) ? throw new InvalidOperationException("The DWG read back has no WALL layer: " + Short(read.Text, 200)) : "Written and read back.";
+            });
+            await Check("Splits a long PDF", () =>
+            {
+                var pdf = Path.Combine(temp, "Long.pdf");
+                File.WriteAllBytes(pdf, PdfFiles.Sample(130));
+                var parts = PdfFiles.Split(pdf, 18L * 1024 * 1024, Path.Combine(temp, "parts"), maxPages: 100);
+                return parts.Count == 2 && parts[1].LastPage == 130 ? "130 pages in 2 parts." : throw new InvalidOperationException($"130 pages gave {parts.Count} parts.");
+            });
+
+                        // ---- Not run ------------------------------------------------------------------------------------------------
             var changing = registry.All.Where(t => t.ModifiesModel).Select(t => t.Name).OrderBy(n => n).ToList();
             report.Results.Add(new Outcome("Tools that change the project", "skip", 0, "Not run, so your project stays as it is: " + string.Join(", ", changing) + ". Try them by hand with the list below."));
         }
