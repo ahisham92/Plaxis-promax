@@ -174,8 +174,8 @@ internal sealed class StreamParser
             {
                 var tool = Str(root, "tool_name");
                 events.Add(new NoticeEvent(tool.Length > 0
-                    ? $"Sketch ProMax tried a step the Revit chat doesn't allow ({StepNames.Title(tool)}). It carries on without it."
-                    : "Sketch ProMax tried a step the Revit chat doesn't allow. It carries on without it."));
+                    ? $"Plaxis ProMax tried a step the chat doesn't allow ({StepNames.Title(tool)}). It carries on without it."
+                    : "Plaxis ProMax tried a step the chat doesn't allow. It carries on without it."));
                 break;
             }
         }

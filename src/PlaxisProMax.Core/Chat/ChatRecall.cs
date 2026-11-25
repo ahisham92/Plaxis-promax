@@ -53,11 +53,11 @@ internal static class ChatRecall
 
     /// <summary>The instructions of the run that writes a chat's summary.</summary>
     public const string SummaryInstructions =
-        "You write the memory of one chat between a structural engineer and Claude inside Revit, so that later chats know " +
+        "You write the memory of one chat between a geotechnical engineer and Claude working on a PLAXIS project, so that later chats know " +
         "it without being told again. Use no tools. Answer with 3 to 8 short Markdown bullets and nothing else: the project " +
-        "and model facts learned, the decisions and choices the user made, the standards, families, types, sizes and " +
-        "settings used, the steps that worked (name the action and the values, e.g. \"made 600x600 columns at every grid " +
-        "crossing on Levels 1-4\"), and what is still to do. Plain words, the model's units, no element ids, no tool names, " +
+        "and model facts learned, the decisions and choices the user made, the standards, soil layers, material models, " +
+        "parameters and settings used, the steps that worked (name the action and the values, e.g. \"made boreholes BH-1 to " +
+        "BH-4 with five layers, sand as HS small\"), and what is still to do. Plain words, the project's units, no tool names, " +
         "no greetings. If nothing in the chat is worth remembering, answer exactly NOTHING.";
 
     // ---- When to shrink and when to summarise ---------------------------------------------------------------------------

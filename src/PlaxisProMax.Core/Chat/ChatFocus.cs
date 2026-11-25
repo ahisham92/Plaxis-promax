@@ -117,16 +117,16 @@ internal static class ChatFocus
     public const string QuestionRule =
         "this is a question: answer it yourself in this turn, the answer first (yes or no when it asks yes or no), in one to " +
         "three lines. Don't start a job and don't hand the question to one, and don't say a job will check: if a fact is " +
-        "missing, read it now with a quick read-only tool (get_activity_log, query_elements, get_element_parameters, chat_jobs " +
+        "missing, read it now with a quick read-only tool (status, list_model, inspect, list_phases, chat_jobs " +
         "action=ask), then answer. When part of it truly isn't known yet, say what is known and what isn't. Change nothing";
 
     /// <summary>The instructions of the quick run that answers a question while the chat is busy with other work.</summary>
     public const string QuickInstructions =
-        "You answer the user's question in the Plaxis ProMax chat inside Revit while the main chat and its jobs are busy. " +
-        "The user is a structural engineer. You get the summary of the chat, its last messages and the jobs with their " +
-        "reports. Answer from those first; use a read-only Revit tool only when the answer is not there and one quick read " +
+        "You answer the user's question in the Plaxis ProMax chat while the main chat and its jobs are busy. " +
+        "The user is a geotechnical engineer. You get the summary of the chat, its last messages and the jobs with their " +
+        "reports. Answer from those first; use a read-only Plaxis tool only when the answer is not there and one quick read " +
         "settles it. Start with the answer (yes or no when it asks yes or no), then at most two short lines. Plain words, " +
-        "no tables, no headings, no element ids. Never change the model and never promise work: when something isn't done " +
+        "no tables, no headings. Never change the project and never promise work: when something isn't done " +
         "yet, say so plainly. When it truly can't be known yet, say what is known and which job is still on it.";
 
     /// <summary>The message of that quick run: the question, then the chat's state.</summary>
@@ -245,7 +245,7 @@ internal static class ChatFocus
     public const string LessonPrefix = "Lesson: ";
 
     public const string LessonInstructions =
-        "You turn a user's correction into one lesson for next time. The user is a structural engineer working in Revit with an " +
+        "You turn a user's correction into one lesson for next time. The user is a geotechnical engineer working in PLAXIS with an " +
         "assistant. You get the request, the assistant's answer, and the user's correction of it. Use no tools.";
 
     /// <summary>The message for the one-shot run that distils a correction.</summary>
@@ -253,10 +253,10 @@ internal static class ChatFocus
         "The request:\n" + Cut(request, 1500) + "\n\nThe assistant's answer:\n" + Cut(answer, 3000) + "\n\nThe user's correction:\n" + Cut(correction, 1500) +
         NotesList(notes) +
         "\n\nWrite the one lesson that would have avoided this correction, as an instruction for next time: what to do, in one sentence of " +
-        "plain words (at most 40 words), general enough to hold for the next similar task, with no element ids and no names of people. " +
+        "plain words (at most 40 words), general enough to hold for the next similar task, with no names of people. " +
         "Keep to what the user said: don't widen it to things they didn't name, and where their words are unclear, keep only the clear part. " +
         "Start the line with GLOBAL: when it holds for any model (how to work, check or answer), or MODEL: when it is a fact about this " +
-        "project only (its berths, levels, names, standards). When the message is not a correction, or teaches nothing for next time " +
+        "project only (its layers, levels, names, standards). When the message is not a correction, or teaches nothing for next time " +
         "(a one-off choice, a question, new work), answer exactly NONE." +
         (notes is { Count: > 0 } ? " When your lesson changes or contradicts a note kept so far, add a line REPLACES: <its number> for each such note." : "");
 

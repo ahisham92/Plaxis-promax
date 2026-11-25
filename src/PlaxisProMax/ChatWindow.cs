@@ -98,8 +98,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
             if (_questionsShown) { e.Handled = true; HideQuestions(focus: true); return; }
             if (!_busy) return;
             e.Handled = true;
-            if (_crew is { Run.State: AutopilotRun.Running } crew) crew.AutopilotStop("you pressed Stop");
-            else Stop();
+            StopNow();
         };
 
         _link.ConnectionChanged += connected => Dispatcher.BeginInvoke(() => ShowPlaxis(connected));
@@ -234,11 +233,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         }
         else if (found.signIn == ClaudeCli.SignIn.SignedOut)
         {
-            var signIn = Brand.Button("Sign in", Brand.Weight.Primary);
-            var again = Brand.Button("Check again");
-            var panel = Setup("Sign in to Claude", "Sign in once with your Claude account; the browser opens for it.", signIn, again);
-            signIn.Click += (_, _) => ClaudeCli.StartSignIn(_claude);
-            again.Click += async (_, _) => { _messages.Children.Remove(panel); await FindClaudeAsync(); };
+            ShowSignInCard(_claude);
         }
     }
 
@@ -265,12 +260,19 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         }
         if (_busy)
         {
-            // While a run works, Stop on the composer ends the run (not only this answer, which it would start again).
-            if (_crew is { Run.State: AutopilotRun.Running } crew) crew.AutopilotStop("you pressed Stop");
-            else Stop();
+            // Typed while it works: a question is answered at once, anything else waits for the answer to end.
+            if (!TypedWhileBusy()) StopNow();
             return;
         }
         Send(_input.Text.Trim(), typed: true);
+    }
+
+    /// <summary>Stop on the composer, or Escape: while a run works it ends the run (not only this answer, which it would start again).</summary>
+    private void StopNow()
+    {
+        if (!_busy) return;
+        if (_crew is { Run.State: AutopilotRun.Running } crew) crew.AutopilotStop("you pressed Stop");
+        else Stop();
     }
 
     /// <summary>Sends <paramref name="text"/> with the attached files (typed here, or written on the phone).</summary>
@@ -319,7 +321,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         _lastActivity = DateTime.UtcNow;
         if (plan is not null) { _ = SendAsync(plan); return; }
         // A coordinator hears with each message which jobs are at work and what they changed so far (JobTruth).
-        _ = SendAsync(text + (IsCoordinator && _crew is { } crew ? JobTruth.Note(crew.Board.Snapshot()) : ""));
+        _ = SendAsync(text + TakeAsides() + (IsCoordinator && _crew is { } crew ? JobTruth.Note(crew.Board.Snapshot()) : ""));
     }
 
     private async Task SendAsync(string text)
@@ -341,6 +343,13 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
     private async Task SendLineAsync(string line, string text)
     {
         {
+            // The chat's model, effort or kind changed: its process starts again for it (the same conversation).
+            if (_restartEngine && _engine is not null)
+            {
+                _engine.Dispose();
+                _engine = null;
+            }
+            _restartEngine = false;
             if (_engine is null || !_engine.IsAlive)
             {
                 _engine?.Dispose();
@@ -350,8 +359,14 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
                 var settings = AgentSettings.Load();
                 var coordinator = IsCoordinator;
                 var pick = ChatJobs.Pick(text, _conversation.Model, _conversation.Effort, coordinator ? ChatAuto.Coordinating : null);
-                var model = settings.ChatModel.Trim().Length > 0 ? settings.ChatModel.Trim() : pick.Model;
-                var effort = settings.ChatEffort.Trim().Length > 0 ? settings.ChatEffort.Trim() : ClaudeCli.EffortRefused ? "" : pick.Effort;
+                // The chat's own choice (its pills) wins; then a model or effort set by hand in Settings; then Automatic's pick.
+                var model = !pick.ModelAuto || settings.ChatModel.Trim().Length == 0 ? pick.Model : settings.ChatModel.Trim();
+                var effort = ClaudeCli.EffortRefused ? "" : !pick.EffortAuto || settings.ChatEffort.Trim().Length == 0 ? pick.Effort : settings.ChatEffort.Trim();
+                var shown = pick with { Model = model, Effort = effort };
+                var changed = _lastPick is null || _lastPick.Model != model || _lastPick.Effort != effort;
+                _lastPick = shown;
+                if (changed && (pick.ModelAuto || pick.EffortAuto) && model == pick.Model && effort == pick.Effort) Note(ChatAuto.Said(pick));
+                ShowPickers();
                 _engine = new ChatEngine(a => Dispatcher.BeginInvoke(a), _claude!, resume, model, coordinator: coordinator, effort: effort, chatKey: JobBoard.ChatKey(_conversation.Id));
                 _engine.Event += OnEvent;
                 _engine.Exited += OnExited;
@@ -475,6 +490,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         _turnText.Clear();
         CatchQuestions();
         SendQueuedFromPhone();
+        SendTypedMeanwhile();
         AfterTurn(result);
         DeliverAnswers(now: false);
         // A run in this chat: the plan waits for Approve, the run carries on, or its goal is reviewed.
