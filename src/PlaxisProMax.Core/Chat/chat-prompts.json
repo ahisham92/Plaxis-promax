@@ -1,782 +1,811 @@
 {
  "groups": [
   {
-   "name": "Structure",
-   "blurb": "Columns, beams, slabs, walls, foundations and analytical checks"
+   "name": "Soil",
+   "blurb": "Boreholes, layers, soil materials and water levels"
   },
   {
-   "name": "Steel",
-   "blurb": "Sections, bracing, connections and takeoffs"
+   "name": "Structures",
+   "blurb": "Walls, plates, anchors, piles, interfaces and loads"
   },
   {
-   "name": "Rebar",
-   "blurb": "Reinforcement, bending schedules and post-tensioning"
+   "name": "Mesh",
+   "blurb": "Mesh generation, refinement and quality"
   },
   {
-   "name": "Marine",
-   "blurb": "Ports, quays, vessels and infrastructure"
+   "name": "Phases",
+   "blurb": "Staged construction, water conditions and safety phases"
   },
   {
-   "name": "Model",
-   "blurb": "Levels, grids, architecture, MEP, families and imports"
+   "name": "Calculate",
+   "blurb": "Running phases, long runs and failed phases"
   },
   {
-   "name": "Documents",
-   "blurb": "Views, sheets, tags, dimensions, schedules and title blocks"
+   "name": "Results",
+   "blurb": "Displacements, forces, safety factors and curves"
+  },
+  {
+   "name": "Reports",
+   "blurb": "Excel, Word, PDF, PowerPoint and DXF from the project"
   },
   {
    "name": "Check",
-   "blurb": "Model checks, clashes, quantities and progress"
-  },
-  {
-   "name": "Issue",
-   "blurb": "Revisions, PDFs, drawing lists and exchange files"
-  },
-  {
-   "name": "Carbon",
-   "blurb": "Embodied carbon and material comparisons"
-  },
-  {
-   "name": "Data",
-   "blurb": "Finding elements, parameters, coordinates and exports"
+   "blurb": "Reviewing the model against reports and the design basis"
   },
   {
    "name": "Workflow",
-   "blurb": "Recipes, learned tools, code, worksharing and memory"
+   "blurb": "Kept code, notes, rules, routines and jobs"
   }
  ],
  "toolGroups": {
-  "arch_to_structure": "Structure",
-  "construction_sequence": "Check",
-  "cost_estimate": "Check",
-  "export_quantities": "Check",
-  "boq_check": "Check",
-  "boq_item_breakdown": "Check",
-  "sleeve_schedule": "Model",
-  "create_mep_openings": "Model",
-  "create_mep_runs": "Model",
-  "general_notes": "Documents",
-  "typical_details": "Documents",
-  "equipment_pads": "Structure",
-  "export_bcf": "Issue",
-  "redline_read": "Issue",
-  "redline_plan": "Issue",
-  "redline_apply": "Issue",
-  "export_project_pack": "Issue",
-  "model_snapshot": "Check",
-  "hollow_core_layout": "Structure",
-  "progressive_collapse_check": "Structure",
-  "analytical_check": "Structure",
-  "export_analytical": "Structure",
-  "place_column_section_details": "Rebar",
-  "report_bug": "Workflow",
-  "export_chats_and_bugs": "Workflow",
-  "purge_unused": "Check",
-  "delete_unused_views": "Check",
-  "cleanup_imports": "Check",
-  "cleanup_model": "Check"
+  "status": "Check",
+  "list_model": "Check",
+  "inspect": "Check",
+  "list_phases": "Phases",
+  "create_boreholes": "Soil",
+  "create_soil_material": "Soil",
+  "generate_mesh": "Mesh",
+  "add_phase": "Phases",
+  "calculate": "Calculate",
+  "get_results": "Results",
+  "results_to_excel": "Reports",
+  "make_document": "Reports",
+  "make_drawing": "Reports",
+  "read_document_text": "Reports",
+  "read_drawing_file": "Reports",
+  "run_plaxis_code": "Workflow",
+  "find_kept_code": "Workflow",
+  "run_commands": "Workflow",
+  "remember_rule": "Workflow",
+  "memory_note": "Workflow",
+  "recall_chats": "Workflow",
+  "chat_jobs": "Workflow",
+  "chat_questions": "Workflow",
+  "over_to_you": "Workflow",
+  "get_activity_log": "Workflow",
+  "report_bug": "Workflow"
  },
  "capabilities": [
   {
-   "group": "Structure",
-   "title": "Frame a floor from the grids",
-   "prompt": "Place columns at every grid intersection on {level} and beams along all grid lines, using the default types. Show me the plan before you change the model."
+   "group": "Soil",
+   "title": "Soil model from a borehole log",
+   "prompt": "Build the soil model from the attached borehole log: one borehole per log, the layers with their top and bottom levels, and a material for each layer. List the layers you read, with any value you estimated marked as estimated, before you build."
   },
   {
-   "group": "Structure",
-   "title": "Size check overview",
-   "prompt": "List every structural framing type in this model with its count and total length, and point out members that look unusually long for their section."
+   "group": "Soil",
+   "title": "Several boreholes from a site investigation",
+   "prompt": "Read the attached site investigation report and create every borehole in it at its coordinates, with the layers and the water level of each. Show me a table of the boreholes and layers first."
   },
   {
-   "group": "Structure",
-   "title": "Slab from the architecture",
-   "prompt": "Create structural slabs on {level} that follow the architectural floor outlines, 200 mm thick, and tell me where the outlines don't close."
+   "group": "Soil",
+   "title": "Soil parameters from the report",
+   "prompt": "Work out the parameters of each soil layer from the attached report (unit weights, strength, stiffness, permeability), choose a suitable material model for each, and show them in a table with the source of every value before you create the materials."
   },
   {
-   "group": "Structure",
-   "title": "Pile layout",
-   "prompt": "Lay out piles under the raft on the foundation level as a grid at 3 m centres, keeping 1 m from the edge. Ask for the pile type first."
+   "group": "Soil",
+   "title": "Add a borehole",
+   "prompt": "Add a borehole at x = [x] m with the same layers as {borehole}, and tell me which layer levels I should adjust."
   },
   {
-   "group": "Structure",
-   "title": "Transfer structure review",
-   "prompt": "Find columns that don't continue to the level below and list where they land, so I can review the transfer structure."
+   "group": "Soil",
+   "title": "Change a material's parameters",
+   "prompt": "Show me the parameters of {material} in a table, then change the ones I tell you. Change nothing before I answer."
   },
   {
-   "group": "Steel",
-   "title": "Bracing bays",
-   "prompt": "Add X-bracing in the end bays along grid {grid} on all levels, using a hollow section I choose. Ask me for the section first."
+   "group": "Soil",
+   "title": "Switch a layer to Hardening Soil small",
+   "prompt": "Change {material} from Mohr-Coulomb to Hardening Soil small. Work out E50, Eoed, Eur, G0 and gamma 0.7 from what the project and my notes give, show them with how you got each, and wait for my yes."
   },
   {
-   "group": "Steel",
-   "title": "Connection schedule",
-   "prompt": "List the steel connection types available and propose a connection for each beam-to-column joint on {level}."
+   "group": "Soil",
+   "title": "Drained or undrained",
+   "prompt": "List every soil material with its drainage type, and tell me which ones look wrong for the kind of soil and the kind of analysis."
   },
   {
-   "group": "Steel",
-   "title": "Steel tonnage",
-   "prompt": "Give me the steel takeoff by section and level, with total tonnage, as a table."
+   "group": "Soil",
+   "title": "Water levels",
+   "prompt": "Show the groundwater head of every borehole and the water conditions of every phase in one table, and point out anything inconsistent."
   },
   {
-   "group": "Rebar",
-   "title": "Beam reinforcement",
-   "prompt": "Reinforce the selected beams with 4 bottom bars, 2 top bars and links at 150 mm centres, using the project's bar types. Confirm before modelling."
+   "group": "Soil",
+   "title": "Compare materials with the report",
+   "prompt": "Compare every soil material in the project with the attached geotechnical report and list the parameters that differ, with both values."
   },
   {
-   "group": "Rebar",
-   "title": "Bar bending schedule",
-   "prompt": "Export the bar bending schedule for the reinforcement in the active view to Excel."
+   "group": "Structures",
+   "title": "Retaining wall with anchors",
+   "prompt": "Draw a retaining wall as a plate from level [top] to level [toe] at x = [x] m, with interfaces on both sides and one row of anchors at level [level]. Tell me the plate and anchor materials you will use first."
   },
   {
-   "group": "Rebar",
-   "title": "Slab reinforcement plan",
-   "prompt": "Make a 2D reinforcement plan for the selected slab with the office's detail families: top and bottom mesh, and extra bars at openings."
+   "group": "Structures",
+   "title": "Plate material from a section",
+   "prompt": "Create a plate material for a [sheet pile or diaphragm wall] section: work out EA, EI and weight per metre of wall from the section I give you, and show the numbers before you create it."
   },
   {
-   "group": "Marine",
-   "title": "Quay layout",
-   "prompt": "Model a quay structure along the selected alignment: deck, beams and piles at the spacing I give. Ask me for the cross-section first."
+   "group": "Structures",
+   "title": "Anchors and struts",
+   "prompt": "List every anchor and strut with its level, spacing, stiffness and prestress, and tell me which phases activate each."
   },
   {
-   "group": "Marine",
-   "title": "Fender and bollard check",
-   "prompt": "List the port furniture on the quay with spacing between items, and flag gaps larger than 20 m."
+   "group": "Structures",
+   "title": "Embedded piles",
+   "prompt": "Add a row of embedded beam piles at the spacing and length I give you, with a pile material worked out from the diameter and concrete grade. Show the material first."
   },
   {
-   "group": "Marine",
-   "title": "Design vessel",
-   "prompt": "Set up the design vessel for {berth} and check its clearance along the quay line."
+   "group": "Structures",
+   "title": "Interfaces",
+   "prompt": "List every interface with its strength reduction and the material it takes it from, and tell me where a wall or pile has none."
   },
   {
-   "group": "Marine",
-   "title": "Join like with like",
-   "prompt": "In {berth}, join the blinding together, the stabilised sand together and the slabs and beams together where they touch, without joining any piles. List the pairs Revit refuses."
+   "group": "Structures",
+   "title": "Surface loads",
+   "prompt": "Add a surface load of [value] kN/m2 from x = [from] to x = [to] m at ground level, and tell me which phase should activate it."
   },
   {
-   "group": "Marine",
-   "title": "Pile heads into the slab",
-   "prompt": "Raise the selected piles so their heads sit 100 mm inside the slab or beam above (from the highest point where the soffit slopes), keep their toes, and unjoin them from any floor."
+   "group": "Structures",
+   "title": "Structures summary",
+   "prompt": "List every structure in the model (plates, anchors, geogrids, embedded beams, interfaces, loads) with its material and where it is."
   },
   {
-   "group": "Marine",
-   "title": "Piles clear of tie rods",
-   "prompt": "On this plan, colour the piles that clash with existing piles or tie rods red and those within 50 mm orange, then list the ones to move and where (the middle between the tie rods)."
+   "group": "Mesh",
+   "title": "Generate the mesh",
+   "prompt": "Generate the mesh at medium coarseness, tell me the number of elements and nodes, and say whether anything looks too coarse near the wall."
   },
   {
-   "group": "Model",
-   "title": "Levels and grids from a sketch",
-   "prompt": "I'll attach a sketch: read it and create the levels and grids it shows, then list what you made."
+   "group": "Mesh",
+   "title": "Refine around the wall",
+   "prompt": "Refine the mesh around the wall and the excavation, generate it again, and tell me how the element count changed."
   },
   {
-   "group": "Model",
-   "title": "Import a CAD plan",
-   "prompt": "Import the attached DWG on {level}, list its layers, and tell me which ones look like structure."
+   "group": "Mesh",
+   "title": "Mesh sensitivity",
+   "prompt": "Run the calculation with the current mesh and with one step finer, and compare the maximum wall deflection and bending moment so I can see whether the mesh is fine enough."
   },
   {
-   "group": "Model",
-   "title": "Doors and windows",
-   "prompt": "Place the doors and windows from the attached schedule in the walls on {level}, matching marks to types."
+   "group": "Mesh",
+   "title": "Mesh quality",
+   "prompt": "Check the mesh for badly shaped elements and tell me where they are and what to change in the geometry to remove them."
   },
   {
-   "group": "Documents",
-   "title": "Sheets for every level",
-   "prompt": "Create a plan view for every level, put each on a new A1 sheet with our title block, and number the sheets S-100 upwards."
+   "group": "Phases",
+   "title": "Set up the construction phases",
+   "prompt": "Set up the construction phases for this model in order (initial phase, wall installation, each excavation level, each anchor row, final level), and tell me what is active in each before you calculate."
   },
   {
-   "group": "Documents",
-   "title": "Tag everything in view",
-   "prompt": "Tag all structural columns and beams in the active view that have no tag, and arrange the tags so they don't overlap."
+   "group": "Phases",
+   "title": "Add an excavation stage",
+   "prompt": "Add a phase after {phase} that excavates to level [level] and lowers the water inside the excavation to the same level. Tell me what it deactivates."
   },
   {
-   "group": "Documents",
-   "title": "Dimension the grids",
-   "prompt": "Dimension all grids in the active plan, with an overall string on two sides."
+   "group": "Phases",
+   "title": "Add a safety phase",
+   "prompt": "Add a safety (phi-c reduction) phase after {phase} and tell me its settings."
   },
   {
-   "group": "Documents",
-   "title": "General notes",
-   "prompt": "Put the general notes on the cover sheet from the attached text, keeping our text style."
+   "group": "Phases",
+   "title": "Phase overview",
+   "prompt": "List every phase with its previous phase, calculation type, what it activates and deactivates, and whether it is calculated."
+  },
+  {
+   "group": "Phases",
+   "title": "Check the staging logic",
+   "prompt": "Go through the phases in order and tell me anything that looks wrong: an anchor prestressed before it is installed, soil excavated below the water without dewatering, a load active too early, a phase after the wrong one."
+  },
+  {
+   "group": "Phases",
+   "title": "Consolidation phase",
+   "prompt": "Add a consolidation phase after {phase} for [days] days, and tell me the settings you used."
+  },
+  {
+   "group": "Phases",
+   "title": "Rename the phases",
+   "prompt": "Rename the phases so each name says what it does (\"Excavate to -4.0 m\", \"Install anchor row 1\"). Show me the old and new names first."
+  },
+  {
+   "group": "Calculate",
+   "title": "Calculate and say how it went",
+   "prompt": "Calculate every phase one at a time, saving after each, and tell me how each one ended."
+  },
+  {
+   "group": "Calculate",
+   "title": "Calculate only what changed",
+   "prompt": "Calculate only the phases that are marked to be calculated, one at a time, and tell me how each ended."
+  },
+  {
+   "group": "Calculate",
+   "title": "Why did this phase fail?",
+   "prompt": "{phase} failed. Read its log and the results up to the last step, and tell me the most likely reason and the one change you would try first. Change nothing yet."
+  },
+  {
+   "group": "Calculate",
+   "title": "Long run overnight",
+   "prompt": "Calculate all the phases one by one tonight, saving after each and keeping the files small. If a phase fails, stop there and tell me in the morning what ended and what did not."
+  },
+  {
+   "group": "Calculate",
+   "title": "Numerical settings",
+   "prompt": "Show the numerical control parameters of {phase} (tolerated error, max steps, arc-length, max load fraction) and tell me which I should change for a soil body near failure."
+  },
+  {
+   "group": "Results",
+   "title": "Wall deflection and forces",
+   "prompt": "Give me the maximum horizontal displacement, bending moment and shear force of the wall in {phase}, with where along the wall each occurs."
+  },
+  {
+   "group": "Results",
+   "title": "Anchor and strut forces",
+   "prompt": "Give me the force in every anchor and strut for every calculated phase, in one table, with the largest of each."
+  },
+  {
+   "group": "Results",
+   "title": "Settlement behind the wall",
+   "prompt": "Give me the settlement of the ground surface behind the wall in {phase}: the maximum, where it is, and the values every 5 m."
+  },
+  {
+   "group": "Results",
+   "title": "Safety factor",
+   "prompt": "Give me the factor of safety of every safety phase, and describe the failure mechanism of the lowest one."
+  },
+  {
+   "group": "Results",
+   "title": "Compare phases",
+   "prompt": "Compare the wall deflection and bending moment across all calculated phases in one table, so I can see which phase governs."
+  },
+  {
+   "group": "Results",
+   "title": "Results at a point",
+   "prompt": "Give me the displacement, total stress, effective stress and pore pressure at the point I name, for every calculated phase."
+  },
+  {
+   "group": "Results",
+   "title": "Pile and plate envelopes",
+   "prompt": "Give me the envelope (maximum and minimum over all phases) of axial force, shear force and bending moment for every plate and embedded beam."
+  },
+  {
+   "group": "Reports",
+   "title": "Results into Excel",
+   "prompt": "Put the wall deflection, bending moments and anchor forces of every calculated phase into one Excel file beside the project, one sheet per result, with the governing values on a summary sheet."
+  },
+  {
+   "group": "Reports",
+   "title": "Calculation report in Word",
+   "prompt": "Write a calculation report in Word for this project: the soil model and parameters, the structures, the phases, the governing results per phase and the safety factors. Ask me for the title and project number first."
+  },
+  {
+   "group": "Reports",
+   "title": "Soil parameters table",
+   "prompt": "Make an Excel table of every soil material with its model and parameters, ready to paste into the design basis."
+  },
+  {
+   "group": "Reports",
+   "title": "Summary slides",
+   "prompt": "Make a short PowerPoint for the design review: the section, the soil model, the phases, and the governing deflection, moment, anchor force and safety factor."
+  },
+  {
+   "group": "Reports",
+   "title": "Section as DXF",
+   "prompt": "Draw the model's section as a DXF: the soil layers, the wall, the anchors and the excavation levels, to scale in the project's units."
+  },
+  {
+   "group": "Reports",
+   "title": "Report in the office's style",
+   "prompt": "Read the two earlier reports I attach, then write this project's report in the same structure and wording."
   },
   {
    "group": "Check",
-   "title": "Model health check",
-   "prompt": "Run a model audit and list the top 10 problems with element ids I can click, most important first."
+   "title": "Review the model",
+   "prompt": "Review this model as a checker would: units, soil model and parameters, water, interfaces, mesh, phases and numerical settings. List what you would question, the most serious first. Change nothing."
   },
   {
    "group": "Check",
-   "title": "Clash check",
-   "prompt": "Find clashes between structural framing and ducts in the linked MEP model, grouped by level."
+   "title": "Model against the design basis",
+   "prompt": "Compare the model with the attached design basis (levels, loads, soil parameters, water levels, stages) and list every difference with both values."
   },
   {
    "group": "Check",
-   "title": "Missing items",
-   "prompt": "Check the structural model against the architectural one and list columns or walls that seem to be missing."
+   "title": "Model against the drawing",
+   "prompt": "Read the attached section drawing (DXF or PDF) and compare its levels and dimensions with the model. List what differs."
   },
   {
    "group": "Check",
-   "title": "Quantities by level",
-   "prompt": "Export concrete volumes by level and element category as a table I can paste into Excel."
+   "title": "What is in this project?",
+   "prompt": "Tell me what is in this project in a few lines: 2D or 3D, units, the soil layers, the structures, the phases and which of them are calculated."
   },
   {
-   "group": "Issue",
-   "title": "Apply redlines",
-   "prompt": "Here is a marked-up PDF of our sheets. Read the redlines, list the changes for me to approve one by one, apply them with clouds and a new revision, export the revised sheets and tell me what was done and what wasn't."
-  },
-  {
-   "group": "Issue",
-   "title": "Issue a drawing set",
-   "prompt": "Make a new revision for this issue, add it to sheets S-100 to S-120, and export them to PDF in one file."
-  },
-  {
-   "group": "Issue",
-   "title": "Drawing list",
-   "prompt": "Export the drawing list with sheet numbers, names and current revisions."
-  },
-  {
-   "group": "Issue",
-   "title": "BCF for the coordinator",
-   "prompt": "Export the open clashes as a BCF file for the coordination meeting."
-  },
-  {
-   "group": "Issue",
-   "title": "Export the submission set",
-   "prompt": "Export the sheets of the View/Sheet Set {sheet_set} to PDF and DWG in the folder I give, one file per sheet named like the drawing list, with this model's usual export setups, then check the file names against the List of Drawings."
-  },
-  {
-   "group": "Carbon",
-   "title": "Embodied carbon now",
-   "prompt": "Estimate the embodied carbon of the structure by material and level, with the factors you used."
-  },
-  {
-   "group": "Carbon",
-   "title": "Compare two options",
-   "prompt": "Compare the embodied carbon of the current concrete slabs with a hollow-core alternative, as a short table."
-  },
-  {
-   "group": "Carbon",
-   "title": "Carbon view",
-   "prompt": "Colour the 3D view by embodied carbon per element so the heavy parts stand out."
-  },
-  {
-   "group": "Data",
-   "title": "Find by parameter",
-   "prompt": "Find all elements whose Mark is empty, grouped by category, with ids I can click."
-  },
-  {
-   "group": "Data",
-   "title": "Bulk parameter update",
-   "prompt": "Set the Comments parameter of the selected elements to the value I give, and tell me how many changed."
-  },
-  {
-   "group": "Data",
-   "title": "Coordinates",
-   "prompt": "Report the survey point, project base point and the shared coordinates of the selected element."
+   "group": "Check",
+   "title": "Before I send it out",
+   "prompt": "Check that every phase is calculated and ended OK, that no phase is marked to be calculated again, and that the results I reported still match the project."
   },
   {
    "group": "Workflow",
-   "title": "Save as a recipe",
-   "prompt": "Save the steps you just did as a recipe I can run again on other models."
+   "title": "Kept code",
+   "prompt": "List the code Plaxis ProMax has kept from earlier work, with what each one does, so I can ask for it again by name."
   },
   {
    "group": "Workflow",
-   "title": "Remember a standard",
-   "prompt": "Remember that our beams are always tagged with type mark and size, in every model."
+   "title": "A rule for every chat",
+   "prompt": "Remember this as a rule for every chat: [your rule, for example \"we always use HS small for sand\" or \"levels are in m CD\"]."
   },
   {
    "group": "Workflow",
-   "title": "Worksets I hold",
-   "prompt": "List the worksets and elements I own and relinquish them."
+   "title": "What did we do last time?",
+   "prompt": "Tell me what the earlier chats on this project did and what was still to do."
   },
   {
-   "group": "Check",
-   "title": "Purge unused content",
-   "prompt": "Preview a purge of everything unused in this model (families, types, materials, patterns, view templates and filters), keeping our title blocks. Show me the counts by kind before you delete anything."
+   "group": "Workflow",
+   "title": "Split it across the crew",
+   "prompt": "Read the three attached borehole logs and work out the parameters with separate jobs, while another job sets up the wall and the phases. Tell me who does what first."
   },
   {
-   "group": "Check",
-   "title": "Tidy views and imports",
-   "prompt": "List the views that are on no sheet and the imported CAD in this model, keeping anything named WORKING or _keep. Show me the preview first, then delete them when I say so."
-  },
-  {
-   "group": "Check",
-   "title": "Model health clean",
-   "prompt": "Run a model health clean preview: unused view templates, unplaced rooms and areas, unplaced groups and unused filters, and list the Revit warnings by type with how to fix the top ones."
-  },
-  {
-   "group": "Check",
-   "title": "Clash round with services",
-   "prompt": "Check our structure against the linked electrical, telecom and drainage models in {berth}. Ignore items both models draw and overlaps up to 10 mm, move pits or manholes up to 50 mm where that clears it, give pipes through blinding an opening, and list what is left as '<element> clashes with <discipline>: <what to do>'."
-  },
-  {
-   "group": "Check",
-   "title": "Review before submission",
-   "prompt": "Review the drawings of {berth} before submission: title block fields, tags, viewports inside the title block, legends against the colours, schedules and voids that cut. Put the findings on my working plan as short notes beside clouds, without element ids."
+   "group": "Workflow",
+   "title": "Nightly check",
+   "prompt": "Every night, check that the open project's phases are all calculated and OK, and tell me in the morning what changed."
   }
  ],
  "projectTypes": [
   {
-   "id": "building",
-   "name": "Building"
+   "id": "excavation",
+   "name": "Excavation and retaining wall"
   },
   {
    "id": "marine",
-   "name": "Port and marine"
+   "name": "Quay wall and port"
   },
   {
-   "id": "infrastructure",
-   "name": "Infrastructure"
+   "id": "foundation",
+   "name": "Foundation and embankment"
   }
  ],
  "phases": [
   {
-   "id": "concept",
-   "name": "Concept"
+   "id": "setup",
+   "name": "Model set-up"
   },
   {
-   "id": "schematic",
-   "name": "Schematic"
+   "id": "analysis",
+   "name": "Analysis"
   },
   {
-   "id": "detailed",
-   "name": "Detailed design"
+   "id": "review",
+   "name": "Review"
   },
   {
-   "id": "ifc",
-   "name": "Issued for construction"
+   "id": "report",
+   "name": "Report"
   }
  ],
  "tailored": [
   {
-   "type": "building",
-   "phase": "concept",
-   "title": "Structural grid options",
-   "prompt": "Propose two column grid options for this building from the architectural plans, with spans and a short pros and cons table."
+   "type": "excavation",
+   "phase": "setup",
+   "title": "Soil model from the logs",
+   "prompt": "Build the soil model for this excavation from the attached borehole logs: boreholes, layers and a material for each layer. List what you read first, with estimates marked."
   },
   {
-   "type": "building",
-   "phase": "concept",
-   "title": "Floor system comparison",
-   "prompt": "Compare flat slab, beam and slab, and post-tensioned options for the typical floor: depth, self-weight and embodied carbon."
+   "type": "excavation",
+   "phase": "setup",
+   "title": "Wall, anchors and interfaces",
+   "prompt": "Draw the retaining wall with interfaces on both sides and the anchor rows at the levels I give you, with a plate material worked out from the wall section."
   },
   {
-   "type": "building",
-   "phase": "concept",
-   "title": "Stability strategy",
-   "prompt": "Look at the cores and walls in the model and suggest a lateral stability strategy, marking walls that could act as shear walls."
+   "type": "excavation",
+   "phase": "setup",
+   "title": "Excavation stages",
+   "prompt": "Set up the phases for a staged excavation: wall installation, then for each level excavate, dewater and install the anchor row, down to the final level. Show me the list before you add them."
   },
   {
-   "type": "building",
-   "phase": "concept",
-   "title": "Quick scheme model",
-   "prompt": "Create levels from the architectural model and place indicative columns at grid intersections so we can see the scheme."
+   "type": "excavation",
+   "phase": "setup",
+   "title": "Surcharge behind the wall",
+   "prompt": "Add a surcharge of [value] kN/m2 behind the wall from the wall to [distance] m, active from the first excavation phase."
   },
   {
-   "type": "building",
-   "phase": "concept",
-   "title": "Early quantities",
-   "prompt": "Give rough concrete and steel quantities for the scheme, by level, with assumptions stated."
+   "type": "excavation",
+   "phase": "setup",
+   "title": "Dewatering",
+   "prompt": "Set the water inside the excavation to follow the excavation level in each phase, and tell me how you modelled it."
   },
   {
-   "type": "building",
-   "phase": "concept",
-   "title": "Concept carbon",
-   "prompt": "Estimate embodied carbon for the concept structure and name the three biggest contributors."
+   "type": "excavation",
+   "phase": "setup",
+   "title": "Mesh for an excavation",
+   "prompt": "Generate the mesh, refined around the wall, the anchors and the excavation base, and tell me the element count."
   },
   {
-   "type": "building",
-   "phase": "schematic",
-   "title": "Column schedule set-up",
-   "prompt": "Create a column schedule with mark, type, base and top level, and put it on a new sheet."
+   "type": "excavation",
+   "phase": "analysis",
+   "title": "Run the stages",
+   "prompt": "Calculate every phase one at a time, saving after each, and tell me how each one ended."
   },
   {
-   "type": "building",
-   "phase": "schematic",
-   "title": "Transfer review",
-   "prompt": "List columns and walls that don't continue down, with the elements they land on."
+   "type": "excavation",
+   "phase": "analysis",
+   "title": "Governing wall forces",
+   "prompt": "Give me the maximum deflection, bending moment and shear force of the wall for every phase, and tell me which phase governs each."
   },
   {
-   "type": "building",
-   "phase": "schematic",
-   "title": "Slab openings",
-   "prompt": "Find slab openings over 1 m and list them with level and size, for review with the architect."
+   "type": "excavation",
+   "phase": "analysis",
+   "title": "Anchor forces per stage",
+   "prompt": "Give me the force in every anchor row for every phase, with the largest of each and the phase it occurs in."
   },
   {
-   "type": "building",
-   "phase": "schematic",
-   "title": "Coordination with MEP",
-   "prompt": "Check the linked MEP model for ducts crossing beams and list the clashes by level."
+   "type": "excavation",
+   "phase": "analysis",
+   "title": "Settlement of the neighbours",
+   "prompt": "Give me the settlement trough behind the wall at the final stage, and the settlement and tilt at the building [distance] m away."
   },
   {
-   "type": "building",
-   "phase": "schematic",
-   "title": "Schematic sheets",
-   "prompt": "Make general arrangement plans for each level on sheets, with grids dimensioned."
+   "type": "excavation",
+   "phase": "analysis",
+   "title": "Basal stability",
+   "prompt": "Add a safety phase after the final excavation, calculate it, and tell me the factor of safety and the failure mechanism."
   },
   {
-   "type": "building",
-   "phase": "schematic",
-   "title": "Foundation scheme",
-   "prompt": "Propose a pad or raft foundation layout under the columns, using the column loads I give."
+   "type": "excavation",
+   "phase": "analysis",
+   "title": "What if the anchors are softer?",
+   "prompt": "Copy the project's results first, then halve the anchor stiffness, recalculate, and compare the wall deflection and moments with before."
   },
   {
-   "type": "building",
-   "phase": "detailed",
-   "title": "Beam reinforcement",
-   "prompt": "Reinforce the beams on {level} from the attached design output and report any beam you couldn't match."
+   "type": "excavation",
+   "phase": "review",
+   "title": "Check the staging",
+   "prompt": "Go through the phases and tell me anything out of order: an anchor prestressed before it is installed, excavation below water without dewatering, a missing wall installation phase."
   },
   {
-   "type": "building",
-   "phase": "detailed",
-   "title": "Tags and dimensions",
-   "prompt": "Tag every structural element in the active views and dimension openings in walls and slabs."
+   "type": "excavation",
+   "phase": "review",
+   "title": "Check the interfaces",
+   "prompt": "List the interface strength reduction for every soil against the wall, and tell me which look too high or too low for that soil."
   },
   {
-   "type": "building",
-   "phase": "detailed",
-   "title": "Sections at cores",
-   "prompt": "Create sections through each core and place them on a sheet with a key plan."
+   "type": "excavation",
+   "phase": "review",
+   "title": "Against the design basis",
+   "prompt": "Compare the levels, surcharges, water levels and soil parameters of the model with the attached design basis and list the differences."
   },
   {
-   "type": "building",
-   "phase": "detailed",
-   "title": "Penetrations",
-   "prompt": "Create MEP openings in beams and walls where linked ducts and pipes cross them, with sleeves scheduled."
+   "type": "excavation",
+   "phase": "review",
+   "title": "Embedment check",
+   "prompt": "Tell me the embedded length of the wall below the final excavation level and the passive resistance that is mobilised in the last phase."
   },
   {
-   "type": "building",
-   "phase": "detailed",
-   "title": "Typical details",
-   "prompt": "Place the typical details sheet with our standard detail components."
+   "type": "excavation",
+   "phase": "review",
+   "title": "Mesh sensitivity",
+   "prompt": "Recalculate with one step finer mesh and compare the governing deflection and moment, so I can see whether the mesh is fine enough."
   },
   {
-   "type": "building",
-   "phase": "detailed",
-   "title": "Model check before review",
-   "prompt": "Run the model check and the drawing check and give me a list of fixes before the design review."
+   "type": "excavation",
+   "phase": "review",
+   "title": "Review as a checker",
+   "prompt": "Review this excavation model as an independent checker would, and list what you would question, most serious first. Change nothing."
   },
   {
-   "type": "building",
-   "phase": "ifc",
-   "title": "IFC revision",
-   "prompt": "Create the IFC revision, add it to all structural sheets, and update the revision schedule on each title block."
+   "type": "excavation",
+   "phase": "report",
+   "title": "Results workbook",
+   "prompt": "Put the wall deflection, bending moment, shear force and anchor forces of every phase into one Excel file, with a summary sheet of the governing values."
   },
   {
-   "type": "building",
-   "phase": "ifc",
-   "title": "Export the IFC set",
-   "prompt": "Export all S- sheets to PDF and the drawing list to Excel, in one folder named with today's date."
+   "type": "excavation",
+   "phase": "report",
+   "title": "Calculation report",
+   "prompt": "Write the calculation report for this excavation in Word: soil model, wall and anchors, stages, governing results per stage, settlements and safety factor."
   },
   {
-   "type": "building",
-   "phase": "ifc",
-   "title": "Bar schedules",
-   "prompt": "Export the bar bending schedules for every reinforced element, one sheet per level."
+   "type": "excavation",
+   "phase": "report",
+   "title": "Stage by stage table",
+   "prompt": "Make a table with one row per phase: excavation level, water level, wall deflection, moment, anchor forces and whether it ended OK."
   },
   {
-   "type": "building",
-   "phase": "ifc",
-   "title": "Final drawing check",
-   "prompt": "Check every sheet for untagged elements, missing dimensions and views not on sheets."
+   "type": "excavation",
+   "phase": "report",
+   "title": "Section drawing",
+   "prompt": "Draw the section as a DXF: soil layers, wall, anchors and each excavation level, to scale."
   },
   {
-   "type": "building",
-   "phase": "ifc",
-   "title": "Clouds for changes",
-   "prompt": "Cloud the elements changed since the last issue and tag the clouds with the revision."
+   "type": "excavation",
+   "phase": "report",
+   "title": "Review slides",
+   "prompt": "Make a short PowerPoint for the design review with the section, the stages and the governing results."
   },
   {
-   "type": "building",
-   "phase": "ifc",
-   "title": "Handover pack",
-   "prompt": "Export the project pack for handover, with chats left out."
-  },
-  {
-   "type": "marine",
-   "phase": "concept",
-   "title": "Berth layout",
-   "prompt": "Set up {berth} for the design vessel and show the clear water along the quay line."
+   "type": "excavation",
+   "phase": "report",
+   "title": "Anchor schedule",
+   "prompt": "Make an Excel schedule of the anchors: level, spacing, inclination, free and fixed length, prestress and maximum force over all phases."
   },
   {
    "type": "marine",
-   "phase": "concept",
-   "title": "Quay structure options",
-   "prompt": "Compare an open piled deck with a gravity quay wall for this site: rough quantities and carbon."
+   "phase": "setup",
+   "title": "Quay wall section",
+   "prompt": "Build the soil model for this quay wall from the attached logs, with the seabed, the dredge level and the fill behind the wall as separate layers."
   },
   {
    "type": "marine",
-   "phase": "concept",
-   "title": "Pile grid study",
-   "prompt": "Lay out an indicative pile grid under the deck at two spacings and compare pile counts."
+   "phase": "setup",
+   "title": "Combi wall and tie rods",
+   "prompt": "Draw the combi wall as a plate with the tie rod and the anchor wall behind it, with materials worked out from the sections I give you."
   },
   {
    "type": "marine",
-   "phase": "concept",
-   "title": "Mooring layout",
-   "prompt": "Propose bollard and fender positions along the quay for the design vessel."
+   "phase": "setup",
+   "title": "Water levels for a quay",
+   "prompt": "Set the water levels for the design cases I give you (low water in front, lagging groundwater behind the wall), and tell me how each phase uses them."
   },
   {
    "type": "marine",
-   "phase": "concept",
-   "title": "Concept levels",
-   "prompt": "Create the deck, cope and seabed levels from the values I give, with grids along the quay."
+   "phase": "setup",
+   "title": "Quay loads",
+   "prompt": "Add the crane load, the surcharge on the apron and the bollard pull as loads, and tell me which phase each is active in."
   },
   {
    "type": "marine",
-   "phase": "concept",
-   "title": "Early carbon",
-   "prompt": "Estimate embodied carbon of the quay concept and the share from piles, deck and furniture."
+   "phase": "setup",
+   "title": "Construction and dredging stages",
+   "prompt": "Set up the phases: existing seabed, wall installation, tie rod, backfill in lifts, dredging to design depth, then the load cases. Show me the list first."
   },
   {
    "type": "marine",
-   "phase": "schematic",
-   "title": "Deck framing",
-   "prompt": "Model the deck beams and slab between the pile caps, using the cross-section I give."
+   "phase": "setup",
+   "title": "Relieving platform piles",
+   "prompt": "Add the piles of the relieving platform as embedded beams at the rows and rakes I give you, with a pile material from the diameter and wall thickness."
   },
   {
    "type": "marine",
-   "phase": "schematic",
-   "title": "Pile schedule",
-   "prompt": "Create a pile schedule with mark, type, toe level and rake, and put it on a sheet."
+   "phase": "analysis",
+   "title": "Run the stages",
+   "prompt": "Calculate every phase one at a time, saving after each, and tell me how each one ended."
   },
   {
    "type": "marine",
-   "phase": "schematic",
-   "title": "Furniture spacing",
-   "prompt": "Check the spacing of fenders and bollards and flag anything outside the range I give."
+   "phase": "analysis",
+   "title": "Wall and tie rod forces",
+   "prompt": "Give me the maximum bending moment and deflection of the quay wall and the tie rod force for every phase and load case, with which case governs."
   },
   {
    "type": "marine",
-   "phase": "schematic",
-   "title": "Vessel clearance",
-   "prompt": "Check the design vessel against the quay structure and fenders for clashes."
+   "phase": "analysis",
+   "title": "Overdredge case",
+   "prompt": "Add a phase with [value] m of overdredge in front of the wall, calculate it, and compare the wall moment and tie rod force with the design depth."
   },
   {
    "type": "marine",
-   "phase": "schematic",
-   "title": "Expansion joints",
-   "prompt": "Suggest expansion joint positions along the deck for the given length and show them in plan."
+   "phase": "analysis",
+   "title": "Overall stability",
+   "prompt": "Add a safety phase for the governing load case, calculate it, and tell me the factor of safety and whether the slip passes below the wall toe."
   },
   {
    "type": "marine",
-   "phase": "schematic",
-   "title": "Schematic sheets",
-   "prompt": "Make plan and section sheets for the quay with grids and levels dimensioned."
+   "phase": "analysis",
+   "title": "Settlement of the apron",
+   "prompt": "Give me the settlement of the apron and the crane rails after backfilling and under the operating loads."
   },
   {
    "type": "marine",
-   "phase": "detailed",
-   "title": "Pile cap reinforcement",
-   "prompt": "Reinforce the pile caps with the bar layout I give and export the bar schedule."
+   "phase": "analysis",
+   "title": "Pile forces",
+   "prompt": "Give me the axial force, shear force and bending moment envelope of every pile row over all phases."
   },
   {
    "type": "marine",
-   "phase": "detailed",
-   "title": "Deck sections",
-   "prompt": "Create sections every 20 m along the quay and place them on sheets in order."
+   "phase": "review",
+   "title": "Water pressure check",
+   "prompt": "Show the pore pressures on both sides of the wall for the governing case and tell me whether the water lag is what the design basis asks for."
   },
   {
    "type": "marine",
-   "phase": "detailed",
-   "title": "Embedded items",
-   "prompt": "Place the embedded plates and sleeves for services along the deck and schedule them."
+   "phase": "review",
+   "title": "Against the design basis",
+   "prompt": "Compare the dredge level, water levels, loads and soil parameters of the model with the attached basis of design and list the differences."
   },
   {
    "type": "marine",
-   "phase": "detailed",
-   "title": "Tag and dimension the quay",
-   "prompt": "Tag piles, beams and furniture in the plans and dimension pile positions from the grids."
+   "phase": "review",
+   "title": "Check the tie rod",
+   "prompt": "Tell me the tie rod's stiffness, spacing and level, the phase it is installed in, and whether it is ever in compression."
   },
   {
    "type": "marine",
-   "phase": "detailed",
-   "title": "Durability notes",
-   "prompt": "Add general notes for cover and concrete grade for the marine exposure I give."
+   "phase": "review",
+   "title": "Check the staging",
+   "prompt": "Go through the phases and tell me anything out of order: dredging before the tie rod is in, loads before the backfill, a missing water change."
   },
   {
    "type": "marine",
-   "phase": "detailed",
-   "title": "Detailed model check",
-   "prompt": "Run the model audit and list missing marks, unjoined elements and piles without a toe level."
+   "phase": "review",
+   "title": "Toe embedment",
+   "prompt": "Tell me the wall's embedment below the dredge level and the passive resistance mobilised in the governing case."
   },
   {
    "type": "marine",
-   "phase": "ifc",
-   "title": "IFC revision",
-   "prompt": "Create the IFC revision and add it to the quay drawings, then export them to PDF."
+   "phase": "review",
+   "title": "Review as a checker",
+   "prompt": "Review this quay wall model as an independent checker would, and list what you would question, most serious first. Change nothing."
   },
   {
    "type": "marine",
-   "phase": "ifc",
-   "title": "Pile setting-out",
-   "prompt": "Export pile coordinates in site coordinates to Excel for the setting-out engineer."
+   "phase": "report",
+   "title": "Results workbook",
+   "prompt": "Put the wall deflection, bending moment, tie rod force and pile forces of every phase into one Excel file, with a summary of the governing values."
   },
   {
    "type": "marine",
-   "phase": "ifc",
-   "title": "Final schedules",
-   "prompt": "Export the pile, bar and embedded item schedules for construction."
+   "phase": "report",
+   "title": "Calculation report",
+   "prompt": "Write the calculation report for this quay wall in Word: soil model, structure, water levels, stages, load cases, governing results and overall stability."
   },
   {
    "type": "marine",
-   "phase": "ifc",
-   "title": "Construction sequence",
-   "prompt": "Set up the construction sequence phases for piling, deck and furniture and colour a 3D view by phase."
+   "phase": "report",
+   "title": "Load case table",
+   "prompt": "Make a table with one row per load case: water levels, loads, wall moment, deflection, tie rod force and factor of safety where there is one."
   },
   {
    "type": "marine",
-   "phase": "ifc",
-   "title": "Drawing list",
-   "prompt": "Export the drawing list with revisions for the transmittal."
+   "phase": "report",
+   "title": "Section drawing",
+   "prompt": "Draw the quay section as a DXF: soil layers, wall, tie rod, anchor wall, piles, seabed and dredge level, to scale."
   },
   {
    "type": "marine",
-   "phase": "ifc",
-   "title": "Handover pack",
-   "prompt": "Export the project pack for handover, with the issued sheets listed."
+   "phase": "report",
+   "title": "Review slides",
+   "prompt": "Make a short PowerPoint for the design review with the section, the stages, the load cases and the governing results."
   },
   {
-   "type": "infrastructure",
-   "phase": "concept",
-   "title": "Alignment and levels",
-   "prompt": "Create levels and reference grids along the alignment from the coordinates I give."
+   "type": "marine",
+   "phase": "report",
+   "title": "Soil parameter table",
+   "prompt": "Make an Excel table of every soil material with its model and parameters for the basis of design."
   },
   {
-   "type": "infrastructure",
-   "phase": "concept",
-   "title": "Structure type study",
-   "prompt": "Compare a culvert, a short-span bridge and a retaining wall option for this crossing: rough quantities and carbon."
+   "type": "foundation",
+   "phase": "setup",
+   "title": "Soil model from the logs",
+   "prompt": "Build the soil model from the attached borehole logs: boreholes, layers and a material for each layer. List what you read first, with estimates marked."
   },
   {
-   "type": "infrastructure",
-   "phase": "concept",
-   "title": "Retaining wall scheme",
-   "prompt": "Model an indicative retaining wall along the selected line with the height I give."
+   "type": "foundation",
+   "phase": "setup",
+   "title": "Raft or footing",
+   "prompt": "Draw the raft as a plate at founding level with its load, with a plate material worked out from the thickness and concrete grade."
   },
   {
-   "type": "infrastructure",
-   "phase": "concept",
-   "title": "Site coordinates",
-   "prompt": "Set the shared coordinates from the survey point I give and report the project base point."
+   "type": "foundation",
+   "phase": "setup",
+   "title": "Embankment in lifts",
+   "prompt": "Draw the embankment in the lifts I give you, with a phase for each lift and a consolidation period between them. Show me the phases first."
   },
   {
-   "type": "infrastructure",
-   "phase": "concept",
-   "title": "Concept quantities",
-   "prompt": "Give rough concrete and steel quantities for the concept, with assumptions stated."
+   "type": "foundation",
+   "phase": "setup",
+   "title": "Piled raft",
+   "prompt": "Add the piles under the raft as embedded beams at the spacing and length I give you, with a pile material from the diameter."
   },
   {
-   "type": "infrastructure",
-   "phase": "concept",
-   "title": "Concept carbon",
-   "prompt": "Estimate the embodied carbon of the concept and the biggest contributors."
+   "type": "foundation",
+   "phase": "setup",
+   "title": "Soft soil parameters",
+   "prompt": "Work out Soft Soil (or Soft Soil Creep) parameters for the clay from the oedometer results in the attached report, and show them with how you got each."
   },
   {
-   "type": "infrastructure",
-   "phase": "schematic",
-   "title": "Abutments and piers",
-   "prompt": "Model abutments and piers at the stations I give, with indicative pile groups."
+   "type": "foundation",
+   "phase": "setup",
+   "title": "Drains and preloading",
+   "prompt": "Add vertical drains at the spacing I give you under the embankment and a preload phase, and tell me how you modelled the drains."
   },
   {
-   "type": "infrastructure",
-   "phase": "schematic",
-   "title": "Deck framing",
-   "prompt": "Place girders between the supports at the spacing I give and a deck slab over them."
+   "type": "foundation",
+   "phase": "analysis",
+   "title": "Run the stages",
+   "prompt": "Calculate every phase one at a time, saving after each, and tell me how each one ended."
   },
   {
-   "type": "infrastructure",
-   "phase": "schematic",
-   "title": "Drainage openings",
-   "prompt": "Find where the linked drainage crosses the structure and create openings with sleeves."
+   "type": "foundation",
+   "phase": "analysis",
+   "title": "Settlement",
+   "prompt": "Give me the settlement under the foundation at the end of construction and at the end of consolidation, with the differential settlement across it."
   },
   {
-   "type": "infrastructure",
-   "phase": "schematic",
-   "title": "Sections along the alignment",
-   "prompt": "Create sections at each support and place them on sheets in chainage order."
+   "type": "foundation",
+   "phase": "analysis",
+   "title": "Settlement against time",
+   "prompt": "Give me the settlement of the embankment's centre against time through all phases, as a table I can plot."
   },
   {
-   "type": "infrastructure",
-   "phase": "schematic",
-   "title": "Schematic schedule",
-   "prompt": "Create a schedule of structural elements by support with volumes."
+   "type": "foundation",
+   "phase": "analysis",
+   "title": "Excess pore pressure",
+   "prompt": "Give me the maximum excess pore pressure after each lift and how much has dissipated before the next one."
   },
   {
-   "type": "infrastructure",
-   "phase": "schematic",
-   "title": "Coordination check",
-   "prompt": "Check the structure against the linked utilities and list the clashes by support."
+   "type": "foundation",
+   "phase": "analysis",
+   "title": "Stability of each lift",
+   "prompt": "Add a safety phase after each lift, calculate them, and give me the factor of safety of each."
   },
   {
-   "type": "infrastructure",
-   "phase": "detailed",
-   "title": "Wall and footing reinforcement",
-   "prompt": "Reinforce the retaining wall and its footing with the bar layout I give."
+   "type": "foundation",
+   "phase": "analysis",
+   "title": "Raft and pile forces",
+   "prompt": "Give me the bending moment in the raft and the axial force in every pile, with the share of the load the piles carry."
   },
   {
-   "type": "infrastructure",
-   "phase": "detailed",
-   "title": "Bearing plinths",
-   "prompt": "Model bearing plinths on the piers at the girder positions and dimension them."
+   "type": "foundation",
+   "phase": "review",
+   "title": "Drainage types",
+   "prompt": "List every soil with its drainage type and permeability, and tell me which look wrong for a consolidation analysis."
   },
   {
-   "type": "infrastructure",
-   "phase": "detailed",
-   "title": "Construction joints",
-   "prompt": "Propose construction joint positions for the wall and show them in elevation."
+   "type": "foundation",
+   "phase": "review",
+   "title": "Against the design basis",
+   "prompt": "Compare the loads, levels, soil parameters and construction times of the model with the attached design basis and list the differences."
   },
   {
-   "type": "infrastructure",
-   "phase": "detailed",
-   "title": "Tag and dimension",
-   "prompt": "Tag all structural elements and dimension supports from the reference grids."
+   "type": "foundation",
+   "phase": "review",
+   "title": "Check the staging",
+   "prompt": "Go through the phases and tell me anything out of order: a lift without its consolidation time, a load before the structure, a wrong time interval."
   },
   {
-   "type": "infrastructure",
-   "phase": "detailed",
-   "title": "Bar schedules",
-   "prompt": "Export bar bending schedules by element for review."
+   "type": "foundation",
+   "phase": "review",
+   "title": "Boundary conditions",
+   "prompt": "Tell me the model's boundaries and their distance from the foundation, the flow boundary conditions, and whether they are far enough."
   },
   {
-   "type": "infrastructure",
-   "phase": "detailed",
-   "title": "Detailed model check",
-   "prompt": "Run the model audit and list unjoined elements, missing marks and elements without materials."
+   "type": "foundation",
+   "phase": "review",
+   "title": "Mesh sensitivity",
+   "prompt": "Recalculate with one step finer mesh and compare the settlement, so I can see whether the mesh is fine enough."
   },
   {
-   "type": "infrastructure",
-   "phase": "ifc",
-   "title": "IFC revision",
-   "prompt": "Create the IFC revision, add it to all sheets and export them to PDF."
+   "type": "foundation",
+   "phase": "review",
+   "title": "Review as a checker",
+   "prompt": "Review this model as an independent checker would, and list what you would question, most serious first. Change nothing."
   },
   {
-   "type": "infrastructure",
-   "phase": "ifc",
-   "title": "Setting-out data",
-   "prompt": "Export the coordinates of supports and pile centres in site coordinates to Excel."
+   "type": "foundation",
+   "phase": "report",
+   "title": "Results workbook",
+   "prompt": "Put the settlements, excess pore pressures and safety factors of every phase into one Excel file, with a summary sheet."
   },
   {
-   "type": "infrastructure",
-   "phase": "ifc",
-   "title": "Final quantities",
-   "prompt": "Export final concrete, reinforcement and steel quantities by element for the bill of quantities."
+   "type": "foundation",
+   "phase": "report",
+   "title": "Calculation report",
+   "prompt": "Write the calculation report in Word: soil model, foundation or embankment, stages and times, settlements against time, and stability."
   },
   {
-   "type": "infrastructure",
-   "phase": "ifc",
-   "title": "Sequence for construction",
-   "prompt": "Set up construction phases and colour a 3D view by phase for the method statement."
+   "type": "foundation",
+   "phase": "report",
+   "title": "Settlement table",
+   "prompt": "Make a table with one row per phase: time, fill height or load, settlement, excess pore pressure and factor of safety."
   },
   {
-   "type": "infrastructure",
-   "phase": "ifc",
-   "title": "Transmittal list",
-   "prompt": "Export the drawing list with current revisions for the transmittal."
+   "type": "foundation",
+   "phase": "report",
+   "title": "Section drawing",
+   "prompt": "Draw the section as a DXF: soil layers, the foundation or embankment lifts, drains and piles, to scale."
   },
   {
-   "type": "infrastructure",
-   "phase": "ifc",
-   "title": "Handover pack",
-   "prompt": "Export the project pack for handover."
+   "type": "foundation",
+   "phase": "report",
+   "title": "Review slides",
+   "prompt": "Make a short PowerPoint for the design review with the section, the stages and the governing results."
+  },
+  {
+   "type": "foundation",
+   "phase": "report",
+   "title": "Soil parameter table",
+   "prompt": "Make an Excel table of every soil material with its model and parameters for the design basis."
   }
  ]
 }

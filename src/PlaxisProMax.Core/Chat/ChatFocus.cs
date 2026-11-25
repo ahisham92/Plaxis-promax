@@ -77,20 +77,17 @@ internal static class ChatFocus
         if (answered && IsCorrection(text))
             return start + "this reads as a correction of your last work. Don't explain the earlier attempt and don't offer options. " +
                    "When what they want is clear, fix exactly that now, yourself; when it isn't, ask one short question. Before you answer, " +
-                   "look at the result in the view they are looking at (capture_view_image), not only at numbers. Answer in one or two lines.]";
+                   "read the result back from the project (inspect, list_model or list_phases), not only what the call returned. Answer in one or two lines.]";
         if (IsQuestion(text))
             return start + QuestionRule + "]";
         if (IsExample(text))
-            return start + "the user made an example by hand and wants the same. First read the example exactly: which elements or " +
-                   "view they changed (the model note lists what the user changed), its types, parameter values, offsets, joins and " +
-                   "graphics, and look at it (capture_view_image). For annotation in a view they set up, learn it first " +
-                   "(drawing_standard action=learn, add=true, that view). Say in one line what the example has, then reproduce exactly " +
+            return start + "the user made an example by hand in Plaxis and wants the same. First read the example exactly (inspect it): " +
+                   "its material, properties, levels and position, and the phase it is active in. Say in one line what the example has, then reproduce exactly " +
                    "that: don't improve on it, and what differs from the example in your result is a mistake to fix before you answer.]";
         if (IsSmall(text, selected, attachments))
             return start + "this is a small ask about what is selected or shown. Do it yourself now: no job, and no list of ways to choose from. " +
-                   "Take the way that changes least (the element keeps its id, type and values) and say in one line which you took. Before you " +
-                   "answer, look at the result in the active view (capture_view_image): what the user sees must be right, not only the numbers. " +
-                   "Answer in at most three lines.]";
+                   "Take the way that changes least (the object keeps its name, material and values) and say in one line which you took. Before you " +
+                   "answer, read the result back from the project. Answer in at most three lines.]";
         return "";
     }
 

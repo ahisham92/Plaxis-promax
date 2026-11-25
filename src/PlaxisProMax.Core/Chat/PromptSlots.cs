@@ -3,9 +3,9 @@ using System.Text.RegularExpressions;
 namespace PlaxisProMax.Chat;
 
 /// <summary>
-/// Blanks in the home screen's prompts ({level}, {grid}, {sheet_set}, {berth}, {selection}), filled from the open model:
-/// the user taps one of the model's own levels, grids, sheet sets or berths instead of typing it. A blank with no
-/// choice left in the prompt reads "[level]" for the user to type over. Pure text; Revit.PromptChoices reads the choices.
+/// Blanks in the home screen's prompts ({phase}, {borehole}, {material}), filled from the open project: the user taps
+/// one of the project's own phases, boreholes or soil materials instead of typing it. A blank with no choice left in
+/// the prompt reads "[phase]" for the user to type over. Pure text; the window reads the choices from Plaxis.
 /// </summary>
 internal static class PromptSlots
 {
@@ -16,10 +16,9 @@ internal static class PromptSlots
 
     public static readonly Slot[] Known =
     [
-        new("level", "Which level?", "[level]"),
-        new("grid", "Which grid line?", "[grid]"),
-        new("sheet_set", "Which sheet set?", "[sheet set]"),
-        new("berth", "Which berth?", "[berth]"),
+        new("phase", "Which phase?", "[phase]"),
+        new("borehole", "Which borehole?", "[borehole]"),
+        new("material", "Which soil material?", "[material]"),
         new(Selection, "", "the objects selected in Plaxis"),
     ];
 
@@ -47,8 +46,8 @@ internal static class PromptSlots
         });
 
     /// <summary>
-    /// Names in a sensible order without repeats: numbers inside names count as numbers ("Level 2" before "Level 10",
-    /// grid "9" before "10"), at most <see cref="MaxChoices"/>. Levels keep the order they come in (by elevation).
+    /// Names in a sensible order without repeats: numbers inside names count as numbers ("BH-2" before "BH-10"),
+    /// at most <see cref="MaxChoices"/>. Phases keep the order they come in (the order of construction).
     /// </summary>
     public static List<string> Tidy(IEnumerable<string> names, bool keepOrder = false)
     {

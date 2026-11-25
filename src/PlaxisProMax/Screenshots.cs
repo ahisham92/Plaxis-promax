@@ -57,6 +57,12 @@ internal static class Screenshots
         Shoot(handoff, Path.Combine(folder, "21-over-to-you.png"), w => ((ChatWindow)w).ShowSampleHandoff());
         var home = new ChatWindow(link, new PlaxisInstall.StartArgs(null, null, null, false), () => null!, sample: true);
         Shoot(home, Path.Combine(folder, "17-home.png"), w => ((ChatWindow)w).ShowSampleHome());
+        var briefed = new ChatWindow(link, new PlaxisInstall.StartArgs(null, null, null, false), () => null!, sample: true);
+        Shoot(briefed, Path.Combine(folder, "24-brief.png"), w => ((ChatWindow)w).ShowSampleBrief());
+        var explore = new ChatWindow(link, new PlaxisInstall.StartArgs(null, null, null, false), () => null!, sample: true);
+        Shoot(explore, Path.Combine(folder, "22-explore.png"), w => ((ChatWindow)w).ShowSampleHome("explore"));
+        var tailored = new ChatWindow(link, new PlaxisInstall.StartArgs(null, null, null, false), () => null!, sample: true);
+        Shoot(tailored, Path.Combine(folder, "23-tailored.png"), w => ((ChatWindow)w).ShowSampleHome("tailored"));
         app.Shutdown();
         return 0;
     }
@@ -180,10 +186,11 @@ internal sealed partial class ChatWindow
     }
 
     /// <summary>A new chat, before anything is asked: the greeting and the ideas.</summary>
-    internal void ShowSampleHome()
+    internal void ShowSampleHome(string tab = "home")
     {
         _plaxisState.Text = "PLAXIS 2D 2024.2 · Harbour wall";
         ShowTitle();
+        _home.ShowSample("Hey Ahmed!", tab);
     }
 
     /// <summary>Files in and out: a report and a drawing attached, a Word report and an Excel workbook made, shown as cards.</summary>
