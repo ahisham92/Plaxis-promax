@@ -51,6 +51,13 @@ public sealed class PlaxisRun
 
     public string State { get; private set; } = "running";
     public string? Error { get; private set; }
+
+    /// <summary>
+    /// Set when the run finished but not every phase ended OK: the results file holds only the phases that did, and the
+    /// page says so instead of a plain "Calculated" (CSI ProMax field test, 25 Nov 2026: a check said "pass" for a
+    /// model whose analysis had not run).
+    /// </summary>
+    public string? Warning { get; private set; }
     public string? ResultsPath { get; private set; }
     public string? ProjectPath { get; private set; }
     public bool LicenceInUse { get; private set; }
@@ -186,7 +193,17 @@ public sealed class PlaxisRun
             var phases = (calc["phases"] as JsonArray)?.OfType<JsonObject>().ToList() ?? [];
             var ok = phases.Count(p => p["CalculationResult"]?.ToString() is "OK" or "1" or "ok");
             if (calc["stopped_at"] is { } stopped) Say("  stopped at " + stopped);
-            End($"{ok} of {phases.Count} phases ended OK");
+            if (ok < phases.Count)
+            {
+                var notOk = phases.Where(p => p["CalculationResult"]?.ToString() is not ("OK" or "1" or "ok"))
+                    .Select(p => (p["Identification"] ?? p["label"])?.ToString()).Where(n => !string.IsNullOrEmpty(n)).Take(8).ToList();
+                Warning = ok == 0
+                    ? "No phase ended OK, so there are no results."
+                    : $"Only {ok} of {phases.Count} phases ended OK" + (calc["stopped_at"] is { } at ? $" (stopped at {at})" : "") +
+                      ". The results file has only those; these have no results: " + string.Join(", ", notOk) + ".";
+                Say("  " + Warning);
+            }
+            End($"{ok} of {phases.Count} phases ended OK" + (calc["stopped_at"] is { } where ? $", stopped at {where}" : ""));
 
             Begin(4);
             var export = await Call(link, "export_results", new JsonObject { ["model"] = model, ["save_as"] = ResultsPath, ["keep"] = o.Keep?.DeepClone() }, 2 * 3600, ct).ConfigureAwait(false);
@@ -261,6 +278,7 @@ public sealed class PlaxisRun
     {
         ["state"] = State,
         ["error"] = Error,
+        ["warning"] = Warning,
         ["licence"] = LicenceInUse ? "in use" : "free",
         ["results"] = State == "done" ? ResultsPath : null,
         ["project"] = ProjectPath,

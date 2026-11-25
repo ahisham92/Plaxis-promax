@@ -155,7 +155,12 @@ class Commands:
         return "OK"
 
     def view(self, phase):
-        if not self.m.calculated:
+        # As Plaxis: Output opens only on a phase that has results.
+        try:
+            ended = phase.CalculationResult.value
+        except AttributeError:
+            ended = None
+        if not self.m.calculated or ended != "OK":
             raise Exception("Unsuccessful command:\nPhase not calculated")
         return 10001
 

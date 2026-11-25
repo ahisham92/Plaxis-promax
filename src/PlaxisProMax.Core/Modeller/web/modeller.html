@@ -1179,14 +1179,15 @@ function runWindow() {
     const steps = el("div.steps");
     for (const s of r.steps || []) steps.append(el("div.step." + s.state, el("span.st", s.state === "done" ? "✓" : s.state === "failed" ? "!" : ""), el("div", el("div", s.name), s.detail ? el("div.d", s.detail) : null), el("span.d", s.seconds != null ? s.seconds + " s" : "")));
     body.append(el("div", { style: { display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" } }, el("span.badge." + (r.licence === "in use" ? "warn" : "ok"), el("span.dot"), r.licence === "in use" ? "Plaxis licence in use" : "No Plaxis licence in use"),
-      el("span", { style: { color: "var(--muted)" } }, r.state === "running" ? "Running…" : r.state === "done" ? "Finished" : r.state === "failed" ? "Stopped" : "")));
+      el("span", { style: { color: r.warning ? "var(--warn)" : "var(--muted)" } }, r.state === "running" ? "Running…" : r.state === "done" ? (r.warning ? "Finished, not every phase ended OK" : "Finished") : r.state === "failed" ? "Stopped" : "")));
+    if (r.warning) body.append(el("div", { style: { color: "var(--warn)", marginBottom: "8px" } }, r.warning));
     body.append(steps);
     if (r.log && r.log.length) body.append(el("div.runlog.mono", r.log.join("\n")));
   };
   const d = PP.dialog({ title: "Calculate in Plaxis", size: "md", body, onclose: () => { closed = true; clearTimeout(timer); }, buttons: [{ label: "Stop", danger: true, run: async () => { try { await api("run", { method: "DELETE" }); } catch (e) { } return false; } }, { label: "Open results", primary: true, run: () => { openViewer(); } }, { label: "Close" }] });
   const tick = async () => {
     if (closed) return;
-    try { const r = await api("run"); ui.run = r; fill(r); title(); if (r.state === "running") timer = setTimeout(tick, 1000); else { renderRibbon(); if (r.state === "done") say("ok", "Calculated. Results: " + r.results); else say("error", "The run stopped: " + (r.error || "see the steps")); } }
+    try { const r = await api("run"); ui.run = r; fill(r); title(); if (r.state === "running") timer = setTimeout(tick, 1000); else { renderRibbon(); if (r.state === "done" && r.warning) say("warning", r.warning + " Results: " + r.results); else if (r.state === "done") say("ok", "Calculated. Results: " + r.results); else say("error", "The run stopped: " + (r.error || "see the steps")); } }
     catch (e) { timer = setTimeout(tick, 2000); }
   };
   tick();
