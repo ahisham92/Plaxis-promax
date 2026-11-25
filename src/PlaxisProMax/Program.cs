@@ -16,10 +16,18 @@ internal static class Program
 {
     public const string Version = "0.1.0";
 
+    /// <summary>The arguments this start had, so Restart to update starts the new version the same way.</summary>
+    public static string[] Args { get; private set; } = [];
+
     [STAThread]
     public static int Main(string[] args)
     {
         if (args.Length == 2 && args[0] == "--screenshots") return Screenshots.Run(args[1]);
+        Args = args;
+        Update.Updater.SetCurrent(Version);
+        // A newer version downloaded by the updater: start it instead (same arguments, Plaxis's password still in the
+        // environment) and leave. If it can't start, this version opens as usual.
+        if (Update.Updater.HandOverTarget(Environment.GetEnvironmentVariable) is { } newer && Update.Updater.HandOver(newer, args)) return 0;
         var start = PlaxisInstall.Parse(args, Environment.GetEnvironmentVariable);
         // The password was for this process only: no child (Claude Code, its tools) inherits it.
         Environment.SetEnvironmentVariable("PLAXISPROMAX_PASSWORD", null);

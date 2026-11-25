@@ -121,6 +121,9 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         DockPanel.SetDock(header, Dock.Top);
         DockPanel.SetDock(foot, Dock.Bottom);
         root.Children.Add(header);
+        var updateBar = UpdateBar();
+        DockPanel.SetDock(updateBar, Dock.Top);
+        root.Children.Add(updateBar);
         root.Children.Add(foot);
         root.Children.Add(_scroll);
         Content = root;
@@ -139,6 +142,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         _ = Task.Run(() => LicenseState.RefreshChangesAsync(CancellationToken.None));
         LicenseWindow.BlockIfLocked();
         StartPhone();
+        StartHelp();
         await ConnectPlaxisAsync();
         await FindClaudeAsync();
     }
@@ -657,7 +661,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
 
     private void ShowSettings()
     {
-        var window = new SettingsWindow(_claude) { Owner = this };
+        var window = new SettingsWindow(_claude, this) { Owner = this };
         window.ShowDialog();
     }
 }

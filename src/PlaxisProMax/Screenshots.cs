@@ -35,6 +35,10 @@ internal static class Screenshots
         LicenseWindow.Open();
         Shoot(app.Windows.OfType<Window>().Last(w => w.GetType().Name == "LicenseWindow"), Path.Combine(folder, "5-license.png"), shown: true);
         Shoot(new PhoneConnectWindow(sample: true), Path.Combine(folder, "6-phone.png"));
+        var bug = new ReportBugWindow();
+        Shoot(bug, Path.Combine(folder, "7-report-bug.png"), w => ((ReportBugWindow)w).Fill("The boreholes came out 2 m too low after create_boreholes; the log says the top is at +3.5."));
+        var update = new ChatWindow(link, new PlaxisInstall.StartArgs(null, null, null, false), () => null!, sample: true);
+        Shoot(update, Path.Combine(folder, "8-update-ready.png"), w => { ((ChatWindow)w).ShowSample(); ((ChatWindow)w).ShowSampleUpdate("0.2.0"); });
         app.Shutdown();
         return 0;
     }

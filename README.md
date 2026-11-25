@@ -26,6 +26,8 @@ Started from the Start menu instead, it uses the port and password in Settings.
 | Kept code library | idea and procedure | matched by Plaxis identifiers, near repeats held |
 | Chat window, Markdown, theme | ported | Plaxis state header |
 | Plaxis link and tools | | Python worker on Plaxis's own Python |
+| Self-update (release lookup, resumable download, checksum) | ported | the next start hands over to the downloaded version; Restart to update |
+| Report bug, bug log, Export chats & bugs, activity log | ported | picture of the chat window, Plaxis versions |
 
 ## Build and test
 

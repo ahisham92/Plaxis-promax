@@ -4,14 +4,15 @@ using PlaxisProMax.Chat;
 using PlaxisProMax.Licensing;
 using PlaxisProMax.Settings;
 using PlaxisProMax.Tools;
+using PlaxisProMax.Update;
 using PlaxisProMax.UI;
 
 namespace PlaxisProMax;
 
-/// <summary>Settings: when to ask, the standing rules, the Plaxis connection, Plaxis's Python, the model, Claude's sign-in, and the license.</summary>
+/// <summary>Settings: when to ask, the standing rules, the Plaxis connection, Plaxis's Python, the model, Claude's sign-in, the license, updates and bug reports.</summary>
 internal sealed class SettingsWindow : Window
 {
-    public SettingsWindow(ClaudeCli.Install? claude)
+    public SettingsWindow(ClaudeCli.Install? claude, ChatWindow? chat = null)
     {
         Title = "Plaxis ProMax settings";
         Width = 520;
@@ -43,6 +44,42 @@ internal sealed class SettingsWindow : Window
         signIn.IsEnabled = claude is not null;
         signIn.Click += (_, _) => { if (claude is not null) ClaudeCli.StartSignIn(claude); };
 
+        // Updates (Sketch ProMax's Update button): what is installed and found, Check for updates, Restart to update.
+        var autoUpdate = new CheckBox { Content = "Download updates by themselves", IsChecked = s.AutoUpdate };
+        var updateText = ChatWindow.Wrapped(ChatUi.Small(Updater.Describe()));
+        var check = Brand.Button("Check for updates");
+        var restart = Brand.Button("Restart to update", Brand.Weight.Primary);
+        restart.Visibility = Updater.Staged is null ? Visibility.Collapsed : Visibility.Visible;
+        check.IsEnabled = chat is not null;
+        check.Click += async (_, _) =>
+        {
+            if (chat is null) return;
+            Brand.SetBusy(check, true, "Checking…");
+            var progress = new UpdateProgress { Interactive = true };
+            progress.Changed += snap => Dispatcher.BeginInvoke(() =>
+                updateText.Text = snap.Stage == UpdateStage.Downloading && snap.Percent is { } pct ? $"Downloading… {pct}%" : snap.Detail ?? updateText.Text);
+            try { updateText.Text = await chat.CheckForUpdatesAsync(force: true, progress); }
+            finally { Brand.SetBusy(check, false); }
+            restart.Visibility = Updater.Staged is null ? Visibility.Collapsed : Visibility.Visible;
+        };
+        restart.Click += (_, _) => { Close(); chat?.RestartToUpdate(); };
+
+        // Bugs (Sketch ProMax's Report bug, Open bug folder and Export chats & bugs).
+        var report = Brand.Button("Report bug");
+        report.IsEnabled = chat is not null;
+        report.Click += (_, _) => chat?.ReportBug(this);
+        var bugFolder = Brand.Button("Open bug folder");
+        bugFolder.Click += (_, _) => ChatWindow.OpenBugFolder();
+        var export = Brand.Button("Export chats & bugs");
+        var exportText = ChatWindow.Wrapped(ChatUi.Small("One zip with the last week's chats, every bug report and the tool calls, to send to the developer. Nothing is sent by itself."));
+        export.Click += async (_, _) =>
+        {
+            Brand.SetBusy(export, true, "Exporting…");
+            try { exportText.Text = "Saved: " + await ChatWindow.ExportChatsAndBugsAsync(); }
+            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException) { exportText.Text = "The export could not be saved: " + ex.Message; }
+            finally { Brand.SetBusy(export, false); }
+        };
+
         var license = Brand.Button("License");
         license.Click += (_, _) => LicenseWindow.Command();
         var save = Brand.Button("Save", Brand.Weight.Primary);
@@ -59,6 +96,7 @@ internal sealed class SettingsWindow : Window
             fresh.PlaxisPython = python.Text.Trim();
             fresh.ChatModel = model.Text.Trim();
             if (int.TryParse(timeout.Text, out var t) && t is >= 10 and <= 3600) fresh.CallTimeoutSeconds = t;
+            fresh.AutoUpdate = autoUpdate.IsChecked == true;
             fresh.Save();
             Close();
         };
@@ -91,6 +129,14 @@ internal sealed class SettingsWindow : Window
         Section("License");
         body.Children.Add(ChatWindow.Wrapped(ChatUi.Small(LicenseText())));
         body.Children.Add(Brand.ButtonRow(license));
+        Section("Updates");
+        body.Children.Add(updateText);
+        autoUpdate.Margin = new Thickness(0, ChatUi.S1, 0, ChatUi.S1);
+        body.Children.Add(autoUpdate);
+        body.Children.Add(Brand.ButtonRow(check, restart));
+        Section("Bugs");
+        body.Children.Add(exportText);
+        body.Children.Add(Brand.ButtonRow(report, bugFolder, export));
         var buttons = Brand.ButtonRow(save, cancel);
         buttons.HorizontalAlignment = HorizontalAlignment.Right;
         buttons.Margin = new Thickness(0, ChatUi.S4, 0, 0);

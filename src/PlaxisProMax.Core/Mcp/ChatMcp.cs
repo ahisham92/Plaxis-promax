@@ -103,13 +103,25 @@ internal sealed class ChatMcp : IDisposable
             }
         }
 
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        McpResult reply;
         try
         {
             var result = await tool.ExecuteAsync(context, new ToolArgs(args), ct).ConfigureAwait(false);
-            return new McpResult(result.Text, result.IsError, result.PngImage is { } png ? Convert.ToBase64String(png) : null);
+            reply = new McpResult(result.Text, result.IsError, result.PngImage is { } png ? Convert.ToBase64String(png) : null);
         }
-        catch (ArgumentException ex) { return new McpResult(ex.Message, true); }
-        catch (InvalidOperationException ex) { return new McpResult(ex.Message, true); }
+        catch (ArgumentException ex) { reply = new McpResult(ex.Message, true); }
+        catch (InvalidOperationException ex) { reply = new McpResult(ex.Message, true); }
+        // Every call, worked or not, for the bug reports and the chats-and-bugs export (as Sketch ProMax logs them).
+        ActivityLog.Write(ProjectName(), name, tool.ModifiesModel, args, !reply.IsError, reply.Text, clock.ElapsedMilliseconds);
+        return reply;
+    }
+
+    /// <summary>The open Plaxis project's file name, for the activity log ("" when none is known).</summary>
+    private string ProjectName()
+    {
+        try { return (_context.Link.LastStatus?["filename"]?.ToString() ?? "").Split('\\', '/').Last(); }
+        catch (Exception) { return ""; }
     }
 
     /// <summary>The code or commands the user should read before allowing, as plain text.</summary>

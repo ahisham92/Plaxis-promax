@@ -15,6 +15,12 @@ void Section(string name, Action<Action<string, bool, string>> run)
 PlaxisProMax.Licensing.LicenseState.Override = () => new PlaxisProMax.Licensing.LicenseState.Status(
     PlaxisProMax.Licensing.LicenseState.Kind.Owner, "", null, PlaxisProMax.Licensing.LicenseKey.Check.Valid, null);
 var root = FindRoot();
+// Nothing the checks write lands in the user's own folders.
+var scratch = Path.Combine(Path.GetTempPath(), "ppm-checks-" + Guid.NewGuid().ToString("N"));
+PlaxisProMax.Tools.ActivityLog.RootOverride = Path.Combine(scratch, "logs");
+PlaxisProMax.Bugs.BugLog.RootOverride = Path.Combine(scratch, "Bugs");
+PlaxisProMax.Chat.ChatStore.RootOverride = Path.Combine(scratch, "conversations");
+PlaxisProMax.Update.Updater.RootOverride = Path.Combine(scratch, "local");
 
 Section("approvals", ApprovalTests.Run);
 Section("kept code", CodeLibraryTests.Run);
@@ -25,7 +31,13 @@ Section("chat engine", ChatEngineTests.Run);
 Section("install", InstallTests.Run);
 Section("license", c => LicenseTests.Run(root, c));
 Section("iris", IrisTests.Run);
+Section("update source", ReleaseSourceTests.Run);
+Section("update resume", UpdateResumeTests.Run);
+Section("updater", UpdaterTests.Run);
+Section("bug log", BugLogTests.Run);
+Section("bug reports and export", BugReportTests.Run);
 
+try { Directory.Delete(scratch, true); } catch (Exception) { }
 Console.WriteLine(failures == 0 ? "All checks passed." : $"{failures} check(s) failed.");
 return failures;
 
