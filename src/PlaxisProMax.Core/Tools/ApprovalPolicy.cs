@@ -89,6 +89,8 @@ internal static class ApprovalPolicy
             risks.Add("This learned tool's code has not been allowed on this PC yet, or it changed since. Read it in the details.");
         if (facts.NewCode && RunsRecipe.Contains(tool))
             risks.Add("This recipe's steps have not been allowed on this PC yet, or they changed since. Read them in the details.");
+        if (tool == "calculate_in_plaxis" && (!args.TryGetValue("action", out var action) || action.ValueKind != JsonValueKind.String || action.GetString() == "start"))
+            risks.Add("It starts Plaxis and takes a Plaxis licence for as long as the calculation runs (Plaxis is closed at the end, which gives it back).");
         if (facts.ClosesUnsaved)
             risks.Add("It closes the open project, which has changes that aren't saved.");
         if (tool == "run_commands" && RiskyCommandIn(args) is { } command)

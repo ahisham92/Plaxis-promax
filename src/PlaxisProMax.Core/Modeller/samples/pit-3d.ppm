@@ -1,0 +1,396 @@
+{
+ "format": "ppm",
+ "version": 1,
+ "title": "Basement pit beside Building C",
+ "product": "3D",
+ "units": {
+  "length": "m",
+  "force": "kN",
+  "time": "day"
+ },
+ "contour": {
+  "xmin": 0,
+  "xmax": 60,
+  "ymin": 0,
+  "ymax": 54,
+  "zmin": -30
+ },
+ "materials": [
+  {
+   "id": "m_sand",
+   "kind": "soil",
+   "name": "Sand",
+   "model": "Hardening soil",
+   "drainage": "Drained",
+   "colour": "#E8C872",
+   "gammaUnsat": 18,
+   "gammaSat": 20,
+   "E50": 35000,
+   "Eoed": 35000,
+   "Eur": 105000,
+   "m": 0.5,
+   "nu": 0.2,
+   "c": 1,
+   "phi": 34,
+   "psi": 4
+  },
+  {
+   "id": "m_clay",
+   "kind": "soil",
+   "name": "Clay",
+   "model": "Soft soil",
+   "drainage": "Undrained A",
+   "colour": "#8FA9B8",
+   "gammaUnsat": 17,
+   "gammaSat": 18,
+   "lambda": 0.08,
+   "kappa": 0.016,
+   "c": 2,
+   "phi": 25
+  },
+  {
+   "id": "m_wall",
+   "kind": "plate",
+   "name": "Sheet pile wall",
+   "colour": "#5B6B7F",
+   "E": 210000000.0,
+   "d": 0.012,
+   "gamma": 78.5,
+   "nu": 0.3
+  },
+  {
+   "id": "m_pile",
+   "kind": "embedded",
+   "name": "Bored pile 0.9 m",
+   "colour": "#7C3AED",
+   "E": 30000000.0,
+   "gamma": 24,
+   "diameter": 0.9,
+   "Tskin_start": 80,
+   "Tskin_end": 200,
+   "Fmax": 3000
+  }
+ ],
+ "boreholes": [
+  {
+   "id": "bh1",
+   "name": "BH-1",
+   "x": 0,
+   "y": 0,
+   "top": 0,
+   "head": -3,
+   "layers": [
+    {
+     "bottom": -12,
+     "material": "m_sand"
+    },
+    {
+     "bottom": -30,
+     "material": "m_clay"
+    }
+   ]
+  }
+ ],
+ "structures": [
+  {
+   "id": "w1",
+   "type": "plate",
+   "name": "Wall 1",
+   "points": [
+    [
+     20,
+     20,
+     0
+    ],
+    [
+     40,
+     20,
+     0
+    ]
+   ],
+   "depth": 14,
+   "material": "m_wall"
+  },
+  {
+   "id": "w2",
+   "type": "plate",
+   "name": "Wall 2",
+   "points": [
+    [
+     40,
+     20,
+     0
+    ],
+    [
+     40,
+     34,
+     0
+    ]
+   ],
+   "depth": 14,
+   "material": "m_wall"
+  },
+  {
+   "id": "w3",
+   "type": "plate",
+   "name": "Wall 3",
+   "points": [
+    [
+     40,
+     34,
+     0
+    ],
+    [
+     20,
+     34,
+     0
+    ]
+   ],
+   "depth": 14,
+   "material": "m_wall"
+  },
+  {
+   "id": "w4",
+   "type": "plate",
+   "name": "Wall 4",
+   "points": [
+    [
+     20,
+     34,
+     0
+    ],
+    [
+     20,
+     20,
+     0
+    ]
+   ],
+   "depth": 14,
+   "material": "m_wall"
+  },
+  {
+   "id": "pile1",
+   "type": "embedded",
+   "name": "Pile P1",
+   "points": [
+    [
+     46,
+     22,
+     0
+    ],
+    [
+     46,
+     22,
+     -18
+    ]
+   ],
+   "material": "m_pile"
+  },
+  {
+   "id": "pile2",
+   "type": "embedded",
+   "name": "Pile P2",
+   "points": [
+    [
+     46,
+     26,
+     0
+    ],
+    [
+     46,
+     26,
+     -18
+    ]
+   ],
+   "material": "m_pile"
+  },
+  {
+   "id": "pile3",
+   "type": "embedded",
+   "name": "Pile P3",
+   "points": [
+    [
+     46,
+     30,
+     0
+    ],
+    [
+     46,
+     30,
+     -18
+    ]
+   ],
+   "material": "m_pile"
+  },
+  {
+   "id": "pile4",
+   "type": "embedded",
+   "name": "Pile P4",
+   "points": [
+    [
+     46,
+     34,
+     0
+    ],
+    [
+     46,
+     34,
+     -18
+    ]
+   ],
+   "material": "m_pile"
+  },
+  {
+   "id": "pit1",
+   "type": "polygon",
+   "name": "Pit, stage 1",
+   "points": [
+    [
+     20,
+     20,
+     0
+    ],
+    [
+     40,
+     20,
+     0
+    ],
+    [
+     40,
+     34,
+     0
+    ],
+    [
+     20,
+     34,
+     0
+    ]
+   ],
+   "depth": 4,
+   "material": null
+  },
+  {
+   "id": "pit2",
+   "type": "polygon",
+   "name": "Pit, stage 2",
+   "points": [
+    [
+     20,
+     20,
+     -4
+    ],
+    [
+     40,
+     20,
+     -4
+    ],
+    [
+     40,
+     34,
+     -4
+    ],
+    [
+     20,
+     34,
+     -4
+    ]
+   ],
+   "depth": 4,
+   "material": null
+  },
+  {
+   "id": "raft",
+   "type": "surfaceload",
+   "name": "Building beside",
+   "points": [
+    [
+     44,
+     20,
+     0
+    ],
+    [
+     52,
+     20,
+     0
+    ],
+    [
+     52,
+     36,
+     0
+    ],
+    [
+     44,
+     36,
+     0
+    ]
+   ],
+   "qz": -40
+  }
+ ],
+ "waterlevels": [],
+ "mesh": {
+  "coarseness": "Medium"
+ },
+ "phases": [
+  {
+   "id": "p0",
+   "name": "Initial phase",
+   "calc": "K0 procedure",
+   "parent": null,
+   "active": {
+    "w1": false,
+    "w2": false,
+    "w3": false,
+    "w4": false,
+    "pile1": false,
+    "pile2": false,
+    "pile3": false,
+    "pile4": false,
+    "raft": false
+   }
+  },
+  {
+   "id": "p1",
+   "name": "Piles and building load",
+   "calc": "Plastic",
+   "parent": "p0",
+   "active": {
+    "pile1": true,
+    "pile2": true,
+    "pile3": true,
+    "pile4": true,
+    "raft": true
+   }
+  },
+  {
+   "id": "p2",
+   "name": "Walls",
+   "calc": "Plastic",
+   "parent": "p1",
+   "active": {
+    "w1": true,
+    "w2": true,
+    "w3": true,
+    "w4": true
+   }
+  },
+  {
+   "id": "p3",
+   "name": "Excavate to -4 m",
+   "calc": "Plastic",
+   "parent": "p2",
+   "active": {
+    "pit1": false
+   }
+  },
+  {
+   "id": "p4",
+   "name": "Excavate to -8 m",
+   "calc": "Plastic",
+   "parent": "p3",
+   "active": {
+    "pit2": false
+   }
+  }
+ ]
+}

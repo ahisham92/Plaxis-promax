@@ -87,6 +87,8 @@ Why it is built this way:
 - **0.3 Results and reports:** displacements, forces in structures, safety factors and curves, exported to Excel, Word
   or PDF reports with plots.
 - **0.4 Reuse:** the kept-code library, learned tools and recipes (rule 1 above).
+- **0.4 Modeller and Viewer:** a model is built and its results are read with no Plaxis and no licence, as in ETABS
+  ProMax; only Calculate in Plaxis opens Plaxis, for as long as the run takes (docs/MODELLER.md).
 - **0.5 Jobs:** parallel workers, only after 0.1 to 0.4 have been proven.
 
 ## 5. Open questions

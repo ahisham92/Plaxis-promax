@@ -262,6 +262,9 @@ public sealed class ToolRegistry
         new FindKeptCodeTool(), new KeptCodeTool(),
         new RunPlaxisCodeTool(),
         new RememberRuleTool(),
+        // The Modeller and Viewer (no Plaxis, no licence), and Calculate in Plaxis (the one step that takes a licence)
+        new OpenModellerTool(), new ModellerModelTool(), new ModellerEditTool(), new ModellerCheckTool(), new ModellerSaveTool(),
+        new CalculateInPlaxisTool(), new OpenResultsViewerTool(), new ReadResultsTool(),
         // Help (as in Sketch ProMax): bug reports, the activity log, and the chats-and-bugs export
         new Bugs.ReportBugTool(),
         new Bugs.GetActivityLogTool(),

@@ -1,0 +1,1241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plaxis ProMax Modeller</title>
+<link rel="stylesheet" href="common.css">
+<style>
+  .body { grid-template-columns: 272px 1fr 312px; }
+  .center { display: grid; grid-template-rows: 1fr auto; min-height: 0; min-width: 0; }
+  .soilcol { display: flex; gap: 14px; padding: 4px 0; }
+  .soilcol .col { width: 46px; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; display: flex; flex-direction: column; }
+  .soilcol .col div { border-bottom: 1px solid rgba(0,0,0,.18); }
+  .soilcol .cap { font-size: 11px; color: var(--muted); text-align: center; margin-bottom: 4px; }
+  .layers-wrap { display: grid; grid-template-columns: auto 1fr; gap: 16px; }
+  .mat-wrap { display: grid; grid-template-columns: 230px 1fr; gap: 0; min-height: 420px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .mat-list { border-right: 1px solid var(--border); background: var(--surface); overflow: auto; max-height: 60vh; }
+  .mat-list .grp { padding: 8px 10px 3px; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; display: flex; align-items: center; }
+  .mat-list .grp button { margin-left: auto; border: 0; background: none; color: var(--accent); font-weight: 600; font-size: 11.5px; text-transform: none; letter-spacing: 0; }
+  .mat-list .it { display: flex; align-items: center; gap: 8px; padding: 5px 12px; cursor: default; }
+  .mat-list .it:hover { background: var(--hover); }
+  .mat-list .it.sel { background: var(--accent); color: var(--on-accent); }
+  .mat-list .it .sw { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(0,0,0,.2); }
+  .mat-form { overflow: auto; max-height: 60vh; }
+  .mat-form .tabs button { flex: none; padding: 0 14px; }
+  .mat-form .props .row { grid-template-columns: 52% 48%; }
+  .steps { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 12px; }
+  .step { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; padding: 6px 10px; border: 1px solid var(--border-subtle); border-radius: 7px; }
+  .step .st { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; border: 1.5px solid var(--input-border); color: var(--muted); }
+  .step.done .st { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .step.running .st { border-color: var(--accent); border-top-color: transparent; animation: spin 1s linear infinite; }
+  .step.failed .st { background: var(--danger); border-color: var(--danger); color: #fff; }
+  .step .d { color: var(--muted); font-size: 12px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .runlog { max-height: 160px; overflow: auto; background: var(--surface); border-radius: 6px; padding: 8px 10px; white-space: pre-wrap; }
+  .note { background: var(--accent-soft); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; display: flex; gap: 10px; }
+  .note svg { width: 18px; height: 18px; flex: none; color: var(--accent); }
+  .phase-tools { display: flex; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--border-subtle); }
+  .split { display: grid; grid-template-rows: minmax(120px, 40%) 1fr; min-height: 0; }
+  .split > div { display: flex; flex-direction: column; min-height: 0; }
+  .welcome { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+  .welcome .card { pointer-events: auto; background: var(--bg); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); padding: 26px 30px; width: 520px; }
+  .welcome h2 { margin: 0 0 6px; font-size: 18px; }
+  .welcome p { color: var(--muted); margin: 0 0 16px; }
+  .welcome .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .welcome .opt { display: flex; gap: 10px; align-items: flex-start; text-align: left; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
+  .welcome .opt:hover { border-color: var(--accent); background: var(--accent-soft); }
+  .welcome .opt svg { width: 22px; height: 22px; color: var(--accent); flex: none; }
+  .welcome .opt b { display: block; margin-bottom: 2px; }
+  .welcome .opt span { color: var(--muted); font-size: 12px; }
+  .lvl { display: flex; align-items: center; gap: 6px; }
+  .lvl input { width: 70px; height: 24px; border: 1px solid var(--border); border-radius: 5px; background: var(--field); padding: 0 6px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="titlebar">
+    <div class="logo" id="logo"></div><span class="app-name">Plaxis ProMax Modeller</span><span class="doc" id="docname"></span>
+    <span class="spacer"></span>
+    <span class="badge" id="licbadge" title="Building and editing a model uses no Plaxis licence. Only Calculate in Plaxis does, and gives it back when it ends."><span class="dot"></span>No Plaxis licence in use</span>
+  </div>
+  <div class="menubar" id="menubar"></div>
+  <div class="ribbon" id="ribbon"></div>
+  <div class="body">
+    <div class="panel left" id="left"></div>
+    <div class="center">
+      <div class="stage" id="stage">
+        <canvas id="cv"></canvas>
+        <div class="hud" id="hud"></div>
+        <div class="viewbtns" id="viewbtns"></div>
+        <div class="hint" id="hint"></div>
+      </div>
+      <div class="messages" id="messages" hidden></div>
+    </div>
+    <div class="panel right" id="right"></div>
+  </div>
+  <div class="statusbar" id="status"></div>
+</div>
+<script src="common.js"></script>
+<script>
+"use strict";
+const { $, el, icon, fmt, clamp } = PP;
+const API = location.protocol.startsWith("http") && !/offline/.test(location.search) ? "api/" : null;
+
+// ---- State ---------------------------------------------------------------------------------------------------------
+let model = null, filePath = null, rev = 0, dirty = false, samples = {};
+const ui = { mode: "soil", tool: "select", sel: null, phase: null, view: "3d", snap: true, grid: true, labels: true, level: 0,
+  draft: [], cursor: null, mesh: null, messages: [], plaxis: null, run: null, leftTab: "model" };
+const undoStack = [], redoStack = [];
+const KIND_NAMES = { plate: "Plate", anchor: "Node-to-node anchor", fixedanchor: "Fixed-end anchor", geogrid: "Geogrid", embedded: "Embedded beam", interface: "Interface",
+  polygon: "Soil polygon", lineload: "Line load", pointload: "Point load", surfaceload: "Surface load", linedisp: "Line displacement" };
+const MAT_KINDS = { soil: "Soil and interfaces", plate: "Plates", anchor: "Anchors", geogrid: "Geogrids", embedded: "Embedded beams" };
+const MAT_FOR = { plate: "plate", anchor: "anchor", fixedanchor: "anchor", geogrid: "geogrid", embedded: "embedded", polygon: "soil" };
+const CALCS = ["K0 procedure", "Gravity loading", "Plastic", "Consolidation", "Safety", "Fully coupled"];
+const COARSE = ["Very coarse", "Coarse", "Medium", "Fine", "Very fine"];
+const MESH_F = { "Very coarse": 0.12, "Coarse": 0.08, "Medium": 0.06, "Fine": 0.04, "Very fine": 0.03 };
+const SOIL_COLOURS = ["#E8C872", "#C9A66B", "#8FA9B8", "#D9A441", "#A3B86C", "#B98E6E", "#9DB4C9", "#C7B28A", "#7FA88B", "#D6B4A0"];
+const STRUCT_COLOURS = { plate: "#2F5597", anchor: "#7C3AED", fixedanchor: "#7C3AED", geogrid: "#B7791F", embedded: "#0F766E", interface: "#64748B", lineload: "#DC2626", pointload: "#DC2626", surfaceload: "#DC2626", linedisp: "#0EA5E9", polygon: "#475569" };
+const is3D = () => model && model.product === "3D";
+let uidN = 1;
+function uid(prefix) { const ids = new Set(allIds()); let id; do { id = prefix + (uidN++); } while (ids.has(id)); return id; }
+function allIds() { return [...(model.materials || []), ...(model.boreholes || []), ...(model.structures || []), ...(model.waterlevels || []), ...(model.phases || [])].map((o) => o.id); }
+const mat = (id) => (model.materials || []).find((m) => m.id === id);
+const struct = (id) => (model.structures || []).find((s) => s.id === id);
+const phaseOf = (id) => (model.phases || []).find((p) => p.id === id);
+const nameNext = (base, list) => { let i = 1; const names = new Set(list.map((o) => o.name)); while (names.has(base + " " + i)) i++; return base + " " + i; };
+
+function blank(product) {
+  const d3 = product === "3D";
+  return { format: "ppm", version: 1, title: "New project", product: d3 ? "3D" : "2D", model: "plane strain", elements: 15,
+    units: { length: "m", force: "kN", time: "day" },
+    contour: d3 ? { xmin: 0, xmax: 50, ymin: 0, ymax: 50, zmin: -25 } : { xmin: 0, xmax: 50, ymin: -25, ymax: 0 },
+    materials: [], boreholes: [], structures: [], waterlevels: [], mesh: { coarseness: "Medium", refine: [] },
+    phases: [{ id: "p0", name: "Initial phase", calc: "K0 procedure", parent: null, active: {} }] };
+}
+
+// ---- Server --------------------------------------------------------------------------------------------------------
+async function api(path, opts) {
+  if (!API) throw new Error("The Modeller is open as a page only: this needs Plaxis ProMax running.");
+  const r = await fetch(API + path, opts);
+  const t = await r.text();
+  let j; try { j = JSON.parse(t); } catch (e) { j = { error: t }; }
+  if (!r.ok || j.error) throw new Error(j.error || r.statusText);
+  return j;
+}
+let pushTimer = 0, pushing = false;
+function schedulePush() {
+  if (!API) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(async () => {
+    pushing = true;
+    try { const j = await api("model", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ rev, model }) }); rev = j.rev; }
+    catch (e) { say("warning", "The change did not reach Plaxis ProMax: " + e.message); }
+    pushing = false;
+  }, 350);
+}
+async function poll() {
+  if (!API) return;
+  try {
+    const j = await api("model?rev=" + rev);
+    if (j.model && j.rev !== rev && !pushing) {
+      rev = j.rev; filePath = j.path || filePath;
+      if (JSON.stringify(j.model) !== JSON.stringify(model)) { pushUndo(); model = j.model; normalise(); ui.mesh = null; renderAll(); toast("The model was changed from the chat."); }
+    }
+    if (j.dirty != null) { dirty = j.dirty; title(); }
+  } catch (e) { }
+  setTimeout(poll, 1500);
+}
+
+// ---- Change, undo --------------------------------------------------------------------------------------------------
+function pushUndo() { undoStack.push(JSON.stringify(model)); if (undoStack.length > 200) undoStack.shift(); redoStack.length = 0; }
+function change(fn) { pushUndo(); fn(); dirty = true; ui.mesh = null; normalise(); renderAll(); schedulePush(); }
+function undo() { if (!undoStack.length) return; redoStack.push(JSON.stringify(model)); model = JSON.parse(undoStack.pop()); after(); }
+function redo() { if (!redoStack.length) return; undoStack.push(JSON.stringify(model)); model = JSON.parse(redoStack.pop()); after(); }
+function after() { dirty = true; ui.mesh = null; normalise(); if (ui.sel && !findAny(ui.sel)) ui.sel = null; renderAll(); schedulePush(); }
+function normalise() {
+  for (const k of ["materials", "boreholes", "structures", "waterlevels", "phases"]) model[k] = model[k] || [];
+  model.mesh = model.mesh || { coarseness: "Medium", refine: [] };
+  if (!model.phases.length) model.phases.push({ id: "p0", name: "Initial phase", calc: "K0 procedure", parent: null, active: {} });
+  for (const p of model.phases) p.active = p.active || {};
+  if (!phaseOf(ui.phase)) ui.phase = model.phases[0].id;
+  model.materials.forEach((m, i) => { if (!m.colour) m.colour = m.kind === "soil" ? SOIL_COLOURS[i % SOIL_COLOURS.length] : "#5B6B7F"; });
+}
+function findAny(id) { return mat(id) || struct(id) || model.boreholes.find((b) => b.id === id) || model.waterlevels.find((w) => w.id === id) || phaseOf(id) || (id === "project" ? model : null); }
+
+// ---- Derived geometry ----------------------------------------------------------------------------------------------
+function holesSorted() { return [...model.boreholes].sort((a, b) => a.x - b.x); }
+function layerCount() { return Math.max(0, ...model.boreholes.map((b) => (b.layers || []).length)); }
+function levelsOf(b) { const out = [b.top ?? 0]; for (const l of b.layers || []) out.push(l.bottom); return out; }
+/** The level of boundary i (0 = ground) at x, linear between boreholes, flat beyond them. */
+function boundaryAt(i, x) {
+  const hs = holesSorted(); if (!hs.length) return null;
+  const lv = (b) => { const l = levelsOf(b); return l[Math.min(i, l.length - 1)]; };
+  if (x <= hs[0].x) return lv(hs[0]);
+  if (x >= hs[hs.length - 1].x) return lv(hs[hs.length - 1]);
+  for (let k = 0; k < hs.length - 1; k++) if (x >= hs[k].x && x <= hs[k + 1].x) { const t = (x - hs[k].x) / ((hs[k + 1].x - hs[k].x) || 1); return lv(hs[k]) + (lv(hs[k + 1]) - lv(hs[k])) * t; }
+  return lv(hs[0]);
+}
+function headAt(x) {
+  const hs = holesSorted().filter((b) => b.head != null); if (!hs.length) return null;
+  if (x <= hs[0].x) return hs[0].head; if (x >= hs[hs.length - 1].x) return hs[hs.length - 1].head;
+  for (let k = 0; k < hs.length - 1; k++) if (x >= hs[k].x && x <= hs[k + 1].x) { const t = (x - hs[k].x) / ((hs[k + 1].x - hs[k].x) || 1); return hs[k].head + (hs[k + 1].head - hs[k].head) * t; }
+}
+function layerPolygons() {
+  const c = model.contour, xs = [c.xmin, ...holesSorted().map((b) => b.x).filter((x) => x > c.xmin && x < c.xmax), c.xmax];
+  const n = layerCount(), out = [], first = holesSorted()[0];
+  for (let i = 0; i < n; i++) {
+    const top = xs.map((x) => [x, boundaryAt(i, x)]), bot = xs.map((x) => [x, boundaryAt(i + 1, x)]).reverse();
+    const ml = first && first.layers[i] ? first.layers[i].material : null;
+    out.push({ id: "layer" + i, index: i, poly: [...top, ...bot], material: ml });
+  }
+  return out;
+}
+function modelBounds() {
+  const c = model.contour;
+  if (is3D()) return [[c.xmin, c.ymin, c.zmin ?? bottomLevel()], [c.xmax, c.ymax, topLevel()]];
+  return [c.xmin, Math.min(c.ymin ?? -20, bottomLevel()), c.xmax, Math.max(c.ymax ?? 0, topLevel())];
+}
+function topLevel() { const hs = model.boreholes; return hs.length ? Math.max(...hs.map((b) => b.top ?? 0)) : (is3D() ? 0 : model.contour.ymax ?? 0); }
+function bottomLevel() { const hs = model.boreholes; const bots = hs.map((b) => { const l = levelsOf(b); return l[l.length - 1]; }); return bots.length ? Math.min(...bots) : (is3D() ? model.contour.zmin ?? -20 : model.contour.ymin ?? -20); }
+
+/** Active state of an object in a phase, following the chain of parent phases (Plaxis keeps state per phase). */
+function activeIn(id, phaseId) {
+  let p = phaseOf(phaseId); const seen = new Set();
+  while (p && !seen.has(p.id)) {
+    seen.add(p.id);
+    if (p.active && id in p.active) return p.active[id];
+    p = phaseOf(p.parent) || (model.phases.indexOf(p) > 0 && !p.parent ? model.phases[model.phases.indexOf(p) - 1] : null);
+  }
+  const s = struct(id);
+  if (s && s.type === "polygon") return true;
+  if (String(id).startsWith("layer")) return true;
+  return false;
+}
+function waterIn(phaseId) {
+  let p = phaseOf(phaseId); const seen = new Set();
+  while (p && !seen.has(p.id)) { seen.add(p.id); if (p.water) return p.water; p = phaseOf(p.parent); }
+  return null;
+}
+function loadIn(id, phaseId) {
+  let p = phaseOf(phaseId); const seen = new Set();
+  while (p && !seen.has(p.id)) { seen.add(p.id); if (p.loads && p.loads[id]) return p.loads[id]; p = phaseOf(p.parent); }
+  return null;
+}
+
+// ---- Canvas ---------------------------------------------------------------------------------------------------------
+const cv = $("#cv");
+const v2 = new PP.View2D(cv, () => draw());
+const v3 = new PP.Orbit3D(cv, () => draw());
+let fitted = false;
+function using3D() { return is3D() && ui.view === "3d"; }
+function fit() {
+  if (!model) return;
+  if (is3D()) {
+    const [mn, mx] = modelBounds();
+    if (ui.view === "3d") v3.fit(mn, mx); else { v2.fit(mn[0], mn[1], mx[0], mx[1]); }
+  } else { const b = modelBounds(); v2.fit(b[0], b[1], b[2], b[3]); }
+  fitted = true; draw();
+}
+new ResizeObserver(() => draw()).observe($("#stage"));
+
+function draw() {
+  if (!model) return;
+  if (using3D()) return draw3D();
+  v2.size();
+  const ctx = v2.ctx;
+  ctx.fillStyle = PP.css("--canvas"); ctx.fillRect(0, 0, v2.w, v2.h);
+  if (!fitted) { fit(); return; }
+  v2.upLabel = is3D() ? "y" : "y";
+  if (ui.grid) v2.grid(PP.css("--canvas-grid"), PP.css("--canvas-grid-major"), PP.css("--canvas-text"));
+  if (is3D()) drawPlan(ctx); else draw2D(ctx);
+  drawDraft(ctx);
+  v2.axes(PP.css("--canvas-text"));
+}
+
+function polyPath(ctx, poly, X = (p) => v2.X(p[0]), Y = (p) => v2.Y(p[1])) {
+  ctx.beginPath(); poly.forEach((p, i) => i ? ctx.lineTo(X(p), Y(p)) : ctx.moveTo(X(p), Y(p))); ctx.closePath();
+}
+function hatch(ctx, colour) {
+  const p = document.createElement("canvas"); p.width = p.height = 8;
+  const g = p.getContext("2d"); g.strokeStyle = colour; g.lineWidth = 1; g.beginPath(); g.moveTo(0, 8); g.lineTo(8, 0); g.stroke();
+  return ctx.createPattern(p, "repeat");
+}
+
+function draw2D(ctx) {
+  const c = model.contour, mode = ui.mode, stages = mode === "stages";
+  const dim = mode === "structures" || mode === "mesh" || mode === "flow";
+  const canvasBg = PP.css("--canvas");
+  // Contour
+  const b = modelBounds();
+  ctx.fillStyle = PP.isDark() ? "#2a2f36" : "#ffffff";
+  ctx.fillRect(v2.X(c.xmin), v2.Y(b[3]), (c.xmax - c.xmin) * v2.s, (b[3] - b[1]) * v2.s);
+  // Soil layers
+  for (const L of layerPolygons()) {
+    const m = mat(L.material);
+    const on = !stages || activeIn(L.id, ui.phase);
+    let fill = m ? m.colour : "#cbd5e1";
+    if (dim) fill = PP.mix(fill, PP.isDark() ? "#2b2f36" : "#ffffff", 0.55);
+    polyPath(ctx, L.poly);
+    ctx.fillStyle = on ? fill : canvasBg; ctx.fill();
+    ctx.strokeStyle = PP.isDark() ? "rgba(255,255,255,.35)" : "rgba(15,23,42,.45)"; ctx.lineWidth = 1; ctx.stroke();
+    if (ui.sel === L.id) { ctx.strokeStyle = PP.css("--sel"); ctx.lineWidth = 3; ctx.stroke(); }
+  }
+  // Soil polygons (structures mode and later)
+  if (mode !== "soil") for (const s of model.structures.filter((s) => s.type === "polygon")) {
+    const on = !stages || activeIn(s.id, ui.phase);
+    polyPath(ctx, s.points);
+    if (stages && !on) { ctx.fillStyle = canvasBg; ctx.fill(); ctx.fillStyle = hatch(ctx, PP.isDark() ? "rgba(255,255,255,.12)" : "rgba(15,23,42,.10)"); ctx.fill(); }
+    else if (s.material && mat(s.material)) { ctx.fillStyle = dim ? PP.mix(mat(s.material).colour, "#ffffff", .5) : mat(s.material).colour; ctx.fill(); }
+    else if (!stages) { ctx.fillStyle = "rgba(71,85,105,.07)"; ctx.fill(); }
+    ctx.setLineDash(stages ? [] : [6, 4]); ctx.strokeStyle = PP.isDark() ? "#cbd5e1" : "#334155"; ctx.lineWidth = 1.2; ctx.stroke(); ctx.setLineDash([]);
+    if (ui.sel === s.id) { ctx.strokeStyle = PP.css("--sel"); ctx.lineWidth = 3; ctx.stroke(); }
+  }
+  // Mesh preview
+  if (mode === "mesh" && ui.mesh) {
+    const m = ui.mesh; ctx.strokeStyle = PP.isDark() ? "rgba(236,239,243,.42)" : "rgba(15,23,42,.38)"; ctx.lineWidth = 0.7; ctx.beginPath();
+    for (let i = 0; i < m.tri.length; i += 3) { const a = m.tri[i], bb = m.tri[i + 1], cc = m.tri[i + 2]; ctx.moveTo(v2.X(m.x[a]), v2.Y(m.y[a])); ctx.lineTo(v2.X(m.x[bb]), v2.Y(m.y[bb])); ctx.lineTo(v2.X(m.x[cc]), v2.Y(m.y[cc])); ctx.closePath(); }
+    ctx.stroke();
+  }
+  // Contour outline
+  ctx.strokeStyle = PP.isDark() ? "#e2e8f0" : "#0f172a"; ctx.lineWidth = 1.6;
+  ctx.strokeRect(v2.X(c.xmin), v2.Y(b[3]), (c.xmax - c.xmin) * v2.s, (b[3] - b[1]) * v2.s);
+  // Water
+  drawWater2D(ctx);
+  // Boreholes
+  for (const h of model.boreholes) {
+    const X = v2.X(h.x), lv = levelsOf(h), top = v2.Y(lv[0]), bot = v2.Y(lv[lv.length - 1]);
+    const show = mode === "soil" || mode === "flow";
+    ctx.strokeStyle = ui.sel === h.id ? PP.css("--sel") : (PP.isDark() ? "#f1f5f9" : "#0f172a"); ctx.lineWidth = ui.sel === h.id ? 3 : show ? 1.8 : 1;
+    ctx.globalAlpha = show ? 1 : 0.45;
+    ctx.beginPath(); ctx.moveTo(X, top - 10); ctx.lineTo(X, bot); ctx.stroke();
+    for (const y of lv) { ctx.beginPath(); ctx.moveTo(X - 4, v2.Y(y)); ctx.lineTo(X + 4, v2.Y(y)); ctx.stroke(); }
+    if (ui.labels) { label(ctx, h.name, X, top - 14, "center"); }
+    if (h.head != null && show) { const Y = v2.Y(h.head); ctx.fillStyle = PP.css("--water"); ctx.beginPath(); ctx.moveTo(X - 6, Y - 9); ctx.lineTo(X + 6, Y - 9); ctx.lineTo(X, Y - 1); ctx.closePath(); ctx.fill(); }
+    ctx.globalAlpha = 1;
+  }
+  // Structures
+  const showStruct = mode !== "soil";
+  if (showStruct) for (const s of model.structures) if (s.type !== "polygon") drawStruct2D(ctx, s, stages ? activeIn(s.id, ui.phase) : true);
+  if (mode === "soil" && model.structures.some((s) => s.type !== "polygon")) { ctx.globalAlpha = 0.25; for (const s of model.structures) if (s.type !== "polygon") drawStruct2D(ctx, s, true); ctx.globalAlpha = 1; }
+}
+
+function label(ctx, text, x, y, align = "left", color) {
+  ctx.font = "600 11px Segoe UI, system-ui, sans-serif"; ctx.textAlign = align; ctx.textBaseline = "middle";
+  const w = ctx.measureText(text).width, bx = align === "center" ? x - w / 2 - 5 : align === "right" ? x - w - 10 : x;
+  ctx.fillStyle = PP.isDark() ? "rgba(32,36,42,.86)" : "rgba(255,255,255,.88)";
+  ctx.beginPath(); ctx.roundRect(bx, y - 9, w + 10, 18, 5); ctx.fill();
+  ctx.fillStyle = color || (PP.isDark() ? "#e2e8f0" : "#0f172a");
+  ctx.fillText(text, align === "center" ? x : align === "right" ? x - 5 : x + 5, y);
+  ctx.textAlign = "left";
+}
+
+function drawWater2D(ctx) {
+  const c = model.contour, mode = ui.mode;
+  ctx.strokeStyle = PP.css("--water"); ctx.lineWidth = 2;
+  // General phreatic level from the boreholes' heads.
+  if (model.boreholes.some((b) => b.head != null)) {
+    const pts = [c.xmin, ...holesSorted().map((b) => b.x), c.xmax].map((x) => [x, headAt(x)]);
+    const usedHere = mode === "stages" && waterIn(ui.phase);
+    ctx.globalAlpha = usedHere ? 0.35 : 1; ctx.setLineDash([8, 5]);
+    ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(v2.X(p[0]), v2.Y(p[1])) : ctx.moveTo(v2.X(p[0]), v2.Y(p[1]))); ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha = 1;
+  }
+  if (mode === "flow" || mode === "stages") for (const w of model.waterlevels) {
+    const on = mode === "flow" || waterIn(ui.phase) === w.id;
+    ctx.globalAlpha = on ? 1 : 0.25; ctx.lineWidth = ui.sel === w.id ? 3.5 : 2.4;
+    ctx.strokeStyle = ui.sel === w.id ? PP.css("--sel") : PP.css("--water");
+    ctx.beginPath(); w.points.forEach((p, i) => i ? ctx.lineTo(v2.X(p[0]), v2.Y(p[1])) : ctx.moveTo(v2.X(p[0]), v2.Y(p[1]))); ctx.stroke();
+    if (ui.labels && on) { const p = w.points[w.points.length - 1]; label(ctx, w.name, v2.X(p[0]) - 6, v2.Y(p[1]) - 14, "right", PP.css("--water")); }
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawStruct2D(ctx, s, on) {
+  const sel = ui.sel === s.id, col = sel ? PP.css("--sel") : STRUCT_COLOURS[s.type] || "#334155";
+  const P = s.points.map((p) => [v2.X(p[0]), v2.Y(p[1])]);
+  ctx.save();
+  if (!on) { ctx.globalAlpha *= 0.32; }
+  ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineCap = "round";
+  const line = (w, dash) => { ctx.lineWidth = w; ctx.setLineDash(dash || []); ctx.beginPath(); P.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke(); ctx.setLineDash([]); };
+  const nodes = () => { for (const p of [P[0], P[P.length - 1]]) { ctx.beginPath(); ctx.arc(p[0], p[1], 3.2, 0, 7); ctx.fill(); } };
+  switch (s.type) {
+    case "plate":
+      if (s.interfaces) { ctx.save(); ctx.strokeStyle = sel ? col : "#64748B"; const [dx, dy] = perp(P); for (const k of [-1, 1]) { ctx.translate(dx * 5 * k, dy * 5 * k); line(1.2, [4, 3]); ctx.translate(-dx * 5 * k, -dy * 5 * k); } ctx.restore(); }
+      line(sel ? 6 : 4.5); nodes(); break;
+    case "anchor": line(sel ? 3.2 : 2.2, [7, 4]); nodes(); break;
+    case "fixedanchor": {
+      const [x, y] = P[0], a = (s.angle || 0) * Math.PI / 180, L = 26;
+      ctx.lineWidth = 2.2; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * L, y - Math.sin(a) * L); ctx.stroke(); ctx.setLineDash([]);
+      const ex = x + Math.cos(a) * L, ey = y - Math.sin(a) * L; ctx.beginPath(); ctx.moveTo(ex - Math.sin(a) * 7, ey - Math.cos(a) * 7); ctx.lineTo(ex + Math.sin(a) * 7, ey + Math.cos(a) * 7); ctx.lineWidth = 3; ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, y, 3.2, 0, 7); ctx.fill(); break;
+    }
+    case "geogrid": line(sel ? 4.5 : 3.2); ctx.strokeStyle = PP.isDark() ? "#1f2328" : "#fff"; line(1, [2, 3]); break;
+    case "embedded": line(sel ? 4 : 3, [10, 3, 2, 3]); nodes(); break;
+    case "interface": { ctx.save(); const [dx, dy] = perp(P), k = s.side === "negative" ? -1 : 1; ctx.translate(dx * 4 * k, dy * 4 * k); line(1.6, [4, 3]); ctx.restore(); line(0.8); break; }
+    case "lineload": case "linedisp": {
+      const q = s.type === "linedisp" ? -1 : (on && ui.mode === "stages" ? (loadIn(s.id, ui.phase) || s).qy ?? s.qy : s.qy) ?? -10;
+      const dir = (q || -1) < 0 ? 1 : -1, n = Math.max(2, Math.round(Math.hypot(P[1][0] - P[0][0], P[1][1] - P[0][1]) / 18));
+      ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(P[0][0], P[0][1] - 22 * dir); ctx.lineTo(P[1][0], P[1][1] - 22 * dir); ctx.stroke();
+      for (let i = 0; i <= n; i++) { const t = i / n, x = P[0][0] + (P[1][0] - P[0][0]) * t, y = P[0][1] + (P[1][1] - P[0][1]) * t; arrow(ctx, x, y - 22 * dir, x, y - 2 * dir); }
+      line(sel ? 3 : 1.4);
+      if (ui.labels) label(ctx, (s.name || "Load") + (q != null ? "  " + fmt(q, 2) + " kN/m/m" : ""), (P[0][0] + P[1][0]) / 2, (P[0][1] + P[1][1]) / 2 - 34 * dir, "center", col);
+      break;
+    }
+    case "pointload": { const [x, y] = P[0], f = s.fy ?? -100, dir = f < 0 ? 1 : -1; ctx.lineWidth = 2.4; arrow(ctx, x, y - 34 * dir, x, y - 2 * dir, 9); if (ui.labels) label(ctx, fmt(f, 1) + " kN/m", x + 8, y - 26 * dir, "left", col); break; }
+  }
+  if (ui.labels && ["plate", "anchor", "geogrid", "embedded"].includes(s.type) && P.length > 1 && v2.s > 6) {
+    const m = [(P[0][0] + P[P.length - 1][0]) / 2, (P[0][1] + P[P.length - 1][1]) / 2]; label(ctx, s.name, m[0] + 10, m[1], "left", col);
+  }
+  ctx.restore();
+}
+function perp(P) { const dx = P[P.length - 1][0] - P[0][0], dy = P[P.length - 1][1] - P[0][1], l = Math.hypot(dx, dy) || 1; return [-dy / l, dx / l]; }
+function arrow(ctx, x0, y0, x1, y1, h = 6) {
+  ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+  const a = Math.atan2(y1 - y0, x1 - x0); ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x1 - h * Math.cos(a - 0.42), y1 - h * Math.sin(a - 0.42)); ctx.lineTo(x1 - h * Math.cos(a + 0.42), y1 - h * Math.sin(a + 0.42)); ctx.closePath(); ctx.fill();
+}
+
+// Plan view of a 3D model (x, y), where 3D objects are drawn.
+function drawPlan(ctx) {
+  const c = model.contour, stages = ui.mode === "stages";
+  ctx.fillStyle = (() => { const first = holesSorted()[0]; const m = first && first.layers[0] && mat(first.layers[0].material); return m ? PP.mix(m.colour, "#ffffff", ui.mode === "soil" ? 0.15 : 0.6) : "#ffffff"; })();
+  ctx.fillRect(v2.X(c.xmin), v2.Y(c.ymax), (c.xmax - c.xmin) * v2.s, (c.ymax - c.ymin) * v2.s);
+  ctx.strokeStyle = PP.isDark() ? "#e2e8f0" : "#0f172a"; ctx.lineWidth = 1.6; ctx.strokeRect(v2.X(c.xmin), v2.Y(c.ymax), (c.xmax - c.xmin) * v2.s, (c.ymax - c.ymin) * v2.s);
+  for (const s of model.structures) {
+    const on = !stages || activeIn(s.id, ui.phase), sel = ui.sel === s.id, col = sel ? PP.css("--sel") : STRUCT_COLOURS[s.type];
+    ctx.save(); if (!on) ctx.globalAlpha = 0.3;
+    ctx.strokeStyle = col; ctx.fillStyle = col;
+    if (s.type === "polygon" || s.type === "surfaceload") {
+      polyPath(ctx, s.points);
+      if (s.type === "surfaceload") { ctx.fillStyle = hatch(ctx, "rgba(220,38,38,.45)"); ctx.fill(); }
+      else if (stages && !on) { ctx.fillStyle = PP.css("--canvas"); ctx.globalAlpha = 1; ctx.fill(); }
+      else { ctx.fillStyle = "rgba(71,85,105,.10)"; ctx.fill(); }
+      ctx.setLineDash(s.type === "polygon" && !stages ? [6, 4] : []); ctx.lineWidth = sel ? 3 : 1.4; ctx.stroke(); ctx.setLineDash([]);
+      if (ui.labels) { const cx = s.points.reduce((a, p) => a + p[0], 0) / s.points.length, cy = s.points.reduce((a, p) => a + p[1], 0) / s.points.length; label(ctx, s.name + (s.type === "polygon" ? `  z ${fmt(s.points[0][2] ?? 0, 2)} … ${fmt((s.points[0][2] ?? 0) - (s.depth || 0), 2)}` : `  ${fmt(s.qz, 2)} kN/m²`), v2.X(cx), v2.Y(cy), "center", col); }
+    } else if (s.type === "embedded") {
+      const [x, y] = s.points[0]; ctx.beginPath(); ctx.arc(v2.X(x), v2.Y(y), sel ? 7 : 5.5, 0, 7); ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
+    } else if (s.points.length) {
+      ctx.lineWidth = s.type === "plate" ? (sel ? 6 : 4.5) : 2.2; ctx.setLineDash(s.type === "anchor" ? [7, 4] : []);
+      ctx.beginPath(); s.points.forEach((p, i) => i ? ctx.lineTo(v2.X(p[0]), v2.Y(p[1])) : ctx.moveTo(v2.X(p[0]), v2.Y(p[1]))); ctx.stroke(); ctx.setLineDash([]);
+    }
+    ctx.restore();
+  }
+  for (const h of model.boreholes) { const X = v2.X(h.x), Y = v2.Y(h.y || 0); ctx.fillStyle = ui.sel === h.id ? PP.css("--sel") : "#0f172a"; ctx.beginPath(); ctx.arc(X, Y, 5, 0, 7); ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke(); if (ui.labels) label(ctx, h.name, X + 9, Y - 10); }
+}
+
+function draw3D() {
+  v3.begin();
+  const ctx = v3.ctx;
+  const g = ctx.createLinearGradient(0, 0, 0, v3.h);
+  g.addColorStop(0, PP.isDark() ? "#2a3039" : "#f4f7fb"); g.addColorStop(1, PP.isDark() ? "#1b1f24" : "#dfe6ef");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, v3.w, v3.h);
+  if (!fitted) { fit(); return; }
+  const c = model.contour, stages = ui.mode === "stages", faces = [], lines = [];
+  const boxFaces = (x0, x1, y0, y1, z0, z1, colour, alpha, tag) => {
+    const P = (x, y, z) => [x, y, z];
+    const quads = [
+      [P(x0, y0, z1), P(x1, y0, z1), P(x1, y1, z1), P(x0, y1, z1)], [P(x0, y0, z0), P(x0, y1, z0), P(x1, y1, z0), P(x1, y0, z0)],
+      [P(x0, y0, z0), P(x1, y0, z0), P(x1, y0, z1), P(x0, y0, z1)], [P(x1, y1, z0), P(x0, y1, z0), P(x0, y1, z1), P(x1, y1, z1)],
+      [P(x0, y1, z0), P(x0, y0, z0), P(x0, y0, z1), P(x0, y1, z1)], [P(x1, y0, z0), P(x1, y1, z0), P(x1, y1, z1), P(x1, y0, z1)]];
+    for (const q of quads) faces.push({ p: q, colour, alpha, tag, edge: true });
+  };
+  // Soil layers as boxes (levels from the first borehole: 3D layers are horizontal between boreholes here).
+  const first = holesSorted()[0];
+  if (first) {
+    const lv = levelsOf(first);
+    for (let i = 0; i < lv.length - 1; i++) {
+      const m = mat(first.layers[i].material);
+      boxFaces(c.xmin, c.xmax, c.ymin, c.ymax, lv[i + 1], lv[i], m ? m.colour : "#cbd5e1", ui.mode === "soil" ? 0.55 : 0.16, "layer" + i);
+    }
+  } else {
+    boxFaces(c.xmin, c.xmax, c.ymin, c.ymax, c.zmin ?? -20, 0, "#cbd5e1", 0.12, "contour");
+  }
+  for (const s of model.structures) {
+    const on = !stages || activeIn(s.id, ui.phase), sel = ui.sel === s.id;
+    const col = sel ? "#f59e0b" : STRUCT_COLOURS[s.type];
+    if (s.type === "polygon") {
+      if (ui.mode === "soil") continue;
+      const z1 = s.points[0][2] ?? 0, z0 = z1 - (s.depth || 1);
+      const xs = s.points.map((p) => p[0]), ys = s.points.map((p) => p[1]);
+      if (stages && !on) {
+        boxFaces(Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys), z0, z1, PP.isDark() ? "#20242a" : "#ffffff", 0.85, s.id);
+      } else {
+        const ring = (z) => s.points.map((p) => [p[0], p[1], z]);
+        lines.push({ p: [...ring(z1), ring(z1)[0]], colour: col, width: sel ? 2.5 : 1.3, dash: [5, 4] });
+        lines.push({ p: [...ring(z0), ring(z0)[0]], colour: col, width: sel ? 2.5 : 1.3, dash: [5, 4] });
+        for (const p of s.points) lines.push({ p: [[p[0], p[1], z1], [p[0], p[1], z0]], colour: col, width: 1, dash: [5, 4] });
+      }
+    } else if (s.type === "plate") {
+      let quad = s.points;
+      if (s.points.length === 2) { const [a, b] = s.points, d = s.depth || 10; quad = [a, b, [b[0], b[1], b[2] - d], [a[0], a[1], a[2] - d]]; }
+      if (on) faces.push({ p: quad, colour: sel ? "#f59e0b" : "#4a6fa5", alpha: 0.92, tag: s.id, edge: true, struct: true });
+      else lines.push({ p: [...quad, quad[0]], colour: "#94a3b8", width: 1, dash: [4, 3] });
+    } else if (s.type === "embedded" || s.type === "anchor") {
+      lines.push({ p: s.points, colour: on ? col : "#94a3b8", width: on ? (sel ? 6 : 4.5) : 1.5, dash: on ? null : [4, 3], cap: true });
+    } else if (s.type === "surfaceload") {
+      if (on) {
+        faces.push({ p: s.points.map((p) => [p[0], p[1], (p[2] ?? 0) + 0.05]), colour: "#ef4444", alpha: 0.35, tag: s.id, edge: true });
+        const xs = s.points.map((p) => p[0]), ys = s.points.map((p) => p[1]), z = s.points[0][2] ?? 0;
+        for (let i = 0; i <= 3; i++) for (let j = 0; j <= 3; j++) { const x = Math.min(...xs) + (Math.max(...xs) - Math.min(...xs)) * i / 3, y = Math.min(...ys) + (Math.max(...ys) - Math.min(...ys)) * j / 3; lines.push({ p: [[x, y, z + 4], [x, y, z + 0.2]], colour: "#dc2626", width: 1.6, arrow: true }); }
+      }
+    }
+  }
+  for (const h of model.boreholes) { const lv = levelsOf(h); lines.push({ p: [[h.x, h.y || 0, lv[0] + 3], [h.x, h.y || 0, lv[lv.length - 1]]], colour: ui.sel === h.id ? "#f59e0b" : "#0f172a", width: 2, label: h.name }); }
+  // Painter's order.
+  const items = [];
+  for (const f of faces) { const pr = f.p.map((p) => v3.project(p)); items.push({ k: "f", f, pr, z: pr.reduce((a, p) => a + p[2], 0) / pr.length }); }
+  for (const l of lines) { const pr = l.p.map((p) => v3.project(p)); items.push({ k: "l", l, pr, z: Math.min(...pr.map((p) => p[2])) - 0.01 }); }
+  items.sort((a, b) => b.z - a.z);
+  for (const it of items) {
+    if (it.k === "f") {
+      const f = it.f, n = PP.faceNormal(f.p), lit = 0.62 + 0.38 * v3.light(n);
+      ctx.beginPath(); it.pr.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath();
+      const rgbc = PP.hex(f.colour.startsWith("#") ? f.colour : "#cbd5e1");
+      ctx.fillStyle = PP.rgb(rgbc.map((v) => v * lit), f.alpha); ctx.fill();
+      if (f.edge) { ctx.strokeStyle = f.struct ? "rgba(15,23,42,.65)" : (PP.isDark() ? "rgba(255,255,255,.22)" : "rgba(15,23,42,.25)"); ctx.lineWidth = f.struct ? 1.2 : 0.8; ctx.stroke(); }
+    } else {
+      const l = it.l; ctx.strokeStyle = l.colour; ctx.fillStyle = l.colour; ctx.lineWidth = l.width; ctx.lineCap = "round"; ctx.setLineDash(l.dash || []);
+      if (l.arrow) { arrow(ctx, it.pr[0][0], it.pr[0][1], it.pr[1][0], it.pr[1][1], 6); continue; }
+      ctx.beginPath(); it.pr.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke(); ctx.setLineDash([]);
+      if (l.label && ui.labels) label(ctx, l.label, it.pr[0][0], it.pr[0][1] - 12, "center");
+    }
+  }
+  // Axes gizmo
+  const o = [60, v3.h - 60], [r, u] = v3._b, ax = [[1, 0, 0, "x", "#dc2626"], [0, 1, 0, "y", "#16a34a"], [0, 0, 1, "z", "#2563eb"]];
+  for (const [x, y, z, n, colr] of ax) { const sx = (x * r[0] + y * r[1] + z * r[2]) * 32, sy = -(x * u[0] + y * u[1] + z * u[2]) * 32; ctx.strokeStyle = colr; ctx.fillStyle = colr; ctx.lineWidth = 2.2; arrow(ctx, o[0], o[1], o[0] + sx, o[1] + sy, 7); ctx.font = "600 11px Segoe UI"; ctx.fillText(n, o[0] + sx * 1.25 - 3, o[1] + sy * 1.25 + 4); }
+}
+
+function drawDraft(ctx) {
+  const pts = ui.draft.slice();
+  if (ui.cursor && ui.tool !== "select") pts.push(ui.cursor);
+  if (ui.cursor && ui.tool !== "select") {
+    const [x, y] = [v2.X(ui.cursor[0]), v2.Y(ui.cursor[1])];
+    ctx.strokeStyle = PP.css("--accent"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x - 9, y); ctx.lineTo(x + 9, y); ctx.moveTo(x, y - 9); ctx.lineTo(x, y + 9); ctx.stroke();
+    if (ui.snapHit) { ctx.strokeStyle = PP.css("--sel"); ctx.lineWidth = 2; ctx.strokeRect(x - 5, y - 5, 10, 10); }
+  }
+  if (pts.length < 2) return;
+  ctx.strokeStyle = PP.css("--accent"); ctx.lineWidth = 2; ctx.setLineDash([5, 4]);
+  ctx.beginPath();
+  if (ui.tool === "rect") { const [a, b] = [pts[0], pts[pts.length - 1]]; ctx.rect(v2.X(Math.min(a[0], b[0])), v2.Y(Math.max(a[1], b[1])), Math.abs(b[0] - a[0]) * v2.s, Math.abs(b[1] - a[1]) * v2.s); }
+  else pts.forEach((p, i) => i ? ctx.lineTo(v2.X(p[0]), v2.Y(p[1])) : ctx.moveTo(v2.X(p[0]), v2.Y(p[1])));
+  ctx.stroke(); ctx.setLineDash([]);
+  const last = pts[pts.length - 1], prev = pts[pts.length - 2];
+  label(ctx, `Δx ${fmt(last[0] - prev[0], 2)}  Δy ${fmt(last[1] - prev[1], 2)}  L ${fmt(Math.hypot(last[0] - prev[0], last[1] - prev[1]), 2)} m`, v2.X(last[0]) + 14, v2.Y(last[1]) + 16);
+}
+
+// ---- Mesh preview --------------------------------------------------------------------------------------------------
+function meshPreview() {
+  if (is3D()) { ui.mesh = null; return; }
+  const b = modelBounds(), w = b[2] - b[0], h = b[3] - b[1], diag = Math.hypot(w, h);
+  const base = (model.mesh.factor || MESH_F[model.mesh.coarseness] || 0.06) * diag;
+  const xs = [], ys = [], seen = new Set();
+  const add = (x, y) => { const k = Math.round(x * 200) + "," + Math.round(y * 200); if (seen.has(k)) return; seen.add(k); xs.push(x); ys.push(y); };
+  const along = (a, bb, step) => { const L = Math.hypot(bb[0] - a[0], bb[1] - a[1]), n = Math.max(1, Math.ceil(L / step)); for (let i = 0; i <= n; i++) add(a[0] + (bb[0] - a[0]) * i / n, a[1] + (bb[1] - a[1]) * i / n); };
+  const refine = {}; for (const r of model.mesh.refine || []) refine[r.object] = r.factor;
+  const fine = []; // [points, step]
+  const edge = base * 0.55;
+  const corners = [[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]]];
+  for (let i = 0; i < 4; i++) along(corners[i], corners[(i + 1) % 4], edge);
+  for (const L of layerPolygons()) for (let i = 0; i < L.poly.length / 2 - 1; i++) along(L.poly[i], L.poly[i + 1], edge);
+  for (const s of model.structures) {
+    const step = edge * (refine[s.id] || (s.type === "plate" ? 0.6 : s.type === "polygon" ? 1 : 0.8));
+    const P = s.type === "polygon" ? [...s.points, s.points[0]] : s.points;
+    for (let i = 0; i < P.length - 1; i++) along(P[i], P[i + 1], step);
+    if (["plate", "anchor", "geogrid", "embedded"].includes(s.type)) fine.push([P, step * 1.6]);
+  }
+  // Interior: points no closer than the local element size (finer near structures), so the elements grade smoothly.
+  const nearStep = (x, y) => { let st = base; for (const [P, f] of fine) for (let i = 0; i < P.length - 1; i++) { const d = PP.segDist(x, y, P[i][0], P[i][1], P[i + 1][0], P[i + 1][1]); st = Math.min(st, f + d * 0.35); } return st; };
+  const cell = edge * 0.3, hash = new Map(), key = (x, y) => Math.floor(x / cell) + "," + Math.floor(y / cell);
+  const put = (x, y) => { const k = key(x, y); if (!hash.has(k)) hash.set(k, []); hash.get(k).push([x, y]); };
+  for (let i = 0; i < xs.length; i++) put(xs[i], ys[i]);
+  const free = (x, y, r) => { const n = Math.ceil(r / cell); const cx = Math.floor(x / cell), cy = Math.floor(y / cell);
+    for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) for (const p of hash.get((cx + i) + "," + (cy + j)) || []) if (Math.hypot(p[0] - x, p[1] - y) < r) return false; return true; };
+  const minStep = Math.min(base, ...fine.map((f) => f[1])), lat = minStep * 0.5;
+  let row = 0;
+  for (let y = b[1] + lat; y < b[3]; y += lat * 0.866, row++) {
+    for (let x = b[0] + lat * (row % 2 ? 1 : 0.5); x < b[2]; x += lat) {
+      const st = nearStep(x, y);
+      if (x - b[0] < st * 0.5 || b[2] - x < st * 0.5 || y - b[1] < st * 0.5 || b[3] - y < st * 0.5) continue;
+      if (free(x, y, st * 0.6)) { xs.push(x); ys.push(y); put(x, y); }
+    }
+  }
+  const m = PP.displayMesh(xs, ys, (x, y) => x > b[0] && x < b[2] && y > b[1] && y < boundaryAt(0, x) + 1e-6);
+  ui.mesh = { x: xs, y: ys, tri: m.tri, nodes: xs.length };
+}
+
+// ---- Picking and drawing tools ------------------------------------------------------------------------------------
+function worldAt(e) {
+  const r = cv.getBoundingClientRect();
+  let [x, y] = v2.toWorld(e.clientX - r.left, e.clientY - r.top);
+  ui.snapHit = false;
+  // Snap to object points within 9 px, then to the grid.
+  let best = 9 / v2.s, hit = null;
+  const pts = [];
+  for (const s of model.structures) for (const p of s.points) pts.push(p);
+  for (const w of model.waterlevels) for (const p of w.points) pts.push(p);
+  for (const p of ui.draft) pts.push(p);
+  const c = model.contour; if (!is3D()) { const bb = modelBounds(); pts.push([bb[0], bb[1]], [bb[2], bb[1]], [bb[0], bb[3]], [bb[2], bb[3]]); }
+  for (const p of pts) { const d = Math.hypot(p[0] - x, p[1] - y); if (d < best) { best = d; hit = p; } }
+  if (hit) { x = hit[0]; y = hit[1]; ui.snapHit = true; }
+  else if (ui.snap) { const st = snapStep(); x = Math.round(x / st) * st; y = Math.round(y / st) * st; }
+  return [+x.toFixed(4), +y.toFixed(4)];
+}
+function snapStep() { const s = PP.niceStep(v2.w / v2.s, v2.w / 70); return s >= 1 ? 0.5 : s >= 0.5 ? 0.25 : s / 2; }
+
+function hitTest(x, y) {
+  const tol = 7 / v2.s;
+  if (is3D()) {
+    for (const s of [...model.structures].reverse()) {
+      if (s.type === "embedded") { if (Math.hypot(s.points[0][0] - x, s.points[0][1] - y) < tol * 1.3) return s.id; continue; }
+      if (s.type === "polygon" || s.type === "surfaceload") { if (PP.inside(s.points, x, y)) return s.id; continue; }
+      for (let i = 0; i < s.points.length - 1; i++) if (PP.segDist(x, y, s.points[i][0], s.points[i][1], s.points[i + 1][0], s.points[i + 1][1]) < tol) return s.id;
+    }
+    for (const h of model.boreholes) if (Math.hypot(h.x - x, (h.y || 0) - y) < tol * 1.3) return h.id;
+    return null;
+  }
+  if (ui.mode !== "soil") {
+    for (const s of [...model.structures].reverse()) {
+      if (s.type === "polygon") continue;
+      if (s.points.length === 1) { if (Math.hypot(s.points[0][0] - x, s.points[0][1] - y) < tol * 1.5) return s.id; continue; }
+      for (let i = 0; i < s.points.length - 1; i++) if (PP.segDist(x, y, s.points[i][0], s.points[i][1], s.points[i + 1][0], s.points[i + 1][1]) < tol) return s.id;
+      if (s.type === "lineload") { const dy = 22 / v2.s * ((s.qy ?? -1) < 0 ? 1 : -1); if (PP.segDist(x, y, s.points[0][0], s.points[0][1] + dy, s.points[1][0], s.points[1][1] + dy) < tol) return s.id; }
+    }
+    if (ui.mode === "flow" || ui.mode === "stages") for (const w of model.waterlevels) for (let i = 0; i < w.points.length - 1; i++) if (PP.segDist(x, y, w.points[i][0], w.points[i][1], w.points[i + 1][0], w.points[i + 1][1]) < tol) return w.id;
+    for (const s of [...model.structures].reverse()) if (s.type === "polygon" && PP.inside(s.points, x, y)) return s.id;
+  }
+  for (const h of model.boreholes) { const lv = levelsOf(h); if (Math.abs(h.x - x) < tol && y <= lv[0] + tol * 2 && y >= lv[lv.length - 1]) return h.id; }
+  for (const L of layerPolygons()) if (PP.inside(L.poly, x, y)) return L.id;
+  return null;
+}
+
+const TOOLS = {
+  soil: [["select", "Select", "select"], ["borehole", "Borehole", "borehole"]],
+  structures: [["select", "Select", "select"], ["polygon", "Soil polygon", "polygon"], ["rect", "Rectangle", "rect"], ["plate", "Plate", "plate"], ["anchor", "Anchor", "anchor"],
+    ["fixedanchor", "Fixed anchor", "fixed"], ["geogrid", "Geogrid", "geogrid"], ["embedded", "Embedded", "embedded"], ["interface", "Interface", "interface"],
+    ["lineload", "Line load", "lineload"], ["pointload", "Point load", "pointload"]],
+  structures3D: [["select", "Select", "select"], ["rect", "Soil volume", "rect"], ["plate", "Wall plate", "plate"], ["embedded", "Embedded pile", "embedded"], ["anchor", "Anchor", "anchor"], ["surfaceload", "Surface load", "surfaceload"]],
+  mesh: [["select", "Select", "select"]],
+  flow: [["select", "Select", "select"], ["water", "Water level", "water"]],
+  stages: [["select", "Toggle", "select"]],
+};
+const TOOL_HINTS = {
+  borehole: "Click where the borehole goes. Then set its layers.", polygon: "Click the corners. Click the first one or press Enter to close.",
+  rect: "Click two opposite corners.", plate: "Click the start and the end of the plate.", anchor: "Click the two ends of the anchor.",
+  fixedanchor: "Click the point the anchor holds.", geogrid: "Click the two ends.", embedded: is3D ? "Click the two ends." : "Click the two ends.",
+  interface: "Click the two ends.", lineload: "Click the two ends of the load.", pointload: "Click where the load acts.",
+  water: "Click the points of the water level from left to right. Press Enter to finish.", surfaceload: "Click two opposite corners of the loaded area.",
+};
+function setTool(t) { ui.tool = t; ui.draft = []; $("#hint").textContent = TOOL_HINTS[t] || (ui.mode === "stages" ? "Click an object to switch it on or off in " + (phaseOf(ui.phase) || {}).name + "." : ""); renderRibbon(); draw(); }
+
+cv.addEventListener("mousemove", (e) => {
+  if (using3D() || !model) return;
+  ui.cursor = worldAt(e);
+  status();
+  if (ui.tool !== "select") draw();
+});
+cv.addEventListener("mouseleave", () => { ui.cursor = null; draw(); });
+cv.addEventListener("click", (e) => {
+  if (!model) return;
+  if (using3D()) { return; }
+  if (v2.drag && v2.drag.moved) return;
+  const p = worldAt(e);
+  const t = ui.tool;
+  if (t === "select") {
+    const id = hitTest(p[0], p[1]);
+    if (ui.mode === "stages" && id && (struct(id) || String(id).startsWith("layer"))) { toggleActive(id); ui.sel = id; renderAll(); return; }
+    ui.sel = id; renderAll(); return;
+  }
+  const P3 = (q) => is3D() ? [q[0], q[1], +ui.level] : q;
+  if (t === "borehole") { addBorehole(p[0], is3D() ? p[1] : 0); return; }
+  if (t === "pointload" || t === "fixedanchor") { addStruct(t, [P3(p)]); return; }
+  ui.draft.push(p);
+  const two = ["plate", "anchor", "geogrid", "embedded", "interface", "lineload"].includes(t);
+  if (two && ui.draft.length === 2) { const pts = ui.draft.map(P3); ui.draft = []; if (is3D() && t === "embedded") { addStruct(t, [pts[0], [pts[0][0], pts[0][1], pts[0][2] - 15]]); } else addStruct(t, pts); return; }
+  if ((t === "rect" || t === "surfaceload") && ui.draft.length === 2) {
+    const [a, b] = ui.draft; ui.draft = [];
+    if (Math.abs(a[0] - b[0]) < 1e-6 || Math.abs(a[1] - b[1]) < 1e-6) return;
+    const x0 = Math.min(a[0], b[0]), x1 = Math.max(a[0], b[0]), y0 = Math.min(a[1], b[1]), y1 = Math.max(a[1], b[1]);
+    addStruct(t === "rect" ? "polygon" : "surfaceload", [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(P3)); return;
+  }
+  if (t === "polygon" && ui.draft.length > 3) { const f = ui.draft[0], l = ui.draft[ui.draft.length - 1]; if (Math.hypot(f[0] - l[0], f[1] - l[1]) < 1e-6) { ui.draft.pop(); finishDraft(); return; } }
+  draw();
+});
+cv.addEventListener("dblclick", () => { if (["polygon", "water"].includes(ui.tool)) finishDraft(); });
+function finishDraft() {
+  const t = ui.tool, pts = ui.draft; ui.draft = [];
+  const dedup = pts.filter((p, i) => !i || Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]) > 1e-6);
+  if (t === "polygon" && dedup.length >= 3) addStruct("polygon", dedup);
+  else if (t === "water" && dedup.length >= 2) change(() => { const w = { id: uid("wl"), name: nameNext("Water level", model.waterlevels), points: dedup }; model.waterlevels.push(w); ui.sel = w.id; });
+  else draw();
+}
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest("input,select,textarea")) return;
+  const k = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && k === "z") { e.preventDefault(); undo(); }
+  else if ((e.ctrlKey || e.metaKey) && k === "y") { e.preventDefault(); redo(); }
+  else if ((e.ctrlKey || e.metaKey) && k === "s") { e.preventDefault(); e.shiftKey ? saveAs() : save(); }
+  else if ((e.ctrlKey || e.metaKey) && k === "o") { e.preventDefault(); openDialog(); }
+  else if (k === "escape") { if (ui.draft.length) { ui.draft = []; draw(); } else setTool("select"); }
+  else if (k === "enter") finishDraft();
+  else if (k === "delete") deleteSel();
+  else if (k === "f") fit();
+});
+
+function addBorehole(x, y) {
+  change(() => {
+    const like = holesSorted()[0];
+    const b = { id: uid("bh"), name: "BH-" + (model.boreholes.length + 1), x, y: y || 0, top: like ? like.top : 0, head: like ? like.head : null,
+      layers: like ? like.layers.map((l) => ({ ...l })) : [] };
+    if (!b.layers.length) {
+      if (!model.materials.some((m) => m.kind === "soil")) model.materials.push(defaultMat("soil"));
+      const m = model.materials.find((q) => q.kind === "soil");
+      b.layers.push({ bottom: (b.top ?? 0) - 10, material: m.id });
+    }
+    model.boreholes.push(b); ui.sel = b.id;
+  });
+  layersDialog(ui.sel);
+}
+function addStruct(type, points) {
+  change(() => {
+    const kind = MAT_FOR[type];
+    let m = null;
+    if (kind && type !== "polygon") { m = model.materials.find((q) => q.kind === kind); if (!m) { m = defaultMat(kind); model.materials.push(m); } }
+    const s = { id: uid(type === "polygon" ? "poly" : type), type, name: nameNext(KIND_NAMES[type], model.structures.filter((q) => q.type === type)), points, material: m ? m.id : null };
+    if (type === "plate") s.interfaces = true;
+    if (type === "lineload") { s.qx = 0; s.qy = -10; }
+    if (type === "pointload") { s.fx = 0; s.fy = -100; if (is3D()) { s.fz = -100; delete s.fy; } }
+    if (type === "surfaceload") s.qz = -20;
+    if (type === "fixedanchor") { s.angle = 0; s.length = 1; }
+    if (is3D() && type === "plate") s.depth = 10;
+    if (is3D() && type === "polygon") s.depth = 4;
+    model.structures.push(s); ui.sel = s.id;
+    // A new object starts off in the phases after the initial one, as in Plaxis; polygons start on.
+    if (type !== "polygon") model.phases[0].active[s.id] = false;
+  });
+}
+function defaultMat(kind) {
+  const n = model.materials.filter((m) => m.kind === kind).length + 1;
+  const base = { soil: { name: "Soil " + n, model: "Mohr-Coulomb", drainage: "Drained", gammaUnsat: 17, gammaSat: 20, E: 20000, nu: 0.3, c: 2, phi: 30, psi: 0, kx: 1, ky: 1, Rinter: 0.67 },
+    plate: { name: "Plate " + n, EA: 1.2e7, EI: 1.6e5, w: 8.3, nu: 0.15 }, anchor: { name: "Anchor " + n, EA: 2e5, Lspacing: 2.5 }, geogrid: { name: "Geogrid " + n, EA: 1e5 },
+    embedded: { name: "Embedded beam " + n, E: 3e7, gamma: 24, diameter: 0.6, Lspacing: 2.5, Tskin_start: 100, Tskin_end: 100, Fmax: 1000 } }[kind];
+  return { id: uid("m_"), kind, colour: kind === "soil" ? SOIL_COLOURS[model.materials.filter((m) => m.kind === "soil").length % SOIL_COLOURS.length] : "#5B6B7F", ...base };
+}
+function toggleActive(id) {
+  change(() => {
+    const ph = phaseOf(ui.phase); const now = activeIn(id, ui.phase);
+    ph.active[id] = !now;
+  });
+}
+function deleteSel() {
+  const id = ui.sel; if (!id || id === "project") return;
+  change(() => {
+    model.structures = model.structures.filter((s) => s.id !== id);
+    model.boreholes = model.boreholes.filter((s) => s.id !== id);
+    model.waterlevels = model.waterlevels.filter((s) => s.id !== id);
+    if (mat(id)) { model.materials = model.materials.filter((m) => m.id !== id); for (const s of model.structures) if (s.material === id) s.material = null; }
+    if (phaseOf(id) && model.phases[0].id !== id) { const p = phaseOf(id); for (const q of model.phases) if (q.parent === id) q.parent = p.parent; model.phases = model.phases.filter((q) => q.id !== id); ui.phase = p.parent || model.phases[0].id; }
+    for (const p of model.phases) { delete p.active[id]; if (p.loads) delete p.loads[id]; if (p.water === id) delete p.water; }
+    model.mesh.refine = (model.mesh.refine || []).filter((r) => r.object !== id);
+    ui.sel = null;
+  });
+}
+
+// ---- Panels --------------------------------------------------------------------------------------------------------
+function renderAll() { title(); renderRibbon(); renderLeft(); renderRight(); status(); renderMessages(); draw(); }
+function title() {
+  $("#docname").textContent = model ? "— " + (model.title || "Untitled") + (filePath ? "  ·  " + filePath.split(/[\\/]/).pop() : "") + (dirty ? "  (not saved)" : "") : "";
+  document.title = (model ? (model.title || "Untitled") + (dirty ? " •" : "") + " — " : "") + "Plaxis ProMax Modeller";
+  const b = $("#licbadge");
+  const running = ui.run && ui.run.state === "running";
+  b.className = "badge"; b.lastChild.textContent = running ? "Plaxis licence in use: calculating" : "No Plaxis licence in use";
+}
+
+function renderRibbon() {
+  const r = $("#ribbon"); r.innerHTML = "";
+  if (!model) return;
+  const tb = (label, ic, run, opts = {}) => el("button.tb" + (opts.on ? ".on" : "") + (opts.wide ? ".wide" : "") + (opts.primary ? ".primary" : ""), { title: opts.title || label, onclick: run, disabled: opts.disabled }, icon(ic), label);
+  const group = (label, ...kids) => el("div.group", el("div.row", ...kids), el("div.label", label));
+  const modes = [["soil", "Soil", "soil"], ["structures", "Structures", "structures"], ["mesh", "Mesh", "mesh"], ["flow", "Flow conditions", "flow"], ["stages", "Staged construction", "stages"]];
+  const mr = el("div.modes");
+  modes.forEach(([k, l, ic], i) => { if (i) mr.append(el("span.mode-arrow", "›")); mr.append(el("button.mode" + (ui.mode === k ? ".on" : ""), { onclick: () => setMode(k) }, icon(ic), l)); });
+  r.append(el("div.group", mr));
+  r.append(group("File", tb("New", "new", () => newDialog()), tb("Open", "open", () => openDialog()), tb("Save", "save", () => save())));
+  r.append(group("Edit", el("div.tbs", tb("Undo", "undo", undo, { disabled: !undoStack.length }), tb("Redo", "redo", redo, { disabled: !redoStack.length })), tb("Delete", "trash", deleteSel, { disabled: !ui.sel || ui.sel === "project" })));
+  const tools = TOOLS[ui.mode === "structures" && is3D() ? "structures3D" : ui.mode];
+  r.append(group(ui.mode === "stages" ? "Objects" : "Draw", ...tools.map(([k, l, ic]) => tb(l, ic, () => setTool(k), { on: ui.tool === k, disabled: using3D() && k !== "select", title: using3D() && k !== "select" ? "Switch to the plan view to draw" : l }))));
+  if (ui.mode === "soil") r.append(group("Soil", tb("Modify soil layers", "layers", () => layersDialog(), { wide: true }), tb("Materials", "material", () => materialsDialog())));
+  if (ui.mode === "structures") r.append(group("Define", tb("Materials", "material", () => materialsDialog())));
+  if (ui.mode === "mesh") r.append(group("Mesh", el("div.tbs", ...COARSE.map((c) => tb(c, model.mesh.coarseness === c ? "check" : "mesh", () => change(() => { model.mesh.coarseness = c; delete model.mesh.factor; meshPreview(); }), { on: model.mesh.coarseness === c })).slice(0, 3)),
+    el("div.tbs", ...COARSE.slice(3).map((c) => tb(c, model.mesh.coarseness === c ? "check" : "mesh", () => change(() => { model.mesh.coarseness = c; delete model.mesh.factor; meshPreview(); }), { on: model.mesh.coarseness === c }))),
+    tb("Preview mesh", "mesh", () => { meshPreview(); renderAll(); }, { wide: true, title: "A preview only: Plaxis makes the real mesh when it calculates" })));
+  if (ui.mode === "stages") r.append(group("Phases", tb("Add phase", "plus", addPhase), tb("Copy phase", "copy", () => addPhase(true))));
+  if (is3D()) r.append(group("View", tb("3D", "cube", () => { ui.view = "3d"; v3.planMode = false; setTool("select"); fit(); }, { on: ui.view === "3d" }), tb("Plan", "plan", () => { ui.view = "plan"; fit(); renderAll(); }, { on: ui.view === "plan" }),
+    el("div.tbs", el("div.lvl", "Level z", el("input", { type: "number", step: "0.5", value: ui.level, onchange: (e) => { ui.level = +e.target.value; } })))));
+  r.append(group("Calculate", tb("Check", "check", checkModel), tb("Calculate in Plaxis", "calculate", calculateDialog, { primary: true, wide: true, title: "Builds the model in Plaxis, meshes and calculates it, reads the results and closes Plaxis (uses a Plaxis licence while it runs)" }),
+    tb("Results", "viewer", openViewer, { disabled: !(ui.run && ui.run.results) && !model._results })));
+}
+function setMode(m) { ui.mode = m; ui.draft = []; ui.tool = "select"; if (m === "mesh" && !ui.mesh) meshPreview(); setTool("select"); renderAll(); }
+
+function treeNode(label, opts = {}) {
+  const n = el("div.node" + (opts.sel ? ".sel" : ""), { style: { paddingLeft: (8 + (opts.depth || 0) * 14) + "px" }, onclick: opts.onclick, ondblclick: opts.ondblclick, title: opts.title || "" },
+    el("span.tw", opts.kids != null ? (opts.open ? "▾" : "▸") : ""), opts.swatch ? el("span.sw", { style: { background: opts.swatch } }) : opts.icon ? icon(opts.icon, "ic") : null, el("span.nm", label),
+    opts.count != null ? el("span.ct", opts.count) : null, opts.active != null ? el("span.act" + (opts.active ? ".on" : ""), { onclick: (e) => { e.stopPropagation(); opts.onactive && opts.onactive(); } }, opts.active ? "✓" : "") : null);
+  return n;
+}
+const openGroups = { boreholes: true, materials: true, structures: true, water: true };
+function renderLeft() {
+  const L = $("#left"); L.innerHTML = "";
+  if (!model) return;
+  const stages = ui.mode === "stages";
+  const explorer = el("div.tree");
+  const sel = (id) => () => { ui.sel = id; renderAll(); };
+  const grp = (key, label, icn, items) => {
+    explorer.append(treeNode(label, { kids: true, open: openGroups[key], icon: icn, count: items.length, onclick: () => { openGroups[key] = !openGroups[key]; renderLeft(); } }));
+    if (openGroups[key]) for (const it of items) explorer.append(it);
+  };
+  explorer.append(treeNode(model.title || "Project", { icon: "info", sel: ui.sel === "project" || !ui.sel, onclick: sel("project") }));
+  grp("boreholes", "Boreholes", "borehole", model.boreholes.map((b) => treeNode(`${b.name}  (x ${fmt(b.x, 2)}${is3D() ? ", y " + fmt(b.y, 2) : ""})`, { depth: 1, icon: "borehole", sel: ui.sel === b.id, onclick: sel(b.id), ondblclick: () => layersDialog(b.id) })));
+  if (stages) {
+    explorer.append(treeNode("Soil layers", { kids: true, open: true, icon: "layers" }));
+    layerPolygons().forEach((Lp) => explorer.append(treeNode((mat(Lp.material) || {}).name || "Layer " + (Lp.index + 1), { depth: 1, swatch: (mat(Lp.material) || {}).colour, sel: ui.sel === Lp.id, onclick: sel(Lp.id), active: activeIn(Lp.id, ui.phase), onactive: () => toggleActive(Lp.id) })));
+  }
+  grp("materials", "Materials", "material", model.materials.map((m) => treeNode(m.name, { depth: 1, swatch: m.colour, sel: ui.sel === m.id, onclick: sel(m.id), ondblclick: () => materialsDialog(m.id), title: MAT_KINDS[m.kind] })));
+  grp("structures", "Structures", "structures", model.structures.map((s) => treeNode(s.name, { depth: 1, icon: { polygon: "polygon", plate: "plate", anchor: "anchor", fixedanchor: "fixed", geogrid: "geogrid", embedded: "embedded", interface: "interface", lineload: "lineload", pointload: "pointload", surfaceload: "surfaceload" }[s.type],
+    sel: ui.sel === s.id, onclick: sel(s.id), active: stages ? activeIn(s.id, ui.phase) : null, onactive: () => toggleActive(s.id), title: KIND_NAMES[s.type] })));
+  if (!is3D()) grp("water", "Water levels", "water", model.waterlevels.map((w) => treeNode(w.name, { depth: 1, icon: "water", sel: ui.sel === w.id, onclick: sel(w.id) })));
+
+  if (stages) {
+    const phases = el("div.tree");
+    const depthOf = (p) => { let d = 0, q = p; const seen = new Set(); while (q && q.parent && !seen.has(q.id)) { seen.add(q.id); d++; q = phaseOf(q.parent); } return d; };
+    for (const p of model.phases) phases.append(treeNode(p.name, { depth: Math.min(depthOf(p), 6), icon: "phase", sel: ui.phase === p.id, onclick: () => { ui.phase = p.id; ui.sel = p.id; setTool("select"); renderAll(); }, title: p.calc }));
+    L.append(el("div.split",
+      el("div", el("div.panel-head", "Phases", el("span.sub", model.phases.length), el("span.spacer"), el("button.btn.sm", { onclick: addPhase, title: "Add a phase after the selected one" }, "+ Add")), el("div.panel-scroll", phases)),
+      el("div", el("div.panel-head", "Model explorer", el("span.sub", "in " + (phaseOf(ui.phase) || {}).name)), el("div.panel-scroll", explorer))));
+  } else {
+    L.append(el("div.panel-head", "Model explorer"), el("div.panel-scroll", explorer));
+  }
+}
+
+function prop(label, unit, input) { return el("div.row", el("label", label, unit ? el("span.u", "  [" + unit + "]") : null), input); }
+function num(value, set, opts = {}) {
+  return el("input", { type: "number", step: opts.step || "any", value: value ?? "", placeholder: opts.placeholder || "",
+    onchange: (e) => { const v = e.target.value === "" ? null : +e.target.value; if (v != null && !isFinite(v)) return; change(() => set(v)); } });
+}
+function text(value, set) { return el("input", { value: value ?? "", onchange: (e) => change(() => set(e.target.value)) }); }
+function select(value, options, set) {
+  const s = el("select", { onchange: (e) => change(() => set(e.target.value === "" ? null : e.target.value)) });
+  for (const [v, l] of options) { const o = el("option", { value: v ?? "" }, l); if ((v ?? "") === (value ?? "")) o.selected = true; s.append(o); }
+  return s;
+}
+function check(value, set) { return el("input", { type: "checkbox", checked: !!value, onchange: (e) => change(() => set(e.target.checked)) }); }
+
+function renderRight() {
+  const R = $("#right"); R.innerHTML = "";
+  if (!model) return;
+  const id = ui.sel, props = el("div.props");
+  let head = "Project";
+  if (ui.mode === "stages" && (!id || id === ui.phase || id === "project")) { head = "Phase"; phaseProps(props); }
+  else if (!id || id === "project") projectProps(props);
+  else if (struct(id)) { const s = struct(id); head = KIND_NAMES[s.type]; structProps(props, s); }
+  else if (model.boreholes.find((b) => b.id === id)) { head = "Borehole"; boreholeProps(props, model.boreholes.find((b) => b.id === id)); }
+  else if (mat(id)) { const m = mat(id); head = "Material"; props.append(el("div.sec", m.name), prop("Kind", "", el("span", MAT_KINDS[m.kind])), el("div.actions", el("button.btn.primary", { onclick: () => materialsDialog(m.id) }, "Edit material…"))); }
+  else if (model.waterlevels.find((w) => w.id === id)) { head = "Water level"; waterProps(props, model.waterlevels.find((w) => w.id === id)); }
+  else if (String(id).startsWith("layer")) { head = "Soil layer"; const Lp = layerPolygons().find((q) => q.id === id); props.append(el("div.sec", "Layer " + (Lp.index + 1)), prop("Material", "", el("span", (mat(Lp.material) || {}).name || "none")),
+    ui.mode === "stages" ? prop("Active in this phase", "", el("input", { type: "checkbox", checked: activeIn(id, ui.phase), onchange: () => toggleActive(id) })) : null, el("div.actions", el("button.btn", { onclick: () => layersDialog() }, "Modify soil layers…"))); }
+  else if (phaseOf(id)) { head = "Phase"; phaseProps(props); }
+  R.append(el("div.panel-head", head, el("span.spacer"), ui.sel && ui.sel !== "project" && !String(ui.sel).startsWith("layer") ? el("button.btn.sm.danger", { onclick: deleteSel, title: "Delete" }, icon("trash")) : null), el("div.panel-scroll", props));
+}
+function projectProps(p) {
+  const c = model.contour;
+  p.append(el("div.sec", "Project"), prop("Title", "", text(model.title, (v) => model.title = v)), prop("Program", "", el("span", "PLAXIS " + model.product)));
+  if (!is3D()) p.append(prop("Model", "", select(model.model, [["plane strain", "Plane strain"], ["axisymmetric", "Axisymmetry"]], (v) => model.model = v)),
+    prop("Elements", "", select(String(model.elements || 15), [["15", "15-noded"], ["6", "6-noded"]], (v) => model.elements = +v)));
+  p.append(el("div.sec", "Soil contour"), prop("x min", "m", num(c.xmin, (v) => c.xmin = v)), prop("x max", "m", num(c.xmax, (v) => c.xmax = v)));
+  if (is3D()) p.append(prop("y min", "m", num(c.ymin, (v) => c.ymin = v)), prop("y max", "m", num(c.ymax, (v) => c.ymax = v)));
+  p.append(el("div.sec", "Units"), prop("Length", "", el("span", model.units.length)), prop("Force", "", el("span", model.units.force)), prop("Time", "", el("span", model.units.time)));
+  p.append(el("div.sec", "In the model"),
+    prop("Boreholes", "", el("span", model.boreholes.length)), prop("Soil layers", "", el("span", layerCount())), prop("Materials", "", el("span", model.materials.length)),
+    prop("Structures", "", el("span", model.structures.length)), prop("Phases", "", el("span", model.phases.length)));
+  p.append(el("div.actions", el("button.btn", { onclick: checkModel }, icon("check"), "Check model"), el("button.btn.primary", { onclick: calculateDialog }, icon("calculate"), "Calculate in Plaxis")));
+}
+function boreholeProps(p, b) {
+  p.append(el("div.sec", "Borehole"), prop("Name", "", text(b.name, (v) => b.name = v)), prop("x", "m", num(b.x, (v) => b.x = v)));
+  if (is3D()) p.append(prop("y", "m", num(b.y, (v) => b.y = v)));
+  p.append(prop("Ground level", "m", num(b.top, (v) => b.top = v)), prop("Head", "m", num(b.head, (v) => b.head = v, { placeholder: "none" })));
+  p.append(el("div.sec", "Layers (top down)"));
+  (b.layers || []).forEach((l, i) => p.append(prop(((mat(l.material) || {}).name || "Layer " + (i + 1)), "bottom m", num(l.bottom, (v) => l.bottom = v))));
+  p.append(el("div.actions", el("button.btn.primary", { onclick: () => layersDialog(b.id) }, icon("layers"), "Modify soil layers…")));
+}
+function structProps(p, s) {
+  p.append(el("div.sec", s.type === "polygon" ? "Soil polygon" : "Object"), prop("Name", "", text(s.name, (v) => s.name = v)));
+  const kind = MAT_FOR[s.type];
+  if (kind) p.append(prop("Material", "", select(s.material, [[null, s.type === "polygon" ? "From the boreholes" : "None"], ...model.materials.filter((m) => m.kind === kind).map((m) => [m.id, m.name])], (v) => s.material = v)));
+  if (s.type === "plate" && !is3D()) p.append(prop("Interfaces both sides", "", check(s.interfaces, (v) => s.interfaces = v)));
+  if (s.type === "interface") p.append(prop("Side", "", select(s.side || "positive", [["positive", "Positive"], ["negative", "Negative"]], (v) => s.side = v)));
+  if (s.type === "lineload") p.append(el("div.sec", "Load"), prop("qx", "kN/m/m", num(s.qx, (v) => s.qx = v)), prop(is3D() ? "qz" : "qy", "kN/m/m", num(is3D() ? s.qz : s.qy, (v) => is3D() ? s.qz = v : s.qy = v)));
+  if (s.type === "pointload") p.append(el("div.sec", "Load"), prop("Fx", "kN/m", num(s.fx, (v) => s.fx = v)), is3D() ? prop("Fz", "kN", num(s.fz, (v) => s.fz = v)) : prop("Fy", "kN/m", num(s.fy, (v) => s.fy = v)));
+  if (s.type === "surfaceload") p.append(el("div.sec", "Load"), prop("σz", "kN/m²", num(s.qz, (v) => s.qz = v)));
+  if (s.type === "fixedanchor") p.append(prop("Angle", "°", num(s.angle, (v) => s.angle = v)), prop("Equivalent length", "m", num(s.length, (v) => s.length = v)));
+  if (is3D() && (s.type === "plate" || s.type === "polygon")) p.append(prop(s.type === "plate" ? "Depth below top" : "Depth", "m", num(s.depth, (v) => s.depth = v)));
+  p.append(el("div.sec", "Points"));
+  s.points.forEach((pt, i) => {
+    const row = el("div.row", el("label", "Point " + (i + 1)), el("div", { style: { display: "grid", gridTemplateColumns: `repeat(${pt.length},1fr)`, gap: "4px" } },
+      ...pt.map((v, k) => el("input", { type: "number", step: "any", value: v, title: "xyz"[k], onchange: (e) => change(() => { s.points[i][k] = +e.target.value; }) }))));
+    p.append(row);
+  });
+  if (!is3D() && ["plate", "anchor", "geogrid", "embedded", "interface", "lineload"].includes(s.type)) p.append(prop("Length", "m", el("span", fmt(Math.hypot(s.points[1][0] - s.points[0][0], s.points[1][1] - s.points[0][1]), 3))));
+  if (s.type === "polygon" && !is3D()) p.append(prop("Area", "m²", el("span", fmt(Math.abs(PP.area(s.points)), 3))));
+  const ref = (model.mesh.refine || []).find((r) => r.object === s.id);
+  p.append(el("div.sec", "Mesh"), prop("Coarseness factor", "", num(ref ? ref.factor : null, (v) => { model.mesh.refine = (model.mesh.refine || []).filter((r) => r.object !== s.id); if (v != null) model.mesh.refine.push({ object: s.id, factor: v }); }, { placeholder: "1 (as the mesh)", step: "0.05" })));
+  if (ui.mode === "stages") phaseObjectProps(p, s);
+}
+function phaseObjectProps(p, s) {
+  const ph = phaseOf(ui.phase);
+  p.append(el("div.sec", "In " + ph.name), prop("Active", "", el("input", { type: "checkbox", checked: activeIn(s.id, ui.phase), onchange: () => toggleActive(s.id) })));
+  if (["lineload", "pointload", "surfaceload"].includes(s.type)) {
+    const now = loadIn(s.id, ui.phase) || {};
+    const keys = s.type === "lineload" ? (is3D() ? ["qx", "qz"] : ["qx", "qy"]) : s.type === "pointload" ? (is3D() ? ["fx", "fz"] : ["fx", "fy"]) : ["qz"];
+    for (const k of keys) p.append(prop(k + " in this phase", "", num(now[k] ?? s[k], (v) => { ph.loads = ph.loads || {}; ph.loads[s.id] = { ...(ph.loads[s.id] || {}), [k]: v }; })));
+  }
+}
+function waterProps(p, w) {
+  p.append(el("div.sec", "Water level"), prop("Name", "", text(w.name, (v) => w.name = v)));
+  w.points.forEach((pt, i) => p.append(el("div.row", el("label", "Point " + (i + 1)), el("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px" } },
+    ...pt.map((v, k) => el("input", { type: "number", step: "any", value: v, onchange: (e) => change(() => { w.points[i][k] = +e.target.value; }) }))))));
+  p.append(el("div.sec", "Used in"), el("div", { style: { padding: "2px 12px", color: "var(--muted)" } }, model.phases.filter((ph) => ph.water === w.id).map((ph) => ph.name).join(", ") || "No phase yet: pick it in a phase's settings."));
+}
+function phaseProps(p) {
+  const ph = phaseOf(ui.phase), first = model.phases[0] === ph;
+  p.append(el("div.sec", "Phase"), prop("Name", "", text(ph.name, (v) => ph.name = v)),
+    prop("Start from", "", first ? el("span", "—") : select(ph.parent, model.phases.filter((q) => q !== ph).map((q) => [q.id, q.name]), (v) => ph.parent = v)),
+    prop("Calculation type", "", select(ph.calc, (first ? ["K0 procedure", "Gravity loading"] : CALCS.slice(2)).map((c) => [c, c]), (v) => ph.calc = v)));
+  if (ph.calc === "Consolidation") p.append(prop("Time interval", "day", num(ph.time, (v) => ph.time = v)));
+  if (!first) p.append(prop("Reset displacements", "", check(ph.reset_displacements, (v) => ph.reset_displacements = v)));
+  p.append(prop("Water", "", select(ph.water, [[null, "Inherited / boreholes"], ...model.waterlevels.map((w) => [w.id, w.name])], (v) => ph.water = v)));
+  p.append(el("div.sec", "Switched on here"));
+  const ons = [...layerPolygons().map((Lp) => [Lp.id, (mat(Lp.material) || {}).name || "Layer"]), ...model.structures.map((s) => [s.id, s.name])];
+  for (const [id, name] of ons) p.append(el("div.row", el("label", name), el("input", { type: "checkbox", checked: activeIn(id, ph.id), onchange: () => toggleActive(id) })));
+}
+
+function status() {
+  const s = $("#status"); s.innerHTML = "";
+  if (!model) return;
+  const c = ui.cursor;
+  s.append(el("span", "PLAXIS " + model.product + (is3D() ? "" : " · " + (model.model === "axisymmetric" ? "Axisymmetry" : "Plane strain"))));
+  if (c && !using3D()) s.append(el("span", is3D() ? "x " : "x ", el("b", fmt(c[0], 2)), is3D() ? "  y " : "  y ", el("b", fmt(c[1], 2)), "  m"));
+  s.append(el("span", "Snap ", el("b", ui.snap ? "on" : "off")));
+  s.append(el("span", "Mode ", el("b", { soil: "Soil", structures: "Structures", mesh: "Mesh", flow: "Flow conditions", stages: "Staged construction" }[ui.mode])));
+  if (ui.mode === "stages") s.append(el("span", "Phase ", el("b", (phaseOf(ui.phase) || {}).name)));
+  if (ui.mode === "mesh" && ui.mesh) s.append(el("span", "Preview ", el("b", (ui.mesh.tri.length / 3) + " triangles"), " (Plaxis makes the real mesh)"));
+  s.append(el("span.spacer"));
+  s.append(el("span", dirty ? "Not saved" : filePath ? "Saved" : "New model"));
+  s.append(el("span", API ? "Plaxis ProMax connected" : "Page only"));
+}
+function say(level, text) { ui.messages.unshift({ level, text, at: new Date() }); ui.messages = ui.messages.slice(0, 80); renderMessages(); }
+function renderMessages() {
+  const m = $("#messages");
+  if (!ui.messages.length || ui.hideMessages) { m.hidden = true; return; }
+  m.hidden = false; m.innerHTML = "";
+  m.append(el("div.panel-head", "Messages", el("span.sub", ui.messages.length), el("span.spacer"), el("button.btn.sm", { onclick: () => { ui.messages = []; renderMessages(); draw(); } }, "Clear")));
+  for (const x of ui.messages) m.append(el("div.msg." + x.level, el("span.k", { error: "Error", warning: "Warning", info: "Info", ok: "OK" }[x.level] || x.level), el("span", x.text)));
+  draw();
+}
+const toast = PP.toast;
+
+// ---- Dialogs -------------------------------------------------------------------------------------------------------
+function layersDialog(focus) {
+  const work = JSON.parse(JSON.stringify(model.boreholes)), mats = model.materials.filter((m) => m.kind === "soil");
+  if (!mats.length) { change(() => model.materials.push(defaultMat("soil"))); return layersDialog(focus); }
+  const body = el("div");
+  const n = () => Math.max(0, ...work.map((b) => b.layers.length));
+  const pad = () => { const k = n(); for (const b of work) while (b.layers.length < k) { const last = b.layers.length ? b.layers[b.layers.length - 1].bottom : b.top; b.layers.push({ bottom: last - 0, material: (work[0].layers[b.layers.length] || {}).material || mats[0].id }); } };
+  const redraw = () => {
+    pad(); body.innerHTML = "";
+    const cols = el("div.soilcol");
+    const allTop = Math.max(...work.map((b) => b.top ?? 0)), allBot = Math.min(...work.map((b) => b.layers.length ? b.layers[b.layers.length - 1].bottom : (b.top ?? 0) - 1));
+    const H = 320, k = H / Math.max(allTop - allBot, 1e-6);
+    for (const b of work) {
+      const col = el("div.col", { style: { height: H + "px", paddingTop: ((allTop - (b.top ?? 0)) * k) + "px", background: "var(--surface)" } });
+      let lvl = b.top ?? 0;
+      for (const l of b.layers) { const m = model.materials.find((q) => q.id === (work[0].layers[b.layers.indexOf(l)] || l).material); col.append(el("div", { style: { height: Math.max(0, (lvl - l.bottom) * k) + "px", background: m ? m.colour : "#ccc" }, title: (m ? m.name : "") + `  ${fmt(lvl, 2)} … ${fmt(l.bottom, 2)}` })); lvl = l.bottom; }
+      cols.append(el("div", el("div.cap", b.name), col));
+    }
+    const t = el("table.grid");
+    const hr = el("tr", el("th", "Layer"), el("th", "Material"));
+    for (const b of work) hr.append(el("th.num", b.name + (is3D() ? "" : `  (x ${fmt(b.x, 2)})`)));
+    t.append(el("thead", hr));
+    const tb = el("tbody");
+    const r0 = el("tr", el("td", "Ground level"), el("td", ""));
+    for (const b of work) r0.append(el("td.num", el("input", { type: "number", step: "any", value: b.top ?? 0, onchange: (e) => { b.top = +e.target.value; redraw(); } })));
+    tb.append(r0);
+    for (let i = 0; i < n(); i++) {
+      const s = el("select", { onchange: (e) => { for (const b of work) b.layers[i].material = e.target.value; redraw(); } });
+      for (const m of mats) { const o = el("option", { value: m.id }, m.name); if (m.id === work[0].layers[i].material) o.selected = true; s.append(o); }
+      const r = el("tr", el("td", el("span", { style: { display: "inline-flex", alignItems: "center", gap: "6px" } }, el("span", { style: { width: "10px", height: "10px", borderRadius: "2px", background: (mat(work[0].layers[i].material) || {}).colour } }), "Layer " + (i + 1),
+        el("button.btn.sm", { title: "Delete this layer", style: { height: "20px", padding: "0 6px", marginLeft: "6px" }, onclick: () => { for (const b of work) b.layers.splice(i, 1); redraw(); } }, "×"))), el("td", s));
+      for (const b of work) r.append(el("td.num", el("input", { type: "number", step: "any", value: b.layers[i].bottom, title: "Bottom level", onchange: (e) => { b.layers[i].bottom = +e.target.value; redraw(); } })));
+      tb.append(r);
+    }
+    const rh = el("tr", el("td", "Head (water)"), el("td", ""));
+    for (const b of work) rh.append(el("td.num", el("input", { type: "number", step: "any", value: b.head ?? "", placeholder: "none", onchange: (e) => { b.head = e.target.value === "" ? null : +e.target.value; } })));
+    tb.append(rh);
+    t.append(tb);
+    body.append(el("div.layers-wrap", cols, el("div", { style: { overflow: "auto", maxHeight: "60vh" } }, t,
+      el("div", { style: { display: "flex", gap: "8px", marginTop: "10px" } },
+        el("button.btn", { onclick: () => { for (const b of work) { const last = b.layers.length ? b.layers[b.layers.length - 1].bottom : b.top ?? 0; b.layers.push({ bottom: last - 5, material: mats[Math.min(n(), mats.length - 1)].id }); } redraw(); } }, "+ Add layer"),
+        el("button.btn", { onclick: () => materialsDialog(null, () => redraw()) }, "Materials…"),
+        el("span", { style: { color: "var(--muted)", alignSelf: "center", fontSize: "12px" } }, "Levels are bottoms of each layer, in m. Every borehole has the same layers; a layer can be 0 thick.")))));
+  };
+  redraw();
+  PP.dialog({ title: "Modify soil layers", sub: work.length + " borehole" + (work.length === 1 ? "" : "s"), body, buttons: [{ label: "Cancel" }, { label: "OK", primary: true, run: () => {
+    for (const b of work) for (let i = 0; i < b.layers.length; i++) { const top = i ? b.layers[i - 1].bottom : b.top ?? 0; if (b.layers[i].bottom > top + 1e-9) { toast(`${b.name}: layer ${i + 1} ends above its top.`); return false; } }
+    change(() => { model.boreholes = work; for (const b of model.boreholes) b.layers.forEach((l, i) => l.material = work[0].layers[i].material); });
+  } }] });
+}
+
+const MAT_FIELDS = {
+  soil: (m) => {
+    const general = [["name", "Name", "", "text"], ["model", "Material model", "", ["Linear elastic", "Mohr-Coulomb", "Hardening soil", "HS small", "Soft soil"]], ["drainage", "Drainage type", "", ["Drained", "Undrained A", "Undrained B", "Undrained C", "Non-porous"]],
+      ["colour", "Colour", "", "color"], ["gammaUnsat", "γ unsat", "kN/m³"], ["gammaSat", "γ sat", "kN/m³"]];
+    const stiff = { "Linear elastic": [["E", "E'", "kN/m²"], ["nu", "ν'", ""]], "Mohr-Coulomb": [["E", "E'", "kN/m²"], ["nu", "ν'", ""], ["c", "c'ref", "kN/m²"], ["phi", "φ'", "°"], ["psi", "ψ", "°"]],
+      "Hardening soil": [["E50", "E50 ref", "kN/m²"], ["Eoed", "Eoed ref", "kN/m²"], ["Eur", "Eur ref", "kN/m²"], ["m", "power m", ""], ["nuUR", "ν ur", ""], ["c", "c'ref", "kN/m²"], ["phi", "φ'", "°"], ["psi", "ψ", "°"]],
+      "HS small": [["E50", "E50 ref", "kN/m²"], ["Eoed", "Eoed ref", "kN/m²"], ["Eur", "Eur ref", "kN/m²"], ["m", "power m", ""], ["nuUR", "ν ur", ""], ["c", "c'ref", "kN/m²"], ["phi", "φ'", "°"], ["psi", "ψ", "°"], ["G0", "G0 ref", "kN/m²"], ["gamma07", "γ 0.7", ""]],
+      "Soft soil": [["lambda", "λ*", ""], ["kappa", "κ*", ""], ["c", "c'ref", "kN/m²"], ["phi", "φ'", "°"], ["psi", "ψ", "°"]] }[m.model || "Mohr-Coulomb"];
+    if (m.drainage === "Undrained C") stiff.push(["Su", "su ref", "kN/m²"]);
+    return [["General", general], ["Mechanical", stiff], ["Groundwater", [["kx", "k x", "m/day"], [is3D() ? "kz" : "ky", is3D() ? "k z" : "k y", "m/day"]]], ["Interfaces", [["Rinter", "R inter", ""]]], ["Initial", [["K0", "K0 (empty: Jaky)", ""]]]];
+  },
+  plate: () => [["General", [["name", "Name", "", "text"], ["colour", "Colour", "", "color"]]], ["Mechanical", is3D() ? [["d", "Thickness d", "m"], ["E", "E", "kN/m²"], ["gamma", "γ", "kN/m³"], ["nu", "ν", ""]] : [["EA", "EA", "kN/m"], ["EI", "EI", "kN m²/m"], ["w", "w", "kN/m/m"], ["nu", "ν", ""]]]],
+  anchor: () => [["General", [["name", "Name", "", "text"], ["colour", "Colour", "", "color"]]], ["Mechanical", [["EA", "EA", "kN"], ["Lspacing", "L spacing", "m"], ["Fmax", "|F max,tens|", "kN"]]]],
+  geogrid: () => [["General", [["name", "Name", "", "text"], ["colour", "Colour", "", "color"]]], ["Mechanical", [["EA", "EA", "kN/m"]]]],
+  embedded: () => [["General", [["name", "Name", "", "text"], ["colour", "Colour", "", "color"]]], ["Mechanical", [["E", "E", "kN/m²"], ["gamma", "γ", "kN/m³"], ["diameter", "Diameter", "m"], ["Lspacing", "L spacing", "m"]]], ["Skin and base", [["Tskin_start", "T skin,start,max", "kN/m"], ["Tskin_end", "T skin,end,max", "kN/m"], ["Fmax", "F max", "kN"]]]],
+};
+function materialsDialog(focus, done) {
+  const work = JSON.parse(JSON.stringify(model.materials));
+  let selId = focus || (work[0] || {}).id, tab = 0;
+  const body = el("div");
+  const redraw = () => {
+    body.innerHTML = "";
+    const list = el("div.mat-list");
+    for (const [kind, label] of Object.entries(MAT_KINDS)) {
+      list.append(el("div.grp", label, el("button", { onclick: () => { const saved = model.materials; model.materials = work; const m = defaultMat(kind); model.materials = saved; work.push(m); selId = m.id; tab = 0; redraw(); } }, "+ New")));
+      for (const m of work.filter((q) => q.kind === kind)) list.append(el("div.it" + (m.id === selId ? ".sel" : ""), { onclick: () => { selId = m.id; redraw(); } }, el("span.sw", { style: { background: m.colour } }), m.name));
+    }
+    const m = work.find((q) => q.id === selId);
+    const form = el("div.mat-form");
+    if (m) {
+      const groups = MAT_FIELDS[m.kind](m);
+      tab = Math.min(tab, groups.length - 1);
+      form.append(el("div.tabs", ...groups.map(([g], i) => el("button" + (i === tab ? ".on" : ""), { onclick: () => { tab = i; redraw(); } }, g))));
+      const p = el("div.props");
+      for (const [key, label, unit, type] of groups[tab][1]) {
+        let input;
+        if (type === "text") input = el("input", { value: m[key] ?? "", onchange: (e) => { m[key] = e.target.value; redraw(); } });
+        else if (type === "color") input = el("input", { type: "color", value: m[key] || "#cccccc", style: { padding: "1px", height: "26px" }, onchange: (e) => { m[key] = e.target.value; redraw(); } });
+        else if (Array.isArray(type)) { input = el("select", { onchange: (e) => { m[key] = e.target.value; redraw(); } }); for (const o of type) { const op = el("option", { value: o }, o); if (o === m[key]) op.selected = true; input.append(op); } }
+        else input = el("input", { type: "number", step: "any", value: m[key] ?? "", onchange: (e) => { m[key] = e.target.value === "" ? null : +e.target.value; } });
+        p.append(prop(label, unit, input));
+      }
+      const used = model.structures.filter((s) => s.material === m.id).length + model.boreholes.filter((b) => b.layers.some((l) => l.material === m.id)).length;
+      p.append(el("div.actions", el("button.btn.sm.danger", { disabled: used > 0, title: used ? "In use by " + used + " object(s)" : "", onclick: () => { work.splice(work.indexOf(m), 1); selId = (work[0] || {}).id; redraw(); } }, "Delete"),
+        el("button.btn.sm", { onclick: () => { const c = JSON.parse(JSON.stringify(m)); c.id = m.id + "c" + Date.now() % 1000; c.name = m.name + " (copy)"; work.push(c); selId = c.id; redraw(); } }, "Copy"),
+        used ? el("span", { style: { color: "var(--muted)", fontSize: "12px", alignSelf: "center" } }, "Used by " + used + " object" + (used === 1 ? "" : "s")) : null));
+      form.append(p);
+    } else form.append(el("div.props", el("div.empty", "No material sets yet. Pick + New for the kind you need.")));
+    body.append(el("div.mat-wrap", list, form));
+  };
+  redraw();
+  PP.dialog({ title: "Material sets", sub: "Values in kN, m and days", body, buttons: [{ label: "Cancel" }, { label: "OK", primary: true, run: () => { change(() => { model.materials = work; }); done && done(); } }] });
+}
+
+function addPhase(copy) {
+  change(() => {
+    const parent = phaseOf(ui.phase) || model.phases[model.phases.length - 1];
+    const p = { id: uid("p"), name: "Phase " + model.phases.length, calc: "Plastic", parent: parent.id, active: copy === true ? { ...parent.active } : {} };
+    model.phases.splice(model.phases.indexOf(parent) + 1, 0, p);
+    ui.phase = p.id; ui.sel = p.id;
+  });
+}
+
+function newDialog() {
+  let product = "2D";
+  const body = el("div");
+  const draw2 = () => {
+    body.innerHTML = "";
+    body.append(el("div.welcome-opts", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "14px" } },
+      ...[["2D", "PLAXIS 2D", "Plane strain or axisymmetry, 15- or 6-noded."], ["3D", "PLAXIS 3D", "Boreholes, volumes, walls and piles in 3D."]].map(([k, t, d]) =>
+        el("button.opt", { class: "opt", style: { borderColor: product === k ? "var(--accent)" : "", background: product === k ? "var(--accent-soft)" : "", display: "flex", gap: "10px", padding: "12px", border: "1px solid var(--border)", borderRadius: "10px", textAlign: "left" }, onclick: () => { product = k; draw2(); } },
+          icon(k === "2D" ? "plan" : "cube"), el("div", el("b", t), el("div", { style: { color: "var(--muted)", fontSize: "12px" } }, d))))));
+    body.append(el("div.form-grid", el("label", "Title"), el("input.field#nt", { value: "New project" })));
+    if (Object.keys(samples).length) body.append(el("div", { style: { marginTop: "14px", color: "var(--muted)" } }, "Or start from a sample: ",
+      ...Object.keys(samples).map((k) => el("button.btn.sm", { style: { marginLeft: "6px" }, onclick: () => { load(JSON.parse(JSON.stringify(samples[k])), null); d.close(); } }, samples[k].title))));
+  };
+  draw2();
+  const d = PP.dialog({ title: "New project", size: "md", body, buttons: [{ label: "Cancel" }, { label: "Create", primary: true, run: async () => { if (dirty && !confirmLose()) return false; const m = blank(product); m.title = $("#nt").value || "New project"; load(m, null); } }] });
+}
+function confirmLose() { return window.confirm ? true : true; }
+
+async function openDialog() {
+  const body = el("div");
+  let list = [];
+  try { list = API ? (await api("models")).models : []; } catch (e) { }
+  body.append(el("div.note", icon("info"), el("div", "Open a Plaxis ProMax model (.ppm). Models are kept in ", el("b", "Documents\\Plaxis ProMax\\Models"), " unless you saved them elsewhere.")));
+  if (list.length) {
+    const t = el("table.grid", el("thead", el("tr", el("th", "Model"), el("th", "Folder"), el("th", "Saved"))));
+    const tb = el("tbody");
+    for (const f of list) tb.append(el("tr", { style: { cursor: "default" }, ondblclick: () => { openPath(f.path); d.close(); }, onclick: (e) => { [...tb.children].forEach((r) => r.classList.remove("sel")); e.currentTarget.classList.add("sel"); picked = f.path; } },
+      el("td", f.name), el("td", { style: { color: "var(--muted)" } }, f.folder), el("td", new Date(f.saved).toLocaleString())));
+    t.append(tb); body.append(el("div", { style: { maxHeight: "50vh", overflow: "auto", border: "1px solid var(--border)", borderRadius: "8px" } }, t));
+  } else body.append(el("div", { style: { color: "var(--muted)" } }, API ? "No saved models yet." : "This page is not connected to Plaxis ProMax, so pick a file."));
+  let picked = null;
+  const d = PP.dialog({ title: "Open model", size: "md", body, buttons: [{ label: "Browse…", run: async () => { const f = await PP.pickFile(".ppm,.json"); if (!f) return false; try { const m = JSON.parse(await f.text()); load(m, null); if (API) await api("model", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ rev, model: m }) }); } catch (e) { toast("Not a Plaxis ProMax model: " + e.message); return false; } } },
+    { label: "Cancel" }, { label: "Open", primary: true, run: async () => { if (!picked) { toast("Pick a model first."); return false; } await openPath(picked); } }] });
+}
+async function openPath(path) {
+  try { const j = await api("open", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path }) }); rev = j.rev; load(j.model, j.path); dirty = false; title(); }
+  catch (e) { toast(e.message); }
+}
+async function save() {
+  if (!API) { PP.download((model.title || "model").replace(/[\\/:*?"<>|]+/g, "-") + ".ppm", JSON.stringify(model, null, 1), "application/json"); dirty = false; title(); return; }
+  if (!filePath) return saveAs();
+  try { await flush(); const j = await api("save", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({}) }); filePath = j.path; dirty = false; title(); status(); toast("Saved " + j.path); }
+  catch (e) { toast(e.message); }
+}
+async function flush() { clearTimeout(pushTimer); const j = await api("model", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ rev, model }) }); rev = j.rev; }
+async function saveAs() {
+  if (!API) return save();
+  let folder = ""; try { folder = (await api("models")).folder; } catch (e) { }
+  const body = el("div.form-grid", el("label", "File name"), el("input.field#sn", { value: (model.title || "model").replace(/[\\/:*?"<>|]+/g, "-") }), el("label", "Folder"), el("input.field#sf", { value: folder }));
+  PP.dialog({ title: "Save model as", size: "sm", body, buttons: [{ label: "Cancel" }, { label: "Save", primary: true, run: async () => {
+    try { await flush(); const j = await api("save", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: $("#sn").value, folder: $("#sf").value }) }); filePath = j.path; dirty = false; title(); toast("Saved " + j.path); }
+    catch (e) { toast(e.message); return false; }
+  } }] });
+}
+async function exportScript() {
+  try {
+    const j = API ? await api("script", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ model }) }) : null;
+    if (!j) { toast("Exporting the Plaxis script needs Plaxis ProMax running."); return; }
+    PP.download((model.title || "model").replace(/[\\/:*?"<>|]+/g, "-") + " (Plaxis).py", j.script, "text/x-python");
+    say("info", "The script builds this model in Plaxis Input: Expert > Python > Run script, then pick the file. Running it uses Plaxis and its licence.");
+  } catch (e) { toast(e.message); }
+}
+
+async function checkModel() {
+  if (!API) { toast("The check runs in Plaxis ProMax: open the Modeller from its shortcut."); return; }
+  try {
+    await flush();
+    const j = await api("check");
+    ui.messages = [];
+    if (!j.findings.length) say("ok", "The model is ready to calculate: no problems found.");
+    for (const f of j.findings.slice().reverse()) say(f.level, f.text);
+    ui.hideMessages = false; renderMessages();
+  } catch (e) { toast(e.message); }
+}
+
+function calculateDialog() {
+  const body = el("div");
+  const opts = { stored_steps: 1, keep_open: false, one_by_one: true };
+  const fill = async () => {
+    body.innerHTML = "";
+    let info = null; try { info = API ? await api("plaxis") : null; } catch (e) { info = { error: e.message }; }
+    body.append(el("div.note", icon("licence"), el("div", el("b", "This is the only step that uses a Plaxis licence. "),
+      "Plaxis ProMax opens PLAXIS " + model.product + " Input, builds this model in a new project, meshes it, calculates every phase, copies the results into a results file and closes Plaxis again, so the licence is free for others. The Viewer then opens the results with no Plaxis.")));
+    const found = info && info.installs ? info.installs.filter((i) => i.product === model.product) : [];
+    const sel = el("select.field#plx");
+    for (const i of found) sel.append(el("option", { value: i.path }, i.name));
+    if (!found.length) sel.append(el("option", { value: "" }, API ? "No PLAXIS " + model.product + " found on this PC" : "Needs Plaxis ProMax running"));
+    body.append(el("div.form-grid",
+      el("label", "Plaxis"), sel,
+      el("label", "Steps kept per phase"), el("input.field", { type: "number", min: 1, value: opts.stored_steps, onchange: (e) => opts.stored_steps = +e.target.value }),
+      el("label", "Phase by phase"), el("label", el("input", { type: "checkbox", checked: opts.one_by_one, onchange: (e) => opts.one_by_one = e.target.checked }), " save after each phase and stop at the first that fails"),
+      el("label", "After the run"), el("label", el("input", { type: "checkbox", checked: opts.keep_open, onchange: (e) => opts.keep_open = e.target.checked }), " keep Plaxis open (the licence stays in use)")));
+    if (info && info.error) body.append(el("div", { style: { color: "var(--danger)", marginTop: "10px" } }, info.error));
+  };
+  fill();
+  PP.dialog({ title: "Calculate in Plaxis", size: "md", body, buttons: [{ label: "Cancel" }, { label: "Check model", run: () => { checkModel(); } }, { label: "Calculate", primary: true, run: async () => {
+    if (!API) { toast("Calculating needs Plaxis ProMax running on the PC with Plaxis."); return false; }
+    try { await flush(); await api("run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...opts, plaxis: $("#plx").value }) }); runWindow(); }
+    catch (e) { toast(e.message); return false; }
+  } }] });
+}
+function runWindow() {
+  const body = el("div");
+  let timer = 0, closed = false;
+  const fill = (r) => {
+    body.innerHTML = "";
+    const steps = el("div.steps");
+    for (const s of r.steps || []) steps.append(el("div.step." + s.state, el("span.st", s.state === "done" ? "✓" : s.state === "failed" ? "!" : ""), el("div", el("div", s.name), s.detail ? el("div.d", s.detail) : null), el("span.d", s.seconds != null ? s.seconds + " s" : "")));
+    body.append(el("div", { style: { display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" } }, el("span.badge." + (r.licence === "in use" ? "warn" : "ok"), el("span.dot"), r.licence === "in use" ? "Plaxis licence in use" : "No Plaxis licence in use"),
+      el("span", { style: { color: "var(--muted)" } }, r.state === "running" ? "Running…" : r.state === "done" ? "Finished" : r.state === "failed" ? "Stopped" : "")));
+    body.append(steps);
+    if (r.log && r.log.length) body.append(el("div.runlog.mono", r.log.join("\n")));
+  };
+  const d = PP.dialog({ title: "Calculate in Plaxis", size: "md", body, onclose: () => { closed = true; clearTimeout(timer); }, buttons: [{ label: "Stop", danger: true, run: async () => { try { await api("run", { method: "DELETE" }); } catch (e) { } return false; } }, { label: "Open results", primary: true, run: () => { openViewer(); } }, { label: "Close" }] });
+  const tick = async () => {
+    if (closed) return;
+    try { const r = await api("run"); ui.run = r; fill(r); title(); if (r.state === "running") timer = setTimeout(tick, 1000); else { renderRibbon(); if (r.state === "done") say("ok", "Calculated. Results: " + r.results); else say("error", "The run stopped: " + (r.error || "see the steps")); } }
+    catch (e) { timer = setTimeout(tick, 2000); }
+  };
+  tick();
+}
+async function openViewer() {
+  if (!API) { toast("Open the results file in the Viewer (its own shortcut)."); return; }
+  try { await api("viewer", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ results: ui.run && ui.run.results }) }); toast("The Viewer is opening."); }
+  catch (e) { toast(e.message); }
+}
+
+// ---- Menus ---------------------------------------------------------------------------------------------------------
+function menus() {
+  PP.menubar($("#menubar"), [
+    ["File", () => [{ label: "New project…", key: "Ctrl+N", run: newDialog }, { label: "Open…", key: "Ctrl+O", run: openDialog }, "-",
+      { label: "Save", key: "Ctrl+S", run: save }, { label: "Save as…", key: "Ctrl+Shift+S", run: saveAs }, "-",
+      { label: "Export Plaxis script (.py)…", run: exportScript }, { label: "Download model file (.ppm)", run: () => PP.download((model.title || "model") + ".ppm", JSON.stringify(model, null, 1), "application/json") }, "-",
+      ...Object.keys(samples).map((k) => ({ label: "Open sample: " + samples[k].title, run: () => load(JSON.parse(JSON.stringify(samples[k])), null) }))]],
+    ["Edit", () => [{ label: "Undo", key: "Ctrl+Z", run: undo, enabled: () => undoStack.length > 0 }, { label: "Redo", key: "Ctrl+Y", run: redo, enabled: () => redoStack.length > 0 }, "-", { label: "Delete", key: "Del", run: deleteSel, enabled: () => !!ui.sel && ui.sel !== "project" }]],
+    ["View", () => [{ label: "Zoom to model", key: "F", run: fit }, { label: "Zoom in", run: () => using3D() ? (v3.dist /= 1.25, draw()) : v2.zoom(1.25) }, { label: "Zoom out", run: () => using3D() ? (v3.dist *= 1.25, draw()) : v2.zoom(0.8) }, "-",
+      { label: "Grid", check: () => ui.grid, run: () => { ui.grid = !ui.grid; draw(); } }, { label: "Snap to grid", check: () => ui.snap, run: () => { ui.snap = !ui.snap; status(); } }, { label: "Labels", check: () => ui.labels, run: () => { ui.labels = !ui.labels; draw(); } },
+      { label: "Messages", check: () => !ui.hideMessages, run: () => { ui.hideMessages = !ui.hideMessages; renderMessages(); } }, "-",
+      { head: "Theme" }, ...["auto", "light", "dark"].map((t) => ({ label: { auto: "Same as Windows", light: "Light", dark: "Dark" }[t], check: () => (localStorage.getItem("ppm-theme") || "auto") === t, run: () => { PP.theme(t); renderAll(); } }))]],
+    ["Soil", [{ label: "Borehole", run: () => { setMode("soil"); setTool("borehole"); } }, { label: "Modify soil layers…", run: () => layersDialog() }, { label: "Material sets…", run: () => materialsDialog() }]],
+    ["Structures", () => TOOLS[is3D() ? "structures3D" : "structures"].filter((t) => t[0] !== "select").map(([k, l]) => ({ label: l, run: () => { setMode("structures"); if (is3D()) ui.view = "plan"; setTool(k); fit(); } }))],
+    ["Mesh", [...COARSE.map((c) => ({ label: c, check: () => model.mesh.coarseness === c, run: () => { change(() => { model.mesh.coarseness = c; delete model.mesh.factor; }); setMode("mesh"); } })), "-", { label: "Preview mesh", run: () => { setMode("mesh"); meshPreview(); renderAll(); } }]],
+    ["Flow conditions", [{ label: "Water level", run: () => { setMode("flow"); setTool("water"); } }]],
+    ["Staged construction", [{ label: "Add phase", run: () => { setMode("stages"); addPhase(); } }, { label: "Copy phase", run: () => { setMode("stages"); addPhase(true); } }]],
+    ["Calculate", [{ label: "Check model", run: checkModel }, { label: "Calculate in Plaxis…", run: calculateDialog }, { label: "Open results in the Viewer", run: openViewer }]],
+    ["Help", [{ label: "Keyboard shortcuts", run: () => PP.dialog({ title: "Keyboard shortcuts", size: "sm", body: el("table.grid", el("tbody", ...[["Ctrl+Z / Ctrl+Y", "Undo / redo"], ["Ctrl+S", "Save"], ["Ctrl+O", "Open"], ["Del", "Delete the selection"], ["Esc", "Cancel drawing, back to Select"], ["Enter", "Finish a polygon or water level"], ["F", "Zoom to the model"], ["Wheel", "Zoom"], ["Right or middle drag", "Pan (3D: rotate with the left button)"]].map(([k, v]) => el("tr", el("td.mono", k), el("td", v))))) }) },
+      { label: "About the Modeller", run: () => PP.dialog({ title: "Plaxis ProMax Modeller", size: "sm", body: el("div", el("p", "Builds PLAXIS 2D and 3D models with no Plaxis open and no Plaxis licence. The model is saved as a Plaxis ProMax model (.ppm)."), el("p", "Calculate in Plaxis is the only step that uses Plaxis: it builds the model in Plaxis Input, meshes and calculates it, copies the results into a results file (.ppr) and closes Plaxis, giving its licence back. Mesh previews here are for the look only; Plaxis makes the real mesh.")) }) }]],
+  ]);
+}
+
+// ---- Start ---------------------------------------------------------------------------------------------------------
+function load(m, path) {
+  model = m; filePath = path; dirty = !path && API == null ? false : !path; ui.sel = null; ui.mesh = null; ui.phase = null; ui.view = m.product === "3D" ? "3d" : "plan";
+  undoStack.length = redoStack.length = 0;
+  normalise(); fitted = false; $("#welcome") && $("#welcome").remove(); setMode(ui.mode); fit(); renderAll(); schedulePush();
+}
+function welcome() {
+  const w = el("div.welcome#welcome", el("div.card", el("h2", "Plaxis ProMax Modeller"), el("p", "Build a PLAXIS model here with no Plaxis open. Plaxis is needed only to calculate, and only while it runs."),
+    el("div.opts",
+      el("button.opt", { onclick: () => load(blank("2D"), null) }, icon("plan"), el("div", el("b", "New 2D project"), el("span", "Plane strain or axisymmetry"))),
+      el("button.opt", { onclick: () => load(blank("3D"), null) }, icon("cube"), el("div", el("b", "New 3D project"), el("span", "Boreholes, volumes, walls, piles"))),
+      el("button.opt", { onclick: openDialog }, icon("open"), el("div", el("b", "Open a model"), el("span", ".ppm from this PC"))),
+      ...Object.keys(samples).slice(0, 1).map((k) => el("button.opt", { onclick: () => load(JSON.parse(JSON.stringify(samples[k])), null) }, icon("layers"), el("div", el("b", "Open the sample"), el("span", samples[k].title)))))));
+  $("#stage").append(w);
+}
+async function start() {
+  PP.theme();
+  $("#logo").append(icon("logo"));
+  try { if (window.PPM_SAMPLES) samples = window.PPM_SAMPLES; else if (API) samples = (await api("samples")).samples || {}; } catch (e) { }
+  menus();
+  let first = null;
+  if (API) { try { const j = await api("model"); if (j.model) { rev = j.rev; first = j; } } catch (e) { say("warning", e.message); } }
+  if (first) { model = first.model; filePath = first.path; dirty = !!first.dirty; normalise(); ui.view = is3D() ? "3d" : "plan"; renderAll(); }
+  else if (window.PPM_START) { load(JSON.parse(JSON.stringify(window.PPM_START)), window.PPM_START_PATH || "C:\\Users\\engineer\\Documents\\Plaxis ProMax\\Models\\sample.ppm"); dirty = false; title(); }
+  else welcome();
+  if (window.PPM_START_MODE) { setMode(window.PPM_START_MODE.mode); if (window.PPM_START_MODE.phase) { ui.phase = window.PPM_START_MODE.phase; } if (window.PPM_START_MODE.sel) ui.sel = window.PPM_START_MODE.sel; if (window.PPM_START_MODE.view) ui.view = window.PPM_START_MODE.view; fitted = false; renderAll(); }
+  poll();
+}
+start();
+</script>
+</body>
+</html>

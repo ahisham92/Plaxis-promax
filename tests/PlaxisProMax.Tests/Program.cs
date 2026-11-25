@@ -24,6 +24,7 @@ PlaxisProMax.Update.Updater.RootOverride = Path.Combine(scratch, "local");
 PlaxisProMax.Chat.CrewStats.PathOverride = Path.Combine(scratch, "crew-stats.json");
 
 Section("approvals", ApprovalTests.Run);
+Section("modeller and viewer", ModellerTests.Run);
 Section("kept code", CodeLibraryTests.Run);
 Section("mcp http", McpHttpTests.Run);
 Section("plaxis link", PlaxisLinkTests.Run);

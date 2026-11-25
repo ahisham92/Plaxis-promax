@@ -496,6 +496,9 @@ internal sealed class HttpRequest
     /// <summary>The path, without the query.</summary>
     public string Path { get; private set; } = "";
 
+    /// <summary>The query, without its '?' ("" when there is none).</summary>
+    public string Query { get; private set; } = "";
+
     public byte[] Body { get; private set; } = [];
 
     private readonly Dictionary<string, string> _headers = new(StringComparer.OrdinalIgnoreCase);
@@ -510,7 +513,8 @@ internal sealed class HttpRequest
         if (line is null) return null;
         var parts = line.Split(' ');
         if (parts.Length != 3 || !parts[2].StartsWith("HTTP/1.", StringComparison.Ordinal)) throw new Refused(400, "bad request line");
-        var request = new HttpRequest { Method = parts[0], Path = parts[1].Split('?')[0] };
+        var at = parts[1].IndexOf('?');
+        var request = new HttpRequest { Method = parts[0], Path = at < 0 ? parts[1] : parts[1][..at], Query = at < 0 ? "" : parts[1][(at + 1)..] };
         var headSize = line.Length;
         while (true)
         {

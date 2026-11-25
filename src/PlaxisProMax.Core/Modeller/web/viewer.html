@@ -1,0 +1,794 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plaxis ProMax Viewer</title>
+<link rel="stylesheet" href="common.css">
+<style>
+  .body { grid-template-columns: 262px 1fr 268px; }
+  .phase-row { display: grid; grid-template-columns: 18px 1fr auto; gap: 6px; align-items: center; padding: 5px 10px; cursor: default; border-left: 3px solid transparent; }
+  .phase-row:hover { background: var(--hover); }
+  .phase-row.sel { background: var(--accent-soft); border-left-color: var(--accent); }
+  .phase-row .ok { width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; color: #fff; background: var(--ok); }
+  .phase-row .ok.bad { background: var(--danger); }
+  .phase-row .ok.none { background: var(--surface-2); color: var(--muted); }
+  .phase-row .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .phase-row .ct { color: var(--muted); font-size: 11px; }
+  .rt { display: flex; align-items: center; gap: 8px; padding: 4px 12px 4px 22px; cursor: default; }
+  .rt:hover { background: var(--hover); }
+  .rt.sel { background: var(--accent); color: var(--on-accent); }
+  .rt.off { opacity: .45; }
+  .rt svg { width: 15px; height: 15px; flex: none; }
+  .rgrp { padding: 8px 12px 3px; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  .kv { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 4px 12px; font-size: 12.5px; }
+  .kv span:nth-child(odd) { color: var(--muted); }
+  .kv span:nth-child(even) { font-variant-numeric: tabular-nums; text-align: right; }
+  .scale { display: flex; flex-direction: column; gap: 3px; padding: 0 6px; justify-content: center; min-width: 180px; }
+  .scale .t { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; }
+  .phase-pick { display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 0 6px; }
+  .phase-pick .r { display: flex; gap: 4px; align-items: center; }
+  .phase-pick select { height: 28px; border: 1px solid var(--border); border-radius: 6px; background: var(--field); padding: 0 6px; max-width: 250px; }
+  .phase-pick .btn { height: 28px; padding: 0 6px; }
+  .tablewrap { max-height: 62vh; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+  .samplebar { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); background: color-mix(in srgb, var(--warn) 16%, var(--bg)); color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); border-radius: 8px; padding: 5px 12px; font-weight: 600; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="titlebar">
+    <div class="logo" id="logo"></div><span class="app-name">Plaxis ProMax Viewer</span><span class="doc" id="docname"></span>
+    <span class="spacer"></span>
+    <span class="badge" title="Results were copied from Plaxis when it calculated. Viewing them needs no Plaxis and no licence."><span class="dot"></span>No Plaxis needed</span>
+  </div>
+  <div class="menubar" id="menubar"></div>
+  <div class="ribbon" id="ribbon"></div>
+  <div class="body">
+    <div class="panel left" id="left"></div>
+    <div class="stage" id="stage"><canvas id="cv"></canvas><div class="hud" id="hud"></div><div class="viewbtns" id="viewbtns"></div><div class="hint" id="hint"></div></div>
+    <div class="panel right" id="right"></div>
+  </div>
+  <div class="statusbar" id="status"></div>
+</div>
+<script src="common.js"></script>
+<script>
+"use strict";
+const SOURCE = "<!doctype html>\n" + document.documentElement.outerHTML;
+const { $, el, icon, fmt, clamp } = PP;
+
+// ---- Result types -------------------------------------------------------------------------------------------------
+// Each has where it lives (node or stress point), a label as Plaxis words it, a unit, and the group it is listed under.
+const TYPES = [
+  { key: "deformed", group: "Deformations", label: "Deformed mesh", icon: "deformed", at: "mesh" },
+  { key: "Utot", group: "Deformations", label: "Total displacements |u|", unit: "m", at: "node", icon: "shading" },
+  { key: "Ux", group: "Deformations", label: "Horizontal displacements ux", unit: "m", at: "node", icon: "shading" },
+  { key: "Uy", group: "Deformations", label: "Vertical displacements uy", unit: "m", at: "node", icon: "shading", d2: true },
+  { key: "Uz", group: "Deformations", label: "Vertical displacements uz", unit: "m", at: "node", icon: "shading", d3: true },
+  { key: "SigxxE", group: "Stresses", label: "Effective stress σ'xx", unit: "kN/m²", at: "sp", icon: "shading" },
+  { key: "SigyyE", group: "Stresses", label: "Effective stress σ'yy", unit: "kN/m²", at: "sp", icon: "shading" },
+  { key: "SigzzE", group: "Stresses", label: "Effective stress σ'zz", unit: "kN/m²", at: "sp", icon: "shading" },
+  { key: "Sigxy", group: "Stresses", label: "Shear stress σxy", unit: "kN/m²", at: "sp", icon: "shading" },
+  { key: "Sig1", group: "Stresses", label: "Principal stress σ'1", unit: "kN/m²", at: "sp", icon: "shading" },
+  { key: "Sig3", group: "Stresses", label: "Principal stress σ'3", unit: "kN/m²", at: "sp", icon: "shading" },
+  { key: "principal", group: "Stresses", label: "Principal directions", at: "sp-dir", icon: "cross" },
+  { key: "TauRel", group: "Stresses", label: "Relative shear stress τrel", unit: "", at: "sp", icon: "shading" },
+  { key: "Plastic", group: "Stresses", label: "Plastic points", at: "sp-plastic", icon: "plastic" },
+  { key: "PActive", group: "Pore pressures", label: "Active pore pressure p active", unit: "kN/m²", at: "sp", icon: "shading" },
+  { key: "PExcess", group: "Pore pressures", label: "Excess pore pressure p excess", unit: "kN/m²", at: "sp", icon: "shading" },
+  { key: "PSteady", group: "Pore pressures", label: "Steady-state pore pressure", unit: "kN/m²", at: "sp", icon: "shading" },
+  { key: "GroundwaterHead", group: "Pore pressures", label: "Groundwater head", unit: "m", at: "node", icon: "shading" },
+  { key: "plate:M", group: "Structures", label: "Plates: bending moment M", unit: "kN m/m", at: "plate", field: "M", icon: "chart" },
+  { key: "plate:Q", group: "Structures", label: "Plates: shear force Q", unit: "kN/m", at: "plate", field: "Q", icon: "chart" },
+  { key: "plate:N", group: "Structures", label: "Plates: axial force N", unit: "kN/m", at: "plate", field: "N", icon: "chart" },
+  { key: "plate:Ux", group: "Structures", label: "Plates: displacement ux", unit: "m", at: "plate", field: "Ux", icon: "chart" },
+  { key: "anchors", group: "Structures", label: "Anchor forces", unit: "kN", at: "anchor", icon: "anchor" },
+];
+const typeOf = (k) => TYPES.find((t) => t.key === k);
+
+// ---- State --------------------------------------------------------------------------------------------------------
+let pack = null, fileName = "";
+const ui = { phase: 0, type: "Utot", shading: true, contours: false, arrows: false, meshLines: false, onDeformed: false, scale: 1, autoScale: 1, labels: true,
+  tool: null, sectionPts: [], section: null, curve: null, probe: null, view3d: "3d", plane: { axis: "y", at: 27 } };
+const cache = new Map();
+const is3D = () => pack && pack.product === "3D";
+const phase = () => pack.phases[ui.phase];
+const usable = (p) => !!(p && p.nodes && p.nodes.x && p.nodes.x.length);
+
+// ---- Loading ------------------------------------------------------------------------------------------------------
+async function loadBuffer(buf, name) {
+  let p;
+  try { p = await PP.gunzipJson(buf); } catch (e) { PP.toast("This is not a Plaxis ProMax results file (.ppr)."); return; }
+  if (p.format !== "ppr") { PP.toast("This is not a Plaxis ProMax results file (.ppr)."); return; }
+  pack = p; fileName = name || ""; cache.clear();
+  ui.phase = Math.max(0, pack.phases.map(usable).lastIndexOf(true));
+  const last = pack.phases[ui.phase];
+  if (last && last.calc === "Safety" && ui.phase > 0) ui.phase--;
+  ui.type = "Utot"; ui.section = null; ui.curve = null; ui.tool = null; $("#drop") && $("#drop").remove();
+  if (is3D()) { const c = pack.model.contour; ui.plane = { axis: "y", at: +(((c.ymin + c.ymax) / 2).toFixed(1)) }; }
+  fitted = false; renderAll();
+}
+async function openFile() { const f = await PP.pickFile(".ppr"); if (f) loadBuffer(await f.arrayBuffer(), f.name); }
+
+// ---- Model helpers (from the pack's model) ----------------------------------------------------------------------
+function modelPhase(p) { return (pack.model.phases || []).find((q) => q.name === p.name); }
+function activeIn(id, phId) {
+  const phases = pack.model.phases || [], byId = (i) => phases.find((q) => q.id === i);
+  let p = byId(phId); const seen = new Set();
+  while (p && !seen.has(p.id)) { seen.add(p.id); if (p.active && id in p.active) return p.active[id]; p = byId(p.parent); }
+  const s = (pack.model.structures || []).find((q) => q.id === id);
+  return !!(s && s.type === "polygon");
+}
+function ground(x) {
+  const hs = [...(pack.model.boreholes || [])].sort((a, b) => a.x - b.x);
+  if (!hs.length) return Infinity;
+  if (x <= hs[0].x) return hs[0].top ?? 0; if (x >= hs[hs.length - 1].x) return hs[hs.length - 1].top ?? 0;
+  for (let k = 0; k < hs.length - 1; k++) if (x >= hs[k].x && x <= hs[k + 1].x) { const t = (x - hs[k].x) / ((hs[k + 1].x - hs[k].x) || 1); return (hs[k].top ?? 0) + ((hs[k + 1].top ?? 0) - (hs[k].top ?? 0)) * t; }
+}
+function gone(p) {
+  const mp = modelPhase(p); if (!mp) return [];
+  return (pack.model.structures || []).filter((s) => s.type === "polygon" && !s.material && !activeIn(s.id, mp.id));
+}
+function keepFn(p) {
+  const c = pack.model.contour, holes = gone(p);
+  return (x, y) => x >= c.xmin - 1e-6 && x <= c.xmax + 1e-6 && y <= ground(x) + 1e-6 && !holes.some((h) => PP.inside(h.points, x, y));
+}
+/** Display mesh over the nodes (or stress points) of a phase: drawn only, Plaxis's own elements are not in the file. */
+function meshFor(p, at) {
+  const key = ui.phase + ":" + at + (at === "plane" ? ui.plane.axis + ui.plane.at : "");
+  if (cache.has(key)) return cache.get(key);
+  let xs, ys, idx = null;
+  if (at === "plane") ({ xs, ys, idx } = planePoints(p));
+  else { const src = at === "sp" ? p.sp : p.nodes; xs = src.x; ys = src.y; }
+  const m = PP.displayMesh(xs, ys, at === "plane" ? null : keepFn(p));
+  const out = { xs, ys, idx, tri: m.tri, typical: m.typical, index: null };
+  cache.set(key, out);
+  return out;
+}
+function planePoints(p) {
+  const ax = ui.plane.axis, at = ui.plane.at, X = p.nodes.x, Y = p.nodes.y, Z = p.nodes.z, xs = [], ys = [], idx = [];
+  const all = ax === "x" ? X : ax === "y" ? Y : Z;
+  let tol = Infinity; for (const v of all) { const d = Math.abs(v - at); if (d > 1e-9) tol = Math.min(tol, d); }
+  let best = Infinity; for (const v of all) best = Math.min(best, Math.abs(v - at));
+  const take = best + 1e-6 + (isFinite(tol) ? 0 : 0);
+  for (let i = 0; i < all.length; i++) if (Math.abs(all[i] - at) <= take) { idx.push(i); if (ax === "x") { xs.push(Y[i]); ys.push(Z[i]); } else if (ax === "y") { xs.push(X[i]); ys.push(Z[i]); } else { xs.push(X[i]); ys.push(Y[i]); } }
+  return { xs, ys, idx };
+}
+function values(p, t) {
+  if (!t || !t.at) return null;
+  if (t.at === "node") return p.node && p.node[t.key];
+  if (t.at === "sp") return p.sp && p.sp[t.key];
+  return null;
+}
+function available(p, t) {
+  if (!p) return false;
+  if (t.d2 && is3D()) return false; if (t.d3 && !is3D()) return false;
+  if (t.at === "mesh") return true;
+  if (t.at === "node" || t.at === "sp") return !!values(p, t);
+  if (t.at === "sp-dir") return !!(p.sp && p.sp.SigxxE && p.sp.SigyyE && p.sp.Sigxy);
+  if (t.at === "sp-plastic") return !!(p.sp && p.sp.Plastic);
+  if (t.at === "plate") return (p.plates || []).some((q) => q[t.field]);
+  if (t.at === "anchor") return (p.anchors || []).length > 0;
+  return false;
+}
+function extremes(vals) { let mn = Infinity, mx = -Infinity, imn = -1, imx = -1; for (let i = 0; i < vals.length; i++) { const v = vals[i]; if (v == null) continue; if (v < mn) { mn = v; imn = i; } if (v > mx) { mx = v; imx = i; } } return { mn, mx, imn, imx }; }
+function maxDisp(p) { const u = p.node && p.node.Utot; if (!u) return 0; let m = 0; for (const v of u) if (v > m) m = v; return m; }
+function autoScale(p) {
+  const c = pack.model.contour, size = is3D() ? Math.max(c.xmax - c.xmin, c.ymax - c.ymin) : Math.max(c.xmax - c.xmin, (c.ymax ?? 0) - (c.ymin ?? -20));
+  const m = Math.max(...pack.phases.filter(usable).map(maxDisp), 1e-9);
+  return size * 0.05 / m;
+}
+
+// ---- Drawing ------------------------------------------------------------------------------------------------------
+const cv = $("#cv");
+const v2 = new PP.View2D(cv, () => draw());
+const v3 = new PP.Orbit3D(cv, () => draw());
+let fitted = false;
+const using3D = () => is3D() && ui.view3d === "3d";
+new ResizeObserver(() => draw()).observe($("#stage"));
+function fit() {
+  if (!pack) return;
+  const c = pack.model.contour;
+  if (is3D()) {
+    if (ui.view3d === "3d") v3.fit([c.xmin, c.ymin, c.zmin ?? -30], [c.xmax, c.ymax, 0]);
+    else { const r = planeRect(); v2.fit(r[0], r[1], r[2], r[3], 70); }
+  } else v2.fit(c.xmin, c.ymin ?? -30, c.xmax, Math.max(c.ymax ?? 0, ...((pack.model.boreholes || []).map((b) => b.top ?? 0))), 70);
+  if (!using3D() && v2.w > 900) {
+    // Leave the right-hand side to the legend, so it never covers the model.
+    const r = is3D() ? planeRect() : [c.xmin, c.ymin ?? -30, c.xmax, Math.max(c.ymax ?? 0, ...((pack.model.boreholes || []).map((b) => b.top ?? 0)))];
+    const wm = Math.max(r[2] - r[0], 1e-6), hm = Math.max(r[3] - r[1], 1e-6), room = v2.w - 290;
+    v2.s = Math.min(v2.s, (room - 100) / wm);
+    v2.ox = 50 + (room - 100 - wm * v2.s) / 2 - r[0] * v2.s;
+    v2.oy = (v2.h + hm * v2.s) / 2 + r[1] * v2.s;
+  }
+  fitted = true; draw();
+}
+function planeRect() { const c = pack.model.contour, z0 = c.zmin ?? -30; return ui.plane.axis === "x" ? [c.ymin, z0, c.ymax, 0] : ui.plane.axis === "y" ? [c.xmin, z0, c.xmax, 0] : [c.xmin, c.ymin, c.xmax, c.ymax]; }
+
+function draw() {
+  if (!pack) { v2.size(); v2.ctx.fillStyle = PP.css("--canvas"); v2.ctx.fillRect(0, 0, v2.w, v2.h); return; }
+  if (using3D()) return draw3D();
+  v2.size();
+  const ctx = v2.ctx;
+  ctx.fillStyle = PP.css("--canvas"); ctx.fillRect(0, 0, v2.w, v2.h);
+  if (!fitted) { fit(); return; }
+  const p = phase(), t = typeOf(ui.type);
+  if (!usable(p)) { msg(ctx, p && p.skipped ? p.name + ": " + p.skipped : "No results for this phase."); return; }
+  const plane = is3D();
+  const nm = meshFor(p, plane ? "plane" : "node");
+  const scale = ui.scale * ui.autoScale;
+  const dx = (i) => 0, dy = (i) => 0;
+  const nodeX = (i) => nm.xs[i], nodeY = (i) => nm.ys[i];
+  // Geometry fill (soil under everything)
+  const deformedOn = t.at === "mesh" || (ui.onDeformed && t.at === "node");
+  const U = (k) => { const src = nm.idx ? nm.idx : null; const j = src ? src[k] : k; return j; };
+  const ux = p.node.Ux, uy = plane ? (ui.plane.axis === "z" ? p.node.Uy : p.node.Uz) : p.node.Uy, uxp = plane ? (ui.plane.axis === "x" ? p.node.Uy : p.node.Ux) : ux;
+  const PX = (k) => v2.X(nm.xs[k] + (deformedOn && uxp ? uxp[U(k)] * scale : 0)), PY = (k) => v2.Y(nm.ys[k] + (deformedOn && uy ? uy[U(k)] * scale : 0));
+  // Base: material colours of the soil, lightly, under the result.
+  drawSoilBase(ctx, p, nm, PX, PY, t);
+  let legend = null;
+  if (t.at === "node" || t.at === "sp") {
+    const src = t.at === "sp" && !plane ? meshFor(p, "sp") : nm;
+    const vals = values(p, t);
+    const V = (k) => vals[src.idx ? src.idx[k] : k];
+    const SX = src === nm ? PX : (k) => v2.X(src.xs[k]), SY = src === nm ? PY : (k) => v2.Y(src.ys[k]);
+    let mn = Infinity, mx = -Infinity;
+    for (let k = 0; k < src.xs.length; k++) { const v = V(k); if (v == null) continue; mn = Math.min(mn, v); mx = Math.max(mx, v); }
+    const lv = PP.levels(mn, mx, 13), cols = PP.bandColours(lv.length - 1);
+    if (ui.shading) shade(ctx, src, V, SX, SY, lv, cols);
+    if (ui.contours) contour(ctx, src, V, SX, SY, lv);
+    legend = { title: t.label, unit: t.unit, lv, cols, mn, mx };
+    const e = extremes(src.idx ? src.idx.map((i) => vals[i]) : vals);
+    legend.at = { mn: e.imn >= 0 ? [src.xs[e.imn], src.ys[e.imn]] : null, mx: e.imx >= 0 ? [src.xs[e.imx], src.ys[e.imx]] : null };
+    if (t.key === "Utot" || t.key === "Ux" || t.key === "Uy" || t.key === "Uz") legend.big = e.mx >= -e.mn ? e.mx : e.mn;
+    // Markers at the extremes, as Plaxis does
+    for (const [k, lab] of [[e.imx, "max"], [e.imn, "min"]]) if (k >= 0) { const x = SX(src.idx ? src.idx.indexOf(k) : k), y = SY(src.idx ? src.idx.indexOf(k) : k); if (isFinite(x)) mark(ctx, src === nm ? PX(k) : v2.X(src.xs[k]), src === nm ? PY(k) : v2.Y(src.ys[k]), lab); }
+  }
+  if (t.at === "mesh" || ui.meshLines) meshLines(ctx, nm, PX, PY, t.at === "mesh");
+  if (t.at === "mesh") {
+    // The undeformed outline for comparison.
+    outline(ctx, p, true);
+    legend = { title: "Deformed mesh", note: "Scaled up " + fmt(scale, 3) + " times", big: maxDisp(p), unit: "m" };
+  }
+  if (ui.arrows && p.node.Ux) arrows(ctx, nm, PX, PY, uxp, uy, scale);
+  if (t.at === "sp-plastic") { plastic(ctx, p); legend = { title: "Plastic points", note: "Mohr-Coulomb points (stress on the failure surface)", count: (p.sp.Plastic || []).filter((v) => v).length }; }
+  if (t.at === "sp-dir") { principal(ctx, p); legend = { title: "Principal directions", note: "Lines along σ'1 (long) and σ'3, scaled to the stress" }; }
+  outline(ctx, p, false);
+  structures(ctx, p, t);
+  if (t.at === "plate") legend = plateLegend(p, t) || legend;
+  if (t.at === "anchor") legend = { title: "Anchor forces", unit: "kN", rows: (p.anchors || []).map((a) => [anchorName(a), a.F]) };
+  if (ui.section) sectionLine(ctx);
+  if (ui.curve) { const [x, y] = ui.curve.at; ctx.fillStyle = PP.css("--sel"); ctx.beginPath(); ctx.arc(v2.X(x), v2.Y(y), 6, 0, 7); ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke(); }
+  if (ui.tool === "section" && ui.sectionPts.length === 1 && ui.mouse) { ctx.strokeStyle = PP.css("--accent"); ctx.setLineDash([6, 4]); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(v2.X(ui.sectionPts[0][0]), v2.Y(ui.sectionPts[0][1])); ctx.lineTo(v2.X(ui.mouse[0]), v2.Y(ui.mouse[1])); ctx.stroke(); ctx.setLineDash([]); }
+  if (legend) drawLegend(ctx, legend);
+  v2.upLabel = is3D() ? (ui.plane.axis === "z" ? "y" : "z") : "y";
+  v2.axes(PP.css("--canvas-text"));
+  hud();
+}
+function msg(ctx, text) { ctx.fillStyle = PP.css("--muted"); ctx.font = "14px Segoe UI"; ctx.textAlign = "center"; ctx.fillText(text, v2.w / 2, v2.h / 2); ctx.textAlign = "left"; }
+
+function drawSoilBase(ctx, p, nm, PX, PY, t) {
+  // Soil colours per layer (from the first borehole) under a light veil, so the result reads first.
+  const hs = [...(pack.model.boreholes || [])].sort((a, b) => a.x - b.x), mats = pack.model.materials || [];
+  const first = hs[0];
+  const veil = PP.isDark() ? "#2b2f36" : "#ffffff";
+  const strength = t.at === "mesh" || t.at === "sp-plastic" || t.at === "sp-dir" || t.at === "plate" || t.at === "anchor" || !ui.shading ? 0.55 : 0.0;
+  if (!strength) return;
+  for (let k = 0; k < nm.tri.length; k += 3) {
+    const a = nm.tri[k], b = nm.tri[k + 1], c = nm.tri[k + 2];
+    const cy = (nm.ys[a] + nm.ys[b] + nm.ys[c]) / 3, cx = (nm.xs[a] + nm.xs[b] + nm.xs[c]) / 3;
+    let colour = "#d6d3c8";
+    if (first && !is3D()) {
+      let lvl = first.top ?? 0;
+      for (const l of first.layers) { if (cy <= lvl && cy >= l.bottom - 1e-9) { const m = mats.find((q) => q.id === l.material); if (m) colour = m.colour; break; } lvl = l.bottom; }
+    } else if (first) { const z = ui.plane.axis === "z" ? ui.plane.at : cy; let lvl = first.top ?? 0; for (const l of first.layers) { if (z <= lvl && z >= l.bottom) { const m = mats.find((q) => q.id === l.material); if (m) colour = m.colour; break; } lvl = l.bottom; } }
+    ctx.fillStyle = PP.mix(colour, veil, strength);
+    ctx.beginPath(); ctx.moveTo(PX(a), PY(a)); ctx.lineTo(PX(b), PY(b)); ctx.lineTo(PX(c), PY(c)); ctx.closePath(); ctx.fill(); ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 0.6; ctx.stroke();
+  }
+}
+function shade(ctx, m, V, PX, PY, lv, cols) {
+  const paths = cols.map(() => new Path2D());
+  const nb = cols.length, lo = lv[0], hi = lv[lv.length - 1], w = (hi - lo) / nb;
+  for (let k = 0; k < m.tri.length; k += 3) {
+    const a = m.tri[k], b = m.tri[k + 1], c = m.tri[k + 2];
+    const va = V(a), vb = V(b), vc = V(c);
+    if (va == null || vb == null || vc == null) continue;
+    const pts = [[PX(a), PY(a), va], [PX(b), PY(b), vb], [PX(c), PY(c), vc]];
+    const i0 = clamp(Math.floor((Math.min(va, vb, vc) - lo) / w), 0, nb - 1), i1 = clamp(Math.floor((Math.max(va, vb, vc) - lo) / w), 0, nb - 1);
+    for (let i = i0; i <= i1; i++) {
+      const poly = i0 === i1 ? pts : PP.bandPolygon(pts, i === 0 ? -Infinity : lv[i], i === nb - 1 ? Infinity : lv[i + 1]);
+      if (!poly) continue;
+      const path = paths[i]; path.moveTo(poly[0][0], poly[0][1]); for (let j = 1; j < poly.length; j++) path.lineTo(poly[j][0], poly[j][1]); path.closePath();
+    }
+  }
+  for (let i = 0; i < nb; i++) { ctx.fillStyle = cols[i]; ctx.fill(paths[i]); ctx.strokeStyle = cols[i]; ctx.lineWidth = 0.7; ctx.stroke(paths[i]); }
+}
+function contour(ctx, m, V, PX, PY, lv) {
+  ctx.strokeStyle = PP.isDark() ? "rgba(255,255,255,.7)" : "rgba(15,23,42,.75)"; ctx.lineWidth = 0.9;
+  ctx.beginPath();
+  for (let li = 1; li < lv.length - 1; li++) {
+    const L = lv[li];
+    for (let k = 0; k < m.tri.length; k += 3) {
+      const id = [m.tri[k], m.tri[k + 1], m.tri[k + 2]], v = id.map(V);
+      if (v.some((q) => q == null)) continue;
+      const cut = [];
+      for (let e = 0; e < 3; e++) { const i = e, j = (e + 1) % 3; if ((v[i] - L) * (v[j] - L) < 0) { const t = (L - v[i]) / (v[j] - v[i]); cut.push([PX(id[i]) + (PX(id[j]) - PX(id[i])) * t, PY(id[i]) + (PY(id[j]) - PY(id[i])) * t]); } }
+      if (cut.length === 2) { ctx.moveTo(cut[0][0], cut[0][1]); ctx.lineTo(cut[1][0], cut[1][1]); }
+    }
+  }
+  ctx.stroke();
+}
+function meshLines(ctx, m, PX, PY, strong) {
+  ctx.strokeStyle = strong ? (PP.isDark() ? "rgba(236,239,243,.6)" : "rgba(15,23,42,.55)") : (PP.isDark() ? "rgba(236,239,243,.22)" : "rgba(15,23,42,.2)");
+  ctx.lineWidth = strong ? 0.8 : 0.5; ctx.beginPath();
+  for (let k = 0; k < m.tri.length; k += 3) { const a = m.tri[k], b = m.tri[k + 1], c = m.tri[k + 2]; ctx.moveTo(PX(a), PY(a)); ctx.lineTo(PX(b), PY(b)); ctx.lineTo(PX(c), PY(c)); ctx.closePath(); }
+  ctx.stroke();
+}
+function outline(ctx, p, faint) {
+  if (is3D()) { const r = planeRect(); ctx.strokeStyle = PP.isDark() ? "#e2e8f0" : "#0f172a"; ctx.lineWidth = 1.4; ctx.strokeRect(v2.X(r[0]), v2.Y(r[3]), (r[2] - r[0]) * v2.s, (r[3] - r[1]) * v2.s); return; }
+  const c = pack.model.contour, holes = gone(p);
+  ctx.save(); ctx.strokeStyle = faint ? (PP.isDark() ? "rgba(255,255,255,.35)" : "rgba(15,23,42,.35)") : (PP.isDark() ? "#e2e8f0" : "#0f172a"); ctx.lineWidth = faint ? 1 : 1.4; ctx.setLineDash(faint ? [5, 4] : []);
+  const xs = [c.xmin, ...((pack.model.boreholes || []).map((b) => b.x).filter((x) => x > c.xmin && x < c.xmax).sort((a, b) => a - b)), c.xmax];
+  ctx.beginPath(); ctx.moveTo(v2.X(c.xmin), v2.Y(c.ymin)); ctx.lineTo(v2.X(c.xmax), v2.Y(c.ymin)); for (const x of xs.slice().reverse()) ctx.lineTo(v2.X(x), v2.Y(ground(x))); ctx.closePath(); ctx.stroke();
+  for (const h of holes) { ctx.beginPath(); h.points.forEach((q, i) => i ? ctx.lineTo(v2.X(q[0]), v2.Y(q[1])) : ctx.moveTo(v2.X(q[0]), v2.Y(q[1]))); ctx.closePath(); ctx.fillStyle = PP.css("--canvas"); if (!faint) { ctx.fill(); } }
+  ctx.restore();
+}
+function mark(ctx, x, y, lab) {
+  ctx.save(); ctx.fillStyle = "#fff"; ctx.strokeStyle = "#0f172a"; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(x, y, 4.5, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.font = "600 10.5px Segoe UI"; ctx.fillStyle = PP.isDark() ? "#fff" : "#0f172a"; ctx.fillText(lab, x + 7, y - 6); ctx.restore();
+}
+function arrows(ctx, m, PX, PY, ux, uy, scale) {
+  const grid = new Set(), step = 26;
+  let mx = 0; for (let k = 0; k < m.xs.length; k++) { const j = m.idx ? m.idx[k] : k; mx = Math.max(mx, Math.hypot(ux[j], uy[j])); }
+  ctx.strokeStyle = PP.isDark() ? "#f8fafc" : "#0f172a"; ctx.fillStyle = ctx.strokeStyle; ctx.lineWidth = 1.1;
+  for (let k = 0; k < m.xs.length; k++) {
+    const sx = v2.X(m.xs[k]), sy = v2.Y(m.ys[k]), key = Math.round(sx / step) + "," + Math.round(sy / step);
+    if (grid.has(key)) continue; grid.add(key);
+    const j = m.idx ? m.idx[k] : k, L = Math.hypot(ux[j], uy[j]) / (mx || 1) * 22;
+    if (L < 2) continue;
+    const a = Math.atan2(-uy[j], ux[j]);
+    arrow(ctx, sx, sy, sx + Math.cos(a) * L, sy + Math.sin(a) * L, 5);
+  }
+}
+function arrow(ctx, x0, y0, x1, y1, h = 6) { ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); const a = Math.atan2(y1 - y0, x1 - x0); ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x1 - h * Math.cos(a - 0.45), y1 - h * Math.sin(a - 0.45)); ctx.lineTo(x1 - h * Math.cos(a + 0.45), y1 - h * Math.sin(a + 0.45)); ctx.closePath(); ctx.fill(); }
+function plastic(ctx, p) {
+  const s = p.sp; ctx.fillStyle = "#dc2626"; ctx.strokeStyle = "#7f1d1d"; ctx.lineWidth = 0.8;
+  for (let i = 0; i < s.x.length; i++) if (s.Plastic[i]) { const x = v2.X(s.x[i]), y = v2.Y(s.y[i]); ctx.fillRect(x - 3, y - 3, 6, 6); ctx.strokeRect(x - 3, y - 3, 6, 6); }
+}
+function principal(ctx, p) {
+  const s = p.sp, grid = new Set(), step = 22;
+  let mx = 0; for (let i = 0; i < s.x.length; i++) mx = Math.max(mx, Math.abs(s.Sig1 ? s.Sig1[i] : s.SigyyE[i]));
+  ctx.lineWidth = 1.3;
+  for (let i = 0; i < s.x.length; i++) {
+    const X = v2.X(s.x[i]), Y = v2.Y(s.y[i]), key = Math.round(X / step) + "," + Math.round(Y / step);
+    if (grid.has(key)) continue; grid.add(key);
+    const sxx = s.SigxxE[i], syy = s.SigyyE[i], sxy = s.Sigxy[i];
+    const c = (sxx + syy) / 2, r = Math.hypot((sxx - syy) / 2, sxy), s1 = c - r, s3 = c + r;
+    const th = 0.5 * Math.atan2(2 * sxy, sxx - syy) + (sxx < syy ? 0 : Math.PI / 2);
+    const L1 = Math.abs(s1) / (mx || 1) * 10, L3 = Math.abs(s3) / (mx || 1) * 10;
+    ctx.strokeStyle = PP.isDark() ? "#fca5a5" : "#b91c1c";
+    ctx.beginPath(); ctx.moveTo(X - Math.cos(th) * L1, Y + Math.sin(th) * L1); ctx.lineTo(X + Math.cos(th) * L1, Y - Math.sin(th) * L1); ctx.stroke();
+    ctx.strokeStyle = PP.isDark() ? "#93c5fd" : "#1d4ed8";
+    ctx.beginPath(); ctx.moveTo(X + Math.sin(th) * L3, Y + Math.cos(th) * L3); ctx.lineTo(X - Math.sin(th) * L3, Y - Math.cos(th) * L3); ctx.stroke();
+  }
+}
+function anchorName(a) { const s = (pack.model.structures || []).find((q) => q.id === a.struct); return s ? s.name : a.name; }
+function structures(ctx, p, t) {
+  if (is3D()) return;
+  const mp = modelPhase(p);
+  for (const s of pack.model.structures || []) {
+    if (s.type === "polygon" || s.type === "lineload" || s.type === "pointload") continue;
+    if (mp && !activeIn(s.id, mp.id)) continue;
+    const P = s.points.map((q) => [v2.X(q[0]), v2.Y(q[1])]);
+    ctx.save(); ctx.lineCap = "round";
+    ctx.strokeStyle = s.type === "plate" ? "#1e3a8a" : s.type === "anchor" ? "#7c3aed" : s.type === "geogrid" ? "#b7791f" : "#0f766e";
+    ctx.lineWidth = s.type === "plate" ? 3.5 : 2; ctx.setLineDash(s.type === "anchor" ? [7, 4] : []);
+    ctx.beginPath(); P.forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); ctx.stroke();
+    ctx.restore();
+  }
+  if (t.at === "anchor" || t.at === "plate" || ui.labels) for (const a of p.anchors || []) {
+    const s = (pack.model.structures || []).find((q) => q.id === a.struct); if (!s) continue;
+    const m = [(s.points[0][0] + s.points[1][0]) / 2, (s.points[0][1] + s.points[1][1]) / 2];
+    if (t.at === "anchor") pill(ctx, `${s.name}: ${fmt(a.F, 4)} kN`, v2.X(m[0]) + 10, v2.Y(m[1]) - 10, "#7c3aed");
+  }
+  if (t.at === "plate") for (const pl of p.plates || []) plateDiagram(ctx, pl, t.field);
+  // Loads, as arrows on the top
+  for (const s of pack.model.structures || []) {
+    if (s.type !== "lineload" || (mp && !activeIn(s.id, mp.id))) continue;
+    ctx.strokeStyle = "#dc2626"; ctx.fillStyle = "#dc2626"; ctx.lineWidth = 1.4;
+    const [a, b] = s.points, n = 6;
+    for (let i = 0; i <= n; i++) { const x = v2.X(a[0] + (b[0] - a[0]) * i / n), y = v2.Y(a[1] + (b[1] - a[1]) * i / n); arrow(ctx, x, y - 18, x, y - 1, 5); }
+    ctx.beginPath(); ctx.moveTo(v2.X(a[0]), v2.Y(a[1]) - 18); ctx.lineTo(v2.X(b[0]), v2.Y(b[1]) - 18); ctx.stroke();
+  }
+}
+function pill(ctx, text, x, y, colour) {
+  ctx.font = "600 11px Segoe UI"; const w = ctx.measureText(text).width;
+  ctx.fillStyle = PP.isDark() ? "rgba(32,36,42,.92)" : "rgba(255,255,255,.94)"; ctx.strokeStyle = colour; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.roundRect(x, y - 10, w + 12, 20, 6); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = colour; ctx.textBaseline = "middle"; ctx.fillText(text, x + 6, y); ctx.textBaseline = "alphabetic";
+}
+function plateDiagram(ctx, pl, field) {
+  const v = pl[field]; if (!v) return;
+  const n = pl.x.length;
+  let mx = 0; for (const q of v) mx = Math.max(mx, Math.abs(q || 0));
+  const L = 70 / (mx || 1);
+  const dx = pl.x[n - 1] - pl.x[0], dy = pl.y[n - 1] - pl.y[0], len = Math.hypot(dx, dy) || 1, nx = dy / len, ny = -dx / len;
+  ctx.save();
+  ctx.beginPath(); ctx.moveTo(v2.X(pl.x[0]), v2.Y(pl.y[0]));
+  for (let i = 0; i < n; i++) ctx.lineTo(v2.X(pl.x[i]) + nx * v[i] * L, v2.Y(pl.y[i]) - ny * v[i] * L);
+  ctx.lineTo(v2.X(pl.x[n - 1]), v2.Y(pl.y[n - 1])); ctx.closePath();
+  ctx.fillStyle = "rgba(37,99,235,.22)"; ctx.fill(); ctx.strokeStyle = "#1d4ed8"; ctx.lineWidth = 1.6; ctx.stroke();
+  const e = extremes(v);
+  for (const [i, lab] of [[e.imx, "max"], [e.imn, "min"]]) if (i >= 0 && Math.abs(v[i]) > 1e-9) {
+    const x = v2.X(pl.x[i]) + nx * v[i] * L, y = v2.Y(pl.y[i]) - ny * v[i] * L;
+    ctx.fillStyle = "#1d4ed8"; ctx.beginPath(); ctx.arc(x, y, 3.5, 0, 7); ctx.fill();
+    pill(ctx, `${lab} ${fmt(v[i], 4)}`, x + (nx >= 0 ? 8 : -90), y, "#1d4ed8");
+  }
+  ctx.restore();
+}
+function plateLegend(p, t) {
+  const rows = [];
+  for (const pl of p.plates || []) { const v = pl[t.field]; if (!v) continue; const e = extremes(v); const s = (pack.model.structures || []).find((q) => q.id === pl.struct); rows.push([(s ? s.name : pl.name) + " max", e.mx], [(s ? s.name : pl.name) + " min", e.mn]); }
+  return rows.length ? { title: t.label, unit: t.unit, rows } : { title: t.label, note: "No plate in this phase" };
+}
+function drawLegend(ctx, L) {
+  const w = 214, x = v2.w - w - 14, y = 14;
+  let h = 54 + (L.lv ? (L.lv.length) * 15 : 0) + (L.rows ? L.rows.length * 17 : 0) + (L.big != null ? 18 : 0) + (L.count != null ? 18 : 0) + (L.note ? 18 : 0) + (L.lv ? 34 : 0);
+  ctx.save();
+  ctx.fillStyle = PP.isDark() ? "rgba(50,55,63,.95)" : "rgba(255,255,255,.96)"; ctx.strokeStyle = PP.css("--border-subtle"); ctx.lineWidth = 1;
+  ctx.shadowColor = "rgba(15,23,42,.12)"; ctx.shadowBlur = 8; ctx.beginPath(); ctx.roundRect(x, y, w, h, 10); ctx.fill(); ctx.shadowBlur = 0; ctx.stroke();
+  ctx.fillStyle = PP.css("--text"); ctx.font = "600 12px Segoe UI"; ctx.fillText(L.title, x + 12, y + 20);
+  ctx.font = "11px Segoe UI"; ctx.fillStyle = PP.css("--muted");
+  let yy = y + 36;
+  { let pn = (phase().name || "") + (L.unit ? "  ·  " + L.unit : ""); while (ctx.measureText(pn).width > w - 24 && pn.length > 4) pn = pn.slice(0, -2); ctx.fillText(pn, x + 12, yy); } yy += 10;
+  if (L.lv) {
+    for (let i = L.lv.length - 1; i >= 0; i--) {
+      if (i < L.lv.length - 1) { ctx.fillStyle = L.cols[i]; ctx.fillRect(x + 12, yy + 3, 16, 15); }
+      ctx.fillStyle = PP.css("--text"); ctx.fillText(fmt(L.lv[i], 3), x + 36, yy + 4);
+      yy += 15;
+    }
+    yy += 14;
+    ctx.fillStyle = PP.css("--muted");
+    ctx.fillText("Maximum " + fmt(L.mx, 4) + (L.at && L.at.mx ? `  (${fmt(L.at.mx[0], 2)}, ${fmt(L.at.mx[1], 2)})` : ""), x + 12, yy); yy += 15;
+    ctx.fillText("Minimum " + fmt(L.mn, 4) + (L.at && L.at.mn ? `  (${fmt(L.at.mn[0], 2)}, ${fmt(L.at.mn[1], 2)})` : ""), x + 12, yy); yy += 6;
+  }
+  if (L.rows) { yy += 6; for (const [k, v] of L.rows) { ctx.fillStyle = PP.css("--muted"); ctx.fillText(k, x + 12, yy + 8); ctx.fillStyle = PP.css("--text"); ctx.textAlign = "right"; ctx.fillText(fmt(v, 4), x + w - 12, yy + 8); ctx.textAlign = "left"; yy += 17; } }
+  if (L.big != null) { yy += 12; ctx.fillStyle = PP.css("--text"); ctx.font = "600 11.5px Segoe UI"; ctx.fillText("Extreme " + fmt(L.big * 1000, 4) + " mm", x + 12, yy); yy += 6; ctx.font = "11px Segoe UI"; }
+  if (L.count != null) { yy += 12; ctx.fillStyle = PP.css("--text"); ctx.fillText(L.count + " plastic stress points", x + 12, yy); }
+  if (L.note) { yy += 14; ctx.fillStyle = PP.css("--muted"); ctx.fillText(L.note, x + 12, yy); }
+  ctx.restore();
+}
+
+// 3D: the nodes as points coloured by the result, with the walls and the pit outlined.
+function draw3D() {
+  v3.begin();
+  const ctx = v3.ctx;
+  const g = ctx.createLinearGradient(0, 0, 0, v3.h); g.addColorStop(0, PP.isDark() ? "#2a3039" : "#f4f7fb"); g.addColorStop(1, PP.isDark() ? "#1b1f24" : "#dfe6ef");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, v3.w, v3.h);
+  if (!fitted) { fit(); return; }
+  const p = phase(), t = typeOf(ui.type);
+  if (!usable(p)) return;
+  const vals = t.at === "node" ? values(p, t) : p.node.Utot;
+  const e = extremes(vals), lv = PP.levels(e.mn, e.mx, 13), cols = PP.bandColours(13);
+  const scale = (t.at === "mesh" || ui.onDeformed) ? ui.scale * ui.autoScale : 0;
+  const X = p.nodes.x, Y = p.nodes.y, Z = p.nodes.z;
+  const sf = surfaceOf(p);
+  const P = new Array(X.length);
+  const proj = (i) => P[i] || (P[i] = v3.project([X[i] + (p.node.Ux[i] || 0) * scale, Y[i] + (p.node.Uy[i] || 0) * scale, Z[i] + (p.node.Uz[i] || 0) * scale]));
+  const tris = [];
+  for (let k = 0; k < sf.length; k += 3) { const a = sf[k], b = sf[k + 1], c = sf[k + 2]; const pa = proj(a), pb = proj(b), pc = proj(c); tris.push([a, b, c, (pa[2] + pb[2] + pc[2]) / 3]); }
+  tris.sort((m, n) => n[3] - m[3]);
+  const nb = lv.length - 1, lo = lv[0], w = (lv[nb] - lo) / nb || 1;
+  const mesh = t.at === "mesh" || ui.meshLines;
+  for (const [a, b, c] of tris) {
+    const pa = proj(a), pb = proj(b), pc = proj(c);
+    if (t.at === "mesh") { ctx.fillStyle = PP.isDark() ? "#3b4350" : "#e7e2d6"; ctx.beginPath(); ctx.moveTo(pa[0], pa[1]); ctx.lineTo(pb[0], pb[1]); ctx.lineTo(pc[0], pc[1]); ctx.closePath(); ctx.fill(); }
+    else {
+      const pts = [[pa[0], pa[1], vals[a]], [pb[0], pb[1], vals[b]], [pc[0], pc[1], vals[c]]];
+      const i0 = clamp(Math.floor((Math.min(vals[a], vals[b], vals[c]) - lo) / w), 0, nb - 1), i1 = clamp(Math.floor((Math.max(vals[a], vals[b], vals[c]) - lo) / w), 0, nb - 1);
+      for (let i = i0; i <= i1; i++) {
+        const poly = i0 === i1 ? pts : PP.bandPolygon(pts, i === 0 ? -Infinity : lv[i], i === nb - 1 ? Infinity : lv[i + 1]);
+        if (!poly) continue;
+        ctx.fillStyle = cols[i]; ctx.beginPath(); poly.forEach((q, j) => j ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); ctx.closePath(); ctx.fill(); ctx.strokeStyle = cols[i]; ctx.lineWidth = 0.6; ctx.stroke();
+      }
+    }
+    if (mesh) { ctx.strokeStyle = PP.isDark() ? "rgba(255,255,255,.35)" : "rgba(15,23,42,.35)"; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.moveTo(pa[0], pa[1]); ctx.lineTo(pb[0], pb[1]); ctx.lineTo(pc[0], pc[1]); ctx.closePath(); ctx.stroke(); }
+  }
+  // Contour box and structures
+  const c = pack.model.contour, z0 = c.zmin ?? -30, box = [[c.xmin, c.ymin], [c.xmax, c.ymin], [c.xmax, c.ymax], [c.xmin, c.ymax]];
+  ctx.strokeStyle = PP.isDark() ? "rgba(255,255,255,.5)" : "rgba(15,23,42,.5)"; ctx.lineWidth = 1;
+  for (const z of [0, z0]) { ctx.beginPath(); box.forEach((q, i) => { const s = v3.project([q[0], q[1], z]); i ? ctx.lineTo(s[0], s[1]) : ctx.moveTo(s[0], s[1]); }); ctx.closePath(); ctx.stroke(); }
+  for (const q of box) { const a = v3.project([q[0], q[1], 0]), b = v3.project([q[0], q[1], z0]); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+  const mp = modelPhase(p);
+  for (const s of pack.model.structures || []) {
+    if (mp && s.type !== "polygon" && !activeIn(s.id, mp.id)) continue;
+    if (s.type === "plate") { const [a, b] = s.points, d = s.depth || 10; const q = [a, b, [b[0], b[1], b[2] - d], [a[0], a[1], a[2] - d]].map((k) => v3.project(k)); ctx.fillStyle = "rgba(30,58,138,.18)"; ctx.strokeStyle = "#1e3a8a"; ctx.lineWidth = 1.4; ctx.beginPath(); q.forEach((k, i) => i ? ctx.lineTo(k[0], k[1]) : ctx.moveTo(k[0], k[1])); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+    if (s.type === "embedded") { const a = v3.project(s.points[0]), b = v3.project(s.points[1]); ctx.strokeStyle = "#0f766e"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+  }
+  // Section plane
+  const pr = planeQuad().map((k) => v3.project(k)); ctx.fillStyle = "rgba(245,158,11,.12)"; ctx.strokeStyle = "#f59e0b"; ctx.setLineDash([6, 4]); ctx.lineWidth = 1.5; ctx.beginPath(); pr.forEach((k, i) => i ? ctx.lineTo(k[0], k[1]) : ctx.moveTo(k[0], k[1])); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
+  if (t.at === "node") { v2.w = v3.w; v2.ctx = ctx; drawLegend(ctx, { title: t.label, unit: t.unit, lv, cols, mn: e.mn, mx: e.mx, big: t.key.startsWith("U") ? (e.mx >= -e.mn ? e.mx : e.mn) : null }); }
+  hud();
+}
+/** The outer surface of a 3D phase: the four sides, the bottom, and the top (the highest node of each column, so the pit floor shows). */
+function surfaceOf(p) {
+  const key = ui.phase + ":surface";
+  if (cache.has(key)) return cache.get(key);
+  const X = p.nodes.x, Y = p.nodes.y, Z = p.nodes.z, n = X.length, out = [];
+  const ext = (a) => { let mn = Infinity, mx = -Infinity; for (const v of a) { if (v < mn) mn = v; if (v > mx) mx = v; } return [mn, mx]; };
+  const [x0, x1] = ext(X), [y0, y1] = ext(Y), [z0] = ext(Z), eps = 1e-6;
+  const face = (pick, u, v) => {
+    const ids = []; for (let i = 0; i < n; i++) if (pick(i)) ids.push(i);
+    if (ids.length < 3) return;
+    const m = PP.displayMesh(ids.map(u), ids.map(v), null);
+    for (const k of m.tri) out.push(ids[k]);
+  };
+  face((i) => Math.abs(X[i] - x0) < eps, (i) => Y[i], (i) => Z[i]);
+  face((i) => Math.abs(X[i] - x1) < eps, (i) => Y[i], (i) => Z[i]);
+  face((i) => Math.abs(Y[i] - y0) < eps, (i) => X[i], (i) => Z[i]);
+  face((i) => Math.abs(Y[i] - y1) < eps, (i) => X[i], (i) => Z[i]);
+  face((i) => Math.abs(Z[i] - z0) < eps, (i) => X[i], (i) => Y[i]);
+  const top = new Map();
+  for (let i = 0; i < n; i++) { const k = X[i].toFixed(3) + "," + Y[i].toFixed(3); const j = top.get(k); if (j == null || Z[i] > Z[j]) top.set(k, i); }
+  const ids = [...top.values()];
+  const m = PP.displayMesh(ids.map((i) => X[i]), ids.map((i) => Y[i]), null);
+  for (const k of m.tri) out.push(ids[k]);
+  cache.set(key, out);
+  return out;
+}
+function planeQuad() { const c = pack.model.contour, z0 = c.zmin ?? -30, a = ui.plane.at; return ui.plane.axis === "x" ? [[a, c.ymin, 0], [a, c.ymax, 0], [a, c.ymax, z0], [a, c.ymin, z0]] : ui.plane.axis === "y" ? [[c.xmin, a, 0], [c.xmax, a, 0], [c.xmax, a, z0], [c.xmin, a, z0]] : [[c.xmin, c.ymin, a], [c.xmax, c.ymin, a], [c.xmax, c.ymax, a], [c.xmin, c.ymax, a]]; }
+
+function hud() {
+  const h = $("#hud"); h.innerHTML = "";
+  const p = phase(), t = typeOf(ui.type);
+  h.append(el("span.chip", el("b", p.name), "  ·  " + t.label + (is3D() && ui.view3d === "section" ? `  ·  section ${ui.plane.axis} = ${fmt(ui.plane.at, 2)} m` : "")));
+  if (pack.sample) h.append(el("span.chip", { style: { color: "var(--warn)", fontWeight: 600 } }, "Sample results, made up for the demo: not from Plaxis"));
+}
+
+// ---- Probe, tools ------------------------------------------------------------------------------------------------
+function probeAt(x, y) {
+  const p = phase(); if (!usable(p)) return null;
+  const nm = meshFor(p, is3D() ? "plane" : "node");
+  nm.index = nm.index || PP.triIndex(nm.xs, nm.ys, nm.tri);
+  const f = nm.index.find(x, y); if (!f) return null;
+  const out = {};
+  const j = (k) => nm.idx ? nm.idx[k] : k;
+  for (const k of Object.keys(p.node)) { const v = p.node[k]; out[k] = v[j(f.a)] * f.w[0] + v[j(f.b)] * f.w[1] + v[j(f.c)] * f.w[2]; }
+  if (p.sp && !is3D()) {
+    const sm = meshFor(p, "sp"); sm.index = sm.index || PP.triIndex(sm.xs, sm.ys, sm.tri);
+    const g = sm.index.find(x, y);
+    if (g) for (const k of Object.keys(p.sp)) { if (k === "x" || k === "y" || k === "Plastic") continue; const v = p.sp[k]; out[k] = v[g.a] * g.w[0] + v[g.b] * g.w[1] + v[g.c] * g.w[2]; }
+  }
+  return out;
+}
+cv.addEventListener("mousemove", (e) => {
+  if (!pack || using3D()) return;
+  const r = cv.getBoundingClientRect(), [x, y] = v2.toWorld(e.clientX - r.left, e.clientY - r.top);
+  ui.mouse = [x, y]; ui.probe = { x, y, v: probeAt(x, y) };
+  renderRight(); status();
+  if (ui.tool === "section" && ui.sectionPts.length === 1) draw();
+});
+cv.addEventListener("click", (e) => {
+  if (!pack || using3D() || (v2.drag && v2.drag.moved)) return;
+  const r = cv.getBoundingClientRect(), [x, y] = v2.toWorld(e.clientX - r.left, e.clientY - r.top);
+  if (ui.tool === "section") {
+    ui.sectionPts.push([x, y]);
+    if (ui.sectionPts.length === 2) { ui.section = ui.sectionPts.slice(); ui.sectionPts = []; ui.tool = null; $("#hint").textContent = ""; showSection(); }
+    draw(); return;
+  }
+  if (ui.tool === "curve") { ui.tool = null; $("#hint").textContent = ""; ui.curve = { at: [x, y] }; showCurve(); draw(); return; }
+});
+function sectionLine(ctx) {
+  const [a, b] = ui.section; ctx.save(); ctx.strokeStyle = "#f59e0b"; ctx.lineWidth = 2.5; ctx.setLineDash([8, 4]);
+  ctx.beginPath(); ctx.moveTo(v2.X(a[0]), v2.Y(a[1])); ctx.lineTo(v2.X(b[0]), v2.Y(b[1])); ctx.stroke(); ctx.setLineDash([]);
+  pill(ctx, "A", v2.X(a[0]) - 22, v2.Y(a[1]), "#b45309"); pill(ctx, "A*", v2.X(b[0]) + 6, v2.Y(b[1]), "#b45309"); ctx.restore();
+}
+let sectionWin = null, curveWin = null;
+function sample(p, key, a, b, n = 240) {
+  const t = typeOf(key), sp = t && t.at === "sp" && !is3D();
+  const m = sp ? meshFor(p, "sp") : meshFor(p, is3D() ? "plane" : "node");
+  m.index = m.index || PP.triIndex(m.xs, m.ys, m.tri);
+  const vals = sp ? p.sp[key] : p.node[key]; const xs = [], ys = [], L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  if (!vals) return { xs, ys };
+  for (let i = 0; i <= n; i++) {
+    const x = a[0] + (b[0] - a[0]) * i / n, y = a[1] + (b[1] - a[1]) * i / n, f = m.index.find(x, y);
+    xs.push(L * i / n);
+    const j = (k) => m.idx ? m.idx[k] : k;
+    ys.push(f ? vals[j(f.a)] * f.w[0] + vals[j(f.b)] * f.w[1] + vals[j(f.c)] * f.w[2] : null);
+  }
+  return { xs, ys };
+}
+function showSection() {
+  if (!ui.section) return;
+  const t = typeOf(ui.type), key = t.at === "node" || t.at === "sp" ? t.key : "Utot";
+  const st = $("#stage");
+  if (!sectionWin || !sectionWin.win.isConnected) sectionWin = PP.floating(st, "Cross section A–A*", { x: 24, y: st.clientHeight - 330, w: 560, h: 300, onclose: () => { ui.section = null; draw(); } });
+  sectionWin.win.querySelector("header").firstChild.textContent = "Cross section A–A*  ·  " + typeOf(key).label;
+  sectionWin.body.innerHTML = ""; const c = el("canvas"); sectionWin.body.append(c);
+  const s = sample(phase(), key, ui.section[0], ui.section[1]);
+  requestAnimationFrame(() => PP.chart(c, [{ name: typeOf(key).label, ...s, color: "#2563eb" }], { xlabel: "Distance along A–A* [m]", ylabel: typeOf(key).label + (typeOf(key).unit ? " [" + typeOf(key).unit + "]" : ""), zero: true }));
+}
+function showCurve() {
+  if (!ui.curve) return;
+  const [x, y] = ui.curve.at, st = $("#stage");
+  if (!curveWin || !curveWin.win.isConnected) curveWin = PP.floating(st, "Curve", { x: st.clientWidth - 600, y: st.clientHeight - 330, w: 560, h: 300, onclose: () => { ui.curve = null; draw(); } });
+  curveWin.win.querySelector("header").firstChild.textContent = `Displacements at (${fmt(x, 2)}, ${fmt(y, 2)}) through the phases`;
+  curveWin.body.innerHTML = ""; const c = el("canvas"); curveWin.body.append(c);
+  const keys = is3D() ? ["Ux", "Uy", "Uz", "Utot"] : ["Ux", "Uy", "Utot"], colours = ["#dc2626", "#16a34a", "#2563eb", "#7c3aed"];
+  const series = keys.map((k, i) => ({ name: k === "Utot" ? "|u|" : k.toLowerCase(), xs: [], ys: [], color: colours[i], dots: true }));
+  const save = ui.phase;
+  pack.phases.forEach((p, i) => {
+    if (!usable(p)) return;
+    ui.phase = i; const v = probeAt(x, y);
+    series.forEach((s, k) => { s.xs.push(i); s.ys.push(v && v[keys[k]] != null ? v[keys[k]] * 1000 : null); });
+  });
+  ui.phase = save;
+  requestAnimationFrame(() => PP.chart(c, series, { xlabel: "Phase number", ylabel: "Displacement [mm]", zero: true }));
+}
+
+function tables() {
+  const p = phase(), t = typeOf(ui.type);
+  let tab = t.at === "plate" ? "plates" : t.at === "anchor" ? "anchors" : t.at === "sp" ? "sp" : "nodes";
+  const body = el("div");
+  const fill = () => {
+    body.innerHTML = "";
+    const tabs = el("div.seg", { style: { marginBottom: "10px" } }, ...[["nodes", "Nodes"], ["sp", "Stress points"], ["plates", "Plates"], ["anchors", "Anchors"], ["phases", "Phases"]].map(([k, l]) => el("button" + (tab === k ? ".on" : ""), { onclick: () => { tab = k; fill(); } }, l)));
+    body.append(tabs);
+    const rows = tableRows(p, tab);
+    const head = rows[0], data = rows.slice(1);
+    const shown = data.slice(0, 1500);
+    const tb = el("table.grid", el("thead", el("tr", ...head.map((h, i) => el(i ? "th.num" : "th", h)))), el("tbody", ...shown.map((r) => el("tr", ...r.map((v, i) => el(typeof v === "number" ? "td.num" : "td", typeof v === "number" ? fmt(v, 5) : v))))));
+    body.append(el("div.tablewrap", tb));
+    body.append(el("div", { style: { color: "var(--muted)", marginTop: "8px", fontSize: "12px" } }, data.length > shown.length ? `Showing the first ${shown.length} of ${data.length} rows. The CSV has them all.` : `${data.length} rows.`));
+    tableCsv = () => PP.download(`${pack.title} - ${p.name} - ${tab}.csv`, PP.csv(rows), "text/csv");
+  };
+  let tableCsv = null;
+  fill();
+  PP.dialog({ title: "Tables", sub: p.name, body, buttons: [{ label: "Download CSV", run: () => { tableCsv(); return false; } }, { label: "Close", primary: true }] });
+}
+function tableRows(p, tab) {
+  const d3 = is3D();
+  if (tab === "nodes") { const keys = Object.keys(p.node); const head = ["Node", "X", "Y", ...(d3 ? ["Z"] : []), ...keys]; return [head, ...p.nodes.x.map((x, i) => [i + 1, x, p.nodes.y[i], ...(d3 ? [p.nodes.z[i]] : []), ...keys.map((k) => p.node[k][i])])]; }
+  if (tab === "sp") { if (!p.sp) return [["No stress points in this file"]]; const keys = Object.keys(p.sp).filter((k) => !["x", "y", "z"].includes(k)); return [["Point", "X", "Y", ...keys], ...p.sp.x.map((x, i) => [i + 1, x, p.sp.y[i], ...keys.map((k) => p.sp[k][i])])]; }
+  if (tab === "plates") { const out = [["Plate", "X", "Y", "N", "Q", "M", "ux"]]; for (const pl of p.plates || []) for (let i = 0; i < pl.x.length; i++) out.push([pl.name, pl.x[i], pl.y[i], (pl.N || [])[i], (pl.Q || [])[i], (pl.M || [])[i], (pl.Ux || [])[i]]); return out; }
+  if (tab === "anchors") return [["Anchor", "Kind", "Force [kN]"], ...(p.anchors || []).map((a) => [anchorName(a), a.kind, a.F])];
+  return [["Phase", "Calculation", "Ended", "ΣMstage", "ΣMsf", "|u| max [m]"], ...pack.phases.map((q) => [q.name, q.calc || "", q.ended || (q.skipped ? "not read" : ""), q.SumMstage ?? "", q.SumMsf ?? "", usable(q) ? maxDisp(q) : ""])];
+}
+function exportPicture() {
+  draw();
+  cv.toBlob((b) => PP.download(`${pack.title} - ${phase().name} - ${typeOf(ui.type).label}.png`.replace(/[\\/:*?"<>|]+/g, "-"), b), "image/png");
+}
+async function saveWithResults() {
+  const raw = JSON.stringify(pack);
+  const gz = await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer();
+  let s = ""; const u = new Uint8Array(gz); for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+  const html = SOURCE.replace("</body>", `<script id="ppr-data" type="application/octet-stream">${btoa(s)}<\/script>\n</body>`);
+  PP.download(`${pack.title} (results).html`.replace(/[\\/:*?"<>|]+/g, "-"), html, "text/html");
+  PP.toast("Saved one HTML file with the results inside: it opens in any browser, with nothing to install.");
+}
+
+// ---- Panels --------------------------------------------------------------------------------------------------------
+function renderAll() { title(); renderRibbon(); renderLeft(); renderRight(); status(); menus(); draw(); }
+function title() {
+  $("#docname").textContent = pack ? "— " + pack.title + (fileName ? "  ·  " + fileName : "") : "";
+  document.title = (pack ? pack.title + " — " : "") + "Plaxis ProMax Viewer";
+}
+function setType(k) { ui.type = k; if (typeOf(k).at === "mesh" && is3D()) ui.view3d = ui.view3d; renderAll(); if (ui.section) showSection(); }
+function setPhase(i) { if (i < 0 || i >= pack.phases.length) return; ui.phase = i; if (!available(phase(), typeOf(ui.type))) ui.type = "Utot"; renderAll(); if (ui.section) showSection(); }
+function renderRibbon() {
+  const r = $("#ribbon"); r.innerHTML = "";
+  if (!pack) { r.append(el("div.group", el("div.row", el("button.tb.wide", { onclick: openFile }, icon("open"), "Open results")), el("div.label", "File"))); return; }
+  const tb = (label, ic, run, o = {}) => el("button.tb" + (o.on ? ".on" : "") + (o.wide ? ".wide" : ""), { title: o.title || label, onclick: run, disabled: o.disabled }, icon(ic), label);
+  const group = (label, ...kids) => el("div.group", el("div.row", ...kids), el("div.label", label));
+  const sel = el("select", { onchange: (e) => setPhase(+e.target.value) });
+  pack.phases.forEach((p, i) => { const o = el("option", { value: i }, `[${i}] ${p.name}`); if (i === ui.phase) o.selected = true; if (!usable(p)) o.disabled = true; sel.append(o); });
+  r.append(group("Phase", el("div.phase-pick", el("div.r", el("button.btn", { onclick: () => setPhase(ui.phase - 1), title: "Previous phase" }, icon("prev")), sel, el("button.btn", { onclick: () => setPhase(ui.phase + 1), title: "Next phase" }, icon("next"))))));
+  const quick = is3D() ? [["deformed", "Deformed", "deformed"], ["Utot", "|u|", "shading"], ["Ux", "ux", "shading"], ["Uz", "uz", "shading"]] :
+    [["deformed", "Deformed", "deformed"], ["Utot", "|u|", "shading"], ["Ux", "ux", "shading"], ["Uy", "uy", "shading"], ["SigyyE", "σ'yy", "shading"], ["PActive", "p active", "water"], ["Plastic", "Plastic", "plastic"], ["plate:M", "Plate M", "chart"]];
+  r.append(group("Results", ...quick.map(([k, l, ic]) => tb(l, ic, () => setType(k), { on: ui.type === k, disabled: !available(phase(), typeOf(k)) }))));
+  r.append(group("Display", tb("Shadings", "shading", () => { ui.shading = !ui.shading; draw(); renderRibbon(); }, { on: ui.shading }), tb("Contours", "contour", () => { ui.contours = !ui.contours; draw(); renderRibbon(); }, { on: ui.contours }),
+    tb("Arrows", "arrows", () => { ui.arrows = !ui.arrows; draw(); renderRibbon(); }, { on: ui.arrows }), tb("Mesh", "mesh", () => { ui.meshLines = !ui.meshLines; draw(); renderRibbon(); }, { on: ui.meshLines, title: "Lines of the display mesh" }),
+    tb("On deformed", "deformed", () => { ui.onDeformed = !ui.onDeformed; draw(); renderRibbon(); }, { on: ui.onDeformed, title: "Draw the result on the deformed shape" })));
+  const sc = el("input", { type: "range", min: -2, max: 2, step: 0.05, value: Math.log10(ui.scale), oninput: (e) => { ui.scale = Math.pow(10, +e.target.value); draw(); sv.textContent = "× " + fmt(ui.scale * ui.autoScale, 3); } });
+  const sv = el("span", "× " + fmt(ui.scale * ui.autoScale, 3));
+  r.append(group("Deformation scale", el("div.scale", sc, el("div.t", el("span", "smaller"), sv, el("span", "larger")), el("button.btn.sm", { onclick: () => { ui.scale = 1; renderRibbon(); draw(); } }, "Auto"))));
+  if (is3D()) {
+    const ax = el("div.seg", ...["x", "y", "z"].map((a) => el("button" + (ui.plane.axis === a ? ".on" : ""), { onclick: () => { ui.plane.axis = a; const c = pack.model.contour; ui.plane.at = a === "x" ? (c.xmin + c.xmax) / 2 : a === "y" ? (c.ymin + c.ymax) / 2 : -4; fitted = false; cache.clear(); renderAll(); } }, a + " =")));
+    const at = el("input", { type: "number", step: 1, value: ui.plane.at, style: { width: "70px", height: "26px", border: "1px solid var(--border)", borderRadius: "5px", background: "var(--field)", padding: "0 6px" }, onchange: (e) => { ui.plane.at = +e.target.value; draw(); } });
+    r.append(group("View", tb("3D", "cube", () => { ui.view3d = "3d"; fitted = false; renderAll(); }, { on: ui.view3d === "3d" }), tb("Section", "section", () => { ui.view3d = "section"; fitted = false; renderAll(); }, { on: ui.view3d === "section" }), el("div.tbs", ax, el("div", at, " m"))));
+  }
+  r.append(group("Tools", tb("Cross section", "section", () => { ui.tool = "section"; ui.sectionPts = []; $("#hint").textContent = "Click the start (A) and the end (A*) of the cross section."; }, { disabled: using3D() }),
+    tb("Curve", "curve", () => { ui.tool = "curve"; $("#hint").textContent = "Click a point: its displacements through every phase."; }, { disabled: using3D() }),
+    tb("Tables", "table", tables), tb("Picture", "image", exportPicture), tb("Share", "share", saveWithResults, { title: "Save one HTML file with these results inside, to send to a reviewer" })));
+}
+function renderLeft() {
+  const L = $("#left"); L.innerHTML = "";
+  if (!pack) return;
+  const list = el("div");
+  pack.phases.forEach((p, i) => {
+    const ok = usable(p), bad = p.ended && p.ended !== "OK";
+    list.append(el("div.phase-row" + (i === ui.phase ? ".sel" : ""), { onclick: () => ok && setPhase(i), title: p.skipped || p.calc || "" },
+      el("span.ok" + (bad ? ".bad" : ok ? "" : ".none"), bad ? "!" : ok ? "✓" : "–"), el("span.nm", `[${i}] ${p.name}`), el("span.ct", p.calc === "Safety" && p.SumMsf ? "ΣMsf " + fmt(p.SumMsf, 3) : (p.calc || "").replace(" procedure", ""))));
+  });
+  const res = el("div");
+  let g = "";
+  for (const t of TYPES) {
+    if ((t.d2 && is3D()) || (t.d3 && !is3D())) continue;
+    if (t.group !== g) { g = t.group; res.append(el("div.rgrp", g)); }
+    const can = available(phase(), t);
+    res.append(el("div.rt" + (ui.type === t.key ? ".sel" : "") + (can ? "" : ".off"), { onclick: () => can && setType(t.key), title: can ? t.label : "Not in this results file for this phase" }, icon(t.icon), t.label));
+  }
+  L.append(el("div", { style: { display: "flex", flexDirection: "column", minHeight: 0, maxHeight: "42%" } }, el("div.panel-head", "Phases", el("span.sub", pack.phases.length)), el("div.panel-scroll", list)),
+    el("div.panel-head", "Results"), el("div.panel-scroll", res));
+}
+function renderRight() {
+  const R = $("#right"); R.innerHTML = "";
+  if (!pack) return;
+  const p = phase(), box = el("div");
+  box.append(el("div.rgrp", "Phase"), el("div.kv", el("span", "Name"), el("span", p.name), el("span", "Calculation"), el("span", p.calc || "–"), el("span", "Ended"), el("span", p.ended || "–"),
+    el("span", "ΣMstage"), el("span", fmt(p.SumMstage, 3)), ...(p.SumMsf != null ? [el("span", "ΣMsf (factor of safety)"), el("span", fmt(p.SumMsf, 4))] : []),
+    el("span", "|u| max"), el("span", fmt(maxDisp(p) * 1000, 4) + " mm"), el("span", "Nodes"), el("span", usable(p) ? p.nodes.x.length : 0)));
+  const v = ui.probe && ui.probe.v;
+  box.append(el("div.rgrp", "At the cursor"));
+  if (v) {
+    const kv = el("div.kv", el("span", "Position"), el("span", `${fmt(ui.probe.x, 3)}, ${fmt(ui.probe.y, 3)}`));
+    for (const [k, val] of Object.entries(v)) { const t = typeOf(k); kv.append(el("span", t ? t.label.replace(/^.*?(?=[|uσpτG])/, "") : k), el("span", fmt(t && t.unit === "m" ? val * 1000 : val, 4) + (t && t.unit === "m" ? " mm" : t && t.unit ? " " + t.unit : ""))); }
+    box.append(kv);
+  } else box.append(el("div.kv", el("span", using3D() ? "Use Section to read values" : "Move over the model"), el("span", "")));
+  if ((p.plates || []).length) {
+    box.append(el("div.rgrp", "Plates"));
+    for (const pl of p.plates) { const s = (pack.model.structures || []).find((q) => q.id === pl.struct); const kv = el("div.kv"); kv.append(el("span", el("b", s ? s.name : pl.name)), el("span", ""));
+      for (const f of ["M", "Q", "N"]) if (pl[f]) { const e = extremes(pl[f]); kv.append(el("span", f + " max / min"), el("span", fmt(e.mx, 4) + " / " + fmt(e.mn, 4))); } box.append(kv); }
+  }
+  if ((p.anchors || []).length) { box.append(el("div.rgrp", "Anchors")); const kv = el("div.kv"); for (const a of p.anchors) kv.append(el("span", anchorName(a)), el("span", fmt(a.F, 4) + " kN")); box.append(kv); }
+  if (pack.missing && pack.missing.length) box.append(el("div.rgrp", "Not in this file"), el("div", { style: { padding: "2px 12px", color: "var(--muted)", fontSize: "12px" } }, pack.missing.slice(0, 6).join("; ")));
+  R.append(el("div.panel-head", "Values"), el("div.panel-scroll", box));
+}
+function status() {
+  const s = $("#status"); s.innerHTML = "";
+  if (!pack) { s.append(el("span", "Open a results file (.ppr) made by Calculate in Plaxis.")); return; }
+  s.append(el("span", "PLAXIS " + pack.product), el("span", "Results from Plaxis " + (pack.plaxis || "?")), el("span", "Made " + new Date(pack.created).toLocaleString()));
+  if (ui.probe) s.append(el("span", "x ", el("b", fmt(ui.probe.x, 2)), "  y ", el("b", fmt(ui.probe.y, 2))));
+  s.append(el("span.spacer"), el("span", "Display mesh drawn over Plaxis's nodes"));
+}
+function menus() {
+  PP.menubar($("#menubar"), [
+    ["File", [{ label: "Open results…", key: "Ctrl+O", run: openFile }, "-", { label: "Save a copy with the results inside (HTML)…", run: saveWithResults, enabled: () => !!pack }, { label: "Export picture (PNG)", run: exportPicture, enabled: () => !!pack }, { label: "Tables and CSV…", run: tables, enabled: () => !!pack }]],
+    ["View", [{ label: "Zoom to model", key: "F", run: fit }, "-", { label: "Shadings", check: () => ui.shading, run: () => { ui.shading = !ui.shading; renderAll(); } }, { label: "Contour lines", check: () => ui.contours, run: () => { ui.contours = !ui.contours; renderAll(); } },
+      { label: "Arrows", check: () => ui.arrows, run: () => { ui.arrows = !ui.arrows; renderAll(); } }, { label: "Mesh lines", check: () => ui.meshLines, run: () => { ui.meshLines = !ui.meshLines; renderAll(); } }, "-",
+      { head: "Theme" }, ...["auto", "light", "dark"].map((t) => ({ label: { auto: "Same as Windows", light: "Light", dark: "Dark" }[t], run: () => { PP.theme(t); renderAll(); } }))]],
+    ...["Deformations", "Stresses", "Pore pressures", "Structures"].map((g) => [g, () => TYPES.filter((t) => t.group === g && !(t.d2 && is3D()) && !(t.d3 && !is3D())).map((t) => ({ label: t.label, check: () => ui.type === t.key, enabled: () => !!pack && available(phase(), t), run: () => setType(t.key) }))]),
+    ["Tools", [{ label: "Cross section", run: () => { ui.tool = "section"; ui.sectionPts = []; $("#hint").textContent = "Click the start (A) and the end (A*) of the cross section."; }, enabled: () => !!pack && !using3D() }, { label: "Curve at a point", run: () => { ui.tool = "curve"; $("#hint").textContent = "Click a point."; }, enabled: () => !!pack && !using3D() }, { label: "Tables", run: tables, enabled: () => !!pack }]],
+    ["Help", [{ label: "About the Viewer", run: () => PP.dialog({ title: "Plaxis ProMax Viewer", size: "sm", body: el("div", el("p", "Shows the results of a Plaxis calculation with no Plaxis and no licence. Every value was copied from Plaxis Output when Plaxis ProMax calculated the model."), el("p", "Shadings and lines are drawn over a display mesh made from Plaxis's nodes and stress points; Plaxis's own element edges are not in the file."), el("p", "Mouse: wheel to zoom, right or middle drag to pan (3D: left drag rotates).")) }) }]],
+  ]);
+}
+
+// ---- Start ---------------------------------------------------------------------------------------------------------
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest("input,select,textarea")) return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "o") { e.preventDefault(); openFile(); }
+  else if (e.key === "f" && pack) fit();
+  else if (e.key === "PageDown" && pack) setPhase(ui.phase + 1);
+  else if (e.key === "PageUp" && pack) setPhase(ui.phase - 1);
+  else if (e.key === "Escape") { ui.tool = null; ui.sectionPts = []; $("#hint").textContent = ""; draw(); }
+});
+const stage = $("#stage");
+stage.addEventListener("dragover", (e) => { e.preventDefault(); });
+stage.addEventListener("drop", async (e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) loadBuffer(await f.arrayBuffer(), f.name); });
+async function start() {
+  PP.theme(); $("#logo").append(icon("logo"));
+  renderAll();
+  const embedded = document.getElementById("ppr-data");
+  const q = new URLSearchParams(location.search);
+  if (window.PPR_START) { await loadBuffer(window.PPR_START, window.PPR_START_NAME); if (window.PPR_START_UI) { Object.assign(ui, window.PPR_START_UI); fitted = false; ui.autoScale = autoScale(phase()); renderAll(); if (window.PPR_START_UI.section) showSection(); if (window.PPR_START_UI.curve) showCurve(); } return; }
+  if (embedded) { const b = Uint8Array.from(atob(embedded.textContent.trim()), (c) => c.charCodeAt(0)); await loadBuffer(b.buffer, ""); return; }
+  if (q.get("pack")) { try { const r = await fetch(q.get("pack")); await loadBuffer(await r.arrayBuffer(), q.get("name") || ""); return; } catch (e) { PP.toast("Could not read the results: " + e.message); } }
+  stage.append(el("div.drop#drop", el("div.card", icon("viewer"), el("h2", "Open Plaxis results"), el("p", "Drop a results file (.ppr) here, or pick one. Calculate in Plaxis writes it beside the model. No Plaxis or licence is needed to look at it."),
+    el("button.btn.primary", { onclick: openFile }, icon("open"), "Open results…"))));
+}
+const _load = loadBuffer;
+loadBuffer = async (b, n) => { await _load(b, n); if (pack) { ui.autoScale = autoScale(phase()); renderAll(); } };
+start();
+</script>
+</body>
+</html>
