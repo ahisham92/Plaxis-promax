@@ -15,6 +15,9 @@
     <None Include="Plaxis\plaxis_worker.py" CopyToOutputDirectory="PreserveNewest" Link="plaxis_worker.py" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Chat\chat-prompts.json" LogicalName="PlaxisProMax.chat-prompts.json" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="PlaxisProMax" />
     <InternalsVisibleTo Include="PlaxisProMax.Tests" />
   </ItemGroup>

@@ -21,6 +21,7 @@ PlaxisProMax.Tools.ActivityLog.RootOverride = Path.Combine(scratch, "logs");
 PlaxisProMax.Bugs.BugLog.RootOverride = Path.Combine(scratch, "Bugs");
 PlaxisProMax.Chat.ChatStore.RootOverride = Path.Combine(scratch, "conversations");
 PlaxisProMax.Update.Updater.RootOverride = Path.Combine(scratch, "local");
+PlaxisProMax.Chat.CrewStats.PathOverride = Path.Combine(scratch, "crew-stats.json");
 
 Section("approvals", ApprovalTests.Run);
 Section("kept code", CodeLibraryTests.Run);
@@ -36,6 +37,17 @@ Section("update resume", UpdateResumeTests.Run);
 Section("updater", UpdaterTests.Run);
 Section("bug log", BugLogTests.Run);
 Section("bug reports and export", BugReportTests.Run);
+Section("job pause", JobPauseTests.Run);
+Section("job cards", JobCardTests.Run);
+Section("jobs", ParallelJobTests.Run);
+Section("crew", CrewTests.Run);
+Section("crew at work", CrewRunTests.Run);
+Section("job calls", ChatMcpJobTests.Run);
+Section("job checks", JobChecksTests.Run);
+Section("job truth", JobTruthTests.Run);
+Section("automatic model", ChatAutoTests.Run);
+Section("questions", ChatQuestionsTests.Run);
+Section("chat work", ChatWorkTests.Run);
 
 try { Directory.Delete(scratch, true); } catch (Exception) { }
 Console.WriteLine(failures == 0 ? "All checks passed." : $"{failures} check(s) failed.");

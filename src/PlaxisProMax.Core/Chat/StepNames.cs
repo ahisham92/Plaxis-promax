@@ -14,6 +14,7 @@ internal static class StepNames
     // Tools whose id doesn't read well as words. Anything else is its id in sentence case ("Tag elements in view").
     private static readonly Dictionary<string, string> Names = new(StringComparer.Ordinal)
     {
+        ["chat_jobs"] = "Jobs",
         ["status"] = "Look at Plaxis",
         ["list_model"] = "List the model",
         ["inspect"] = "Read an object",
@@ -140,7 +141,7 @@ internal static class StepNames
     public static bool ReadOnly(string tool)
     {
         tool = Short(tool);
-        return tool is "status" or "inspect" or "remember_rule"
+        return tool is "status" or "inspect" or "remember_rule" or "chat_jobs"
                    or "Read" or "Glob" or "Grep" or "LS" or "TodoWrite" or "TaskCreate" or "TaskUpdate" or "WebFetch" or "WebSearch" or "ToolSearch"
                || tool.StartsWith("get_", StringComparison.Ordinal) || tool.StartsWith("list_", StringComparison.Ordinal)
                || tool.StartsWith("find_", StringComparison.Ordinal) || tool.StartsWith("read_", StringComparison.Ordinal);

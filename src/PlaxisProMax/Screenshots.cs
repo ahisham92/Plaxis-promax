@@ -39,6 +39,11 @@ internal static class Screenshots
         Shoot(bug, Path.Combine(folder, "7-report-bug.png"), w => ((ReportBugWindow)w).Fill("The boreholes came out 2 m too low after create_boreholes; the log says the top is at +3.5."));
         var update = new ChatWindow(link, new PlaxisInstall.StartArgs(null, null, null, false), () => null!, sample: true);
         Shoot(update, Path.Combine(folder, "8-update-ready.png"), w => { ((ChatWindow)w).ShowSample(); ((ChatWindow)w).ShowSampleUpdate("0.2.0"); });
+        var crew = new ChatWindow(link, new PlaxisInstall.StartArgs(null, null, null, false), () => null!, sample: true);
+        Shoot(crew, Path.Combine(folder, "9-crew.png"), w => ((ChatWindow)w).ShowSampleCrew());
+        var job = new JobWindow(2);
+        Shoot(job, Path.Combine(folder, "10-job.png"), w => ((JobWindow)w).ShowSample());
+        Shoot(new SettingsWindow(null), Path.Combine(folder, "11-settings-crew.png"), w => ((SettingsWindow)w).ScrollTo("Crew"));
         app.Shutdown();
         return 0;
     }

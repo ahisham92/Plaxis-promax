@@ -40,6 +40,46 @@ internal sealed class SettingsWindow : Window
         var model = new ComboBox { IsEditable = true, ItemsSource = new[] { "", "sonnet", "opus", "haiku", "fable" }, Text = s.ChatModel };
         var timeout = new TextBox { Text = s.CallTimeoutSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture), Width = 90 };
 
+        // The crew (Sketch ProMax's Settings > Chat): the kind of a new chat, how many jobs run at once, the check of finished
+        // work, each job's share of the plan, the crew's names, and Automatic's model and effort for each kind of work.
+        var chatType = new ComboBox { ItemsSource = ChatTypes.All.Select(ChatTypes.Label).ToList(), SelectedIndex = Math.Max(0, Array.IndexOf(ChatTypes.All, ChatTypes.Parse(s.ChatTypeDefault))), Width = 220 };
+        var typeHint = ChatWindow.Wrapped(ChatUi.Small(ChatTypes.Hint(ChatTypes.Parse(s.ChatTypeDefault))));
+        chatType.SelectionChanged += (_, _) => typeHint.Text = ChatTypes.Hint(ChatTypes.All[Math.Max(0, chatType.SelectedIndex)]);
+        var jobLimit = new ComboBox { ItemsSource = Enumerable.Range(JobBoard.MinLimit, JobBoard.MaxLimit - JobBoard.MinLimit + 1).ToList(), SelectedItem = JobBoard.ClampLimit(s.ChatJobLimit), Width = 90 };
+        var review = new CheckBox { Content = "A teammate checks each finished job in the project before it is reported", IsChecked = JobReview.Normal(s.ChatJobReview) == JobReview.Always };
+        var budget = new TextBox { Text = s.ChatJobBudget.ToString(System.Globalization.CultureInfo.InvariantCulture), Width = 90 };
+        var names = CrewNames.From(s.ChatCrewYou, s.ChatCrewCoordinator, s.ChatCrewWorkers, s.ChatCrewApplier, Environment.UserName);
+        var crewYou = new TextBox { Text = names.You, Width = 220 };
+        var crewCoordinator = new TextBox { Text = names.Coordinator, Width = 220 };
+        var crewWorkers = new TextBox { Text = string.Join(", ", names.Workers) };
+        var crewApplier = new TextBox { Text = names.Applier, Width = 220 };
+        var modelIds = ChatModels.All.Select(m => m.Id).ToList();
+        var kindModels = new Dictionary<string, ComboBox>();
+        var kindEfforts = new Dictionary<string, ComboBox>();
+        FrameworkElement KindRow(string kind, string modelNow, string effortNow)
+        {
+            var m = new ComboBox { ItemsSource = ChatModels.All.Select(c => c.Label).ToList(), SelectedIndex = Math.Max(0, modelIds.IndexOf(ChatModels.Find(modelNow).Id)), Width = 110 };
+            var known = ChatAuto.ParseEffort(effortNow);
+            var e = new ComboBox { ItemsSource = ChatAuto.Efforts.Select(ChatAuto.EffortLabel).ToList(), SelectedIndex = Math.Max(0, Array.IndexOf(ChatAuto.Efforts, ChatAuto.IsAuto(known) ? ChatAuto.DefaultEffort(kind) : known)), Width = 110, Margin = new Thickness(ChatUi.S2, 0, 0, 0) };
+            System.Windows.Automation.AutomationProperties.SetName(m, ChatAuto.KindLabel(kind) + ": model");
+            System.Windows.Automation.AutomationProperties.SetName(e, ChatAuto.KindLabel(kind) + ": effort");
+            kindModels[kind] = m;
+            kindEfforts[kind] = e;
+            var label = ChatUi.Small(ChatAuto.KindLabel(kind), Brand.K.Text);
+            label.Width = 110;
+            label.VerticalAlignment = VerticalAlignment.Center;
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2), ToolTip = ChatAuto.KindHint(kind) };
+            row.Children.Add(label);
+            row.Children.Add(m);
+            row.Children.Add(e);
+            return row;
+        }
+        var kindRows = new StackPanel();
+        kindRows.Children.Add(KindRow(ChatAuto.Simple, s.ChatModelSimple, s.ChatEffortSimple));
+        kindRows.Children.Add(KindRow(ChatAuto.Everyday, s.ChatModelEveryday, s.ChatEffortEveryday));
+        kindRows.Children.Add(KindRow(ChatAuto.Hard, s.ChatModelHard, s.ChatEffortHard));
+        kindRows.Children.Add(KindRow(ChatAuto.Coordinating, s.ChatModelCoordinator, s.ChatEffortCoordinator));
+
         var signIn = Brand.Button("Sign in to Claude again");
         signIn.IsEnabled = claude is not null;
         signIn.Click += (_, _) => { if (claude is not null) ClaudeCli.StartSignIn(claude); };
@@ -97,12 +137,32 @@ internal sealed class SettingsWindow : Window
             fresh.ChatModel = model.Text.Trim();
             if (int.TryParse(timeout.Text, out var t) && t is >= 10 and <= 3600) fresh.CallTimeoutSeconds = t;
             fresh.AutoUpdate = autoUpdate.IsChecked == true;
+            fresh.ChatTypeDefault = ChatTypes.All[Math.Max(0, chatType.SelectedIndex)];
+            if (jobLimit.SelectedItem is int limit) fresh.ChatJobLimit = limit;
+            // "Only in an Autopilot run" (set elsewhere) is kept unless the box is ticked.
+            fresh.ChatJobReview = review.IsChecked == true ? JobReview.Always : JobReview.Normal(fresh.ChatJobReview) == JobReview.AutopilotOnly ? JobReview.AutopilotOnly : JobReview.Off;
+            if (int.TryParse(budget.Text, out var share) && share is >= 0 and <= 100) fresh.ChatJobBudget = share;
+            fresh.ChatCrewYou = crewYou.Text.Trim();
+            fresh.ChatCrewCoordinator = crewCoordinator.Text.Trim();
+            fresh.ChatCrewWorkers = crewWorkers.Text.Trim();
+            fresh.ChatCrewApplier = crewApplier.Text.Trim();
+            string ModelOf(string kind) => modelIds[Math.Max(0, kindModels[kind].SelectedIndex)];
+            string EffortOf(string kind) => ChatAuto.Efforts[Math.Max(0, kindEfforts[kind].SelectedIndex)];
+            (fresh.ChatModelSimple, fresh.ChatEffortSimple) = (ModelOf(ChatAuto.Simple), EffortOf(ChatAuto.Simple));
+            (fresh.ChatModelEveryday, fresh.ChatEffortEveryday) = (ModelOf(ChatAuto.Everyday), EffortOf(ChatAuto.Everyday));
+            (fresh.ChatModelHard, fresh.ChatEffortHard) = (ModelOf(ChatAuto.Hard), EffortOf(ChatAuto.Hard));
+            (fresh.ChatModelCoordinator, fresh.ChatEffortCoordinator) = (ModelOf(ChatAuto.Coordinating), EffortOf(ChatAuto.Coordinating));
             fresh.Save();
             Close();
         };
 
         var body = new StackPanel { Margin = new Thickness(ChatUi.S4) };
-        void Section(string title) => body.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold, FontSize = 13, Margin = new Thickness(0, ChatUi.S3, 0, ChatUi.S1) });
+        void Section(string title)
+        {
+            var head = new TextBlock { Text = title, FontWeight = FontWeights.SemiBold, FontSize = 13, Margin = new Thickness(0, ChatUi.S3, 0, ChatUi.S1) };
+            _sections[title] = head;
+            body.Children.Add(head);
+        }
         void Field(string label, FrameworkElement field, string? help = null)
         {
             body.Children.Add(ChatUi.Small(label));
@@ -123,8 +183,23 @@ internal sealed class SettingsWindow : Window
         Field("Remote scripting password", password, "Only needed when Plaxis ProMax is started outside Plaxis; from Plaxis's Expert menu it is passed on.");
         Field("Plaxis's Python", python, "Empty: found by itself (Bentley's PLAXIS Python Distribution).");
         Field("Time limit per call, seconds (a calculation has its own)", timeout);
+        Section("Crew");
+        Field("A new chat is", chatType);
+        typeHint.Margin = new Thickness(0, 0, 0, ChatUi.S2);
+        body.Children.Add(typeHint);
+        Field("Jobs at once (workers)", jobLimit, "The jobs think side by side; their calls to Plaxis take turns, one at a time.");
+        review.Margin = new Thickness(0, 0, 0, ChatUi.S2);
+        body.Children.Add(review);
+        Field("Each job's share of your 5-hour limit, percent (0: no limit)", budget, "A job that used its share pauses; send it a message to let it carry on.");
+        Field("Your name in the crew", crewYou);
+        Field("The coordinator", crewCoordinator);
+        Field("The workers (one name each, with commas)", crewWorkers);
+        Field("Who applies the changes in Plaxis", crewApplier);
+        body.Children.Add(ChatUi.Small("Automatic picks a model and an effort for each kind of work:"));
+        kindRows.Margin = new Thickness(0, 2, 0, ChatUi.S2);
+        body.Children.Add(kindRows);
         Section("Claude");
-        Field("Model (empty: Claude Code's default)", model);
+        Field("One model for every chat (empty: Automatic, as above)", model);
         body.Children.Add(Brand.ButtonRow(signIn));
         Section("License");
         body.Children.Add(ChatWindow.Wrapped(ChatUi.Small(LicenseText())));
@@ -142,6 +217,16 @@ internal sealed class SettingsWindow : Window
         buttons.Margin = new Thickness(0, ChatUi.S4, 0, 0);
         body.Children.Add(buttons);
         Content = new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = SystemParameters.WorkArea.Height - 80 };
+    }
+
+    private readonly Dictionary<string, FrameworkElement> _sections = new();
+
+    /// <summary>Scrolls a section to the top (for the screenshots).</summary>
+    internal void ScrollTo(string section)
+    {
+        if (!_sections.TryGetValue(section, out var head) || Content is not ScrollViewer scroll || scroll.Content is not FrameworkElement body) return;
+        UpdateLayout();
+        scroll.ScrollToVerticalOffset(head.TransformToAncestor(body).Transform(new Point(0, 0)).Y);
     }
 
     private static string LicenseText()

@@ -28,6 +28,7 @@ Started from the Start menu instead, it uses the port and password in Settings.
 | Plaxis link and tools | | Python worker on Plaxis's own Python |
 | Self-update (release lookup, resumable download, checksum) | ported | the next start hands over to the downloaded version; Restart to update |
 | Report bug, bug log, Export chats & bugs, activity log | ported | picture of the chat window, Plaxis versions |
+| The crew: coordinator, workers as parallel jobs (`chat_jobs`), a teammate checking finished work, Pause all, budgets, automatic model and effort | ported | Plaxis runs one command at a time, so the jobs think side by side and their Plaxis calls take turns; one job changes the project at a time |
 
 ## Build and test
 
