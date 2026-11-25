@@ -148,7 +148,7 @@ internal static class ClaudeCli
         var pid = Process.GetCurrentProcess().Id.ToString(System.Globalization.CultureInfo.InvariantCulture);
         var mcpFile = WriteMcpConfig(engine, pid, model, "mcp-", chatKey);
         var promptFile = Path.Combine(engine, "prompt-" + pid + ".md");
-        File.WriteAllText(promptFile, Agent.SystemPrompt.ForChat(AgentSettings.Load().ProjectRules, coordinator, ChatJobs.Limit, ChatJobs.Names.Line()), new UTF8Encoding(false));
+        File.WriteAllText(promptFile, Agent.SystemPrompt.ForChat(AgentSettings.Load().ProjectRules, coordinator, ChatJobs.Limit, ChatJobs.Names.Line()) + Notes() + Recall(), new UTF8Encoding(false));
 
         var args = new List<string>
         {
@@ -186,7 +186,7 @@ internal static class ClaudeCli
         var mcpFile = WriteMcpConfig(engine, pid, model, "mcp-job-" + jobKey + "-", jobKey);
         var promptFile = Path.Combine(engine, "job-" + jobKey + "-" + pid + ".md");
         // A job started during an autopilot run is told nobody is there, and gets the user's own words.
-        File.WriteAllText(promptFile, Agent.SystemPrompt.ForJob(AgentSettings.Load().ProjectRules) + (Autopilot.Unattended ? Autopilot.JobRules + Autopilot.JobWords() : ""), new UTF8Encoding(false));
+        File.WriteAllText(promptFile, Agent.SystemPrompt.ForJob(AgentSettings.Load().ProjectRules) + (Autopilot.Unattended ? Autopilot.JobRules + Autopilot.JobWords() : "") + Notes(), new UTF8Encoding(false));
         var args = new List<string>
         {
             "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
@@ -280,6 +280,29 @@ internal static class ClaudeCli
 
     /// <summary>The address the chat's Claude Code reaches the Plaxis tools at now.</summary>
     internal static string McpAddress => Mcp.ChatMcp.Current?.Url ?? "";
+
+    /// <summary>The memory notes for this chat (global and the open project's), as a block at the end of the prompt.</summary>
+    private static string Notes()
+    {
+        try
+        {
+            var block = MemoryNotes.PromptFor(ChatScope.NotesKey);
+            return block.Length == 0 ? "" : "\n\n" + block;
+        }
+        catch (Exception) { return ""; }
+    }
+
+    /// <summary>What this project's other chats remembered (ChatRecall), as a block at the end of the prompt.</summary>
+    private static string Recall()
+    {
+        try
+        {
+            var key = ChatScope.ProjectKey;
+            var block = ChatRecall.PromptBlock(ChatStore.ForModel(key), key, ChatScope.ChatId);
+            return block.Length == 0 ? "" : "\n\n" + block;
+        }
+        catch (Exception) { return ""; }
+    }
 
     /// <summary>Runs a short command hidden and returns its exit code and output (stdout then stderr); -1 on timeout or failure.</summary>
     public static (int Code, string Output) Run(string exe, string arguments, int timeoutMs)

@@ -114,6 +114,7 @@ internal sealed partial class ChatWindow
         _crew?.Dispose();
         _crew = null;
         if (_sample) return;
+        ChatScope.Set(_conversation.Key, _conversation.Title, _conversation.Id);
         ChatJobs.ChatModel = ChatAuto.ParseModel(_conversation.Model);
         ChatJobs.ChatEffort = ChatAuto.ParseEffort(_conversation.Effort);
         _crew = new Crew(a => Dispatcher.BeginInvoke(a), _conversation, () => _claude, new CrewHost

@@ -630,6 +630,7 @@ internal sealed partial class Crew : IDisposable
             _host.Save();
             return;
         }
+        RoutineEnded(job);
         if (!_reports.Contains(job.Number)) _reports.Add(job.Number);
         _reportTimer?.Dispose();
         _reportTimer = Once(TimeSpan.FromSeconds(1.5), FlushReports);
@@ -735,6 +736,7 @@ internal sealed partial class Crew : IDisposable
         if (Board.Find(number) is { ReviewOf: > 0 } stopped && Board.ReviewEnded(stopped, DateTime.UtcNow) is { } checkedJob) Report(checkedJob);
         // A stopped goal reviewer: its round is judged without it (it counts as not able to tell).
         if (Board.Find(number) is { GoalCheck: > 0 } reviewer) GoalCheckEnded(reviewer);
+        if (Board.Find(number) is { Routine.Length: > 0 } routine) RoutineEnded(routine);
         JobsChanged();
         return true;
     }

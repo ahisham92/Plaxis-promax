@@ -253,7 +253,7 @@ internal static class JobChecksTests
         check("routines: times read", Routines.ParseTime("2:05") == new TimeSpan(2, 5, 0) && Routines.ParseTime("25:00") is null && Routines.ParseTime("x") is null, "");
         var task = Routines.JobTask(routine, new DateTime(2026, 11, 2, 2, 0, 0), catchUp: true);
         check("routines: the job knows it runs alone and is a catch-up", task.Contains("don't ask questions") && task.Contains("catching up") && task.Contains("Check the model."), task);
-        check("routines: ready-made nightly check and BIM-ready audit", Routines.Presets.Any(p => p.Name == "Nightly model check") && Routines.Presets.Any(p => p.Name == "BIM-ready audit")
+        check("routines: ready-made nightly calculation, results to Excel and model check", Routines.Presets.Any(p => p.Name == "Nightly calculation") && Routines.Presets.Any(p => p.Name == "Results to Excel") && Routines.Presets.Any(p => p.Name == "Model check")
             && Routines.Presets.All(p => p.Task.Contains("Don't change the model")), "");
         var folder = Path.Combine(Path.GetTempPath(), "spm-routines-" + Guid.NewGuid().ToString("N"));
         try

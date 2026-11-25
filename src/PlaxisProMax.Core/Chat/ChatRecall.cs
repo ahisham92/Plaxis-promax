@@ -157,15 +157,15 @@ internal static class ChatRecall
             .OrderByDescending(c => c.Updated).Take(MaxPromptChats).ToList();
         if (list.Count == 0) return "";
         var sb = new StringBuilder();
-        sb.AppendLine("What earlier chats about this model remembered (newest first). Use it so the user doesn't have to explain again, " +
-                      "but check the model when it matters, and follow what the user says now when it differs:");
+        sb.AppendLine("What earlier chats about this project remembered (newest first). Use it so the user doesn't have to explain again, " +
+                      "but check the project when it matters, and follow what the user says now when it differs:");
         foreach (var c in list)
         {
             var part = $"From the chat \"{c.Name}\" ({c.Updated.ToLocalTime().ToString("d MMM yyyy", CultureInfo.InvariantCulture)}):\n{c.Recall}\n";
             if (sb.Length + part.Length > MaxPromptChars) break;
             sb.Append(part);
         }
-        sb.AppendLine("Older chats, and chats about other models, can be searched with recall_chats.");
+        sb.AppendLine("Older chats, and chats about other projects, can be searched with recall_chats.");
         return sb.ToString();
     }
 

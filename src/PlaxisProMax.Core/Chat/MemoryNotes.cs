@@ -7,22 +7,25 @@ namespace PlaxisProMax.Chat;
 /// What the user asked Claude to remember ("remember that ..."), kept in %APPDATA%\PlaxisProMax\memory.md: a Global
 /// section that every chat sees, and one section per model (keyed like the chat's conversations, by the model's path or,
 /// for a model never saved, its title) that only that model's chat sees. Plain Markdown, so it can be read and edited
-/// by hand; the pane's Notes tab and the memory_note tool edit it through this class. No Revit or WPF here.
+/// by hand; the pane's Notes tab and the memory_note tool edit it through this class. No Plaxis or WPF here.
 ///
 ///   # Plaxis ProMax memory
 ///   ## Global
 ///   - a note
-///   ## Model: C:\Projects\Tower.rvt
+///   ## Model: C:\Projects\Tower.p2dx
 ///   - a note for that model only
 /// </summary>
 internal static class MemoryNotes
 {
     public const string GlobalHeading = "Global";
-    private const string ModelPrefix = "Model: ";
+    private const string ModelPrefix = "Project: ";
     private const int MaxNote = 1000, MaxPromptChars = 12_000;
     private static readonly object Gate = new();
 
-    public static string File => Path.Combine(
+    /// <summary>Another file for the notes (the checks).</summary>
+    internal static string? FileOverride;
+
+    public static string File => FileOverride ?? Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PlaxisProMax", "memory.md");
 
     /// <summary>One section: Key is null for Global, else the model key.</summary>
@@ -47,7 +50,7 @@ internal static class MemoryNotes
                 var heading = line.Substring(3).Trim();
                 string? key = heading.Equals(GlobalHeading, StringComparison.OrdinalIgnoreCase) ? null
                     : heading.StartsWith(ModelPrefix, StringComparison.OrdinalIgnoreCase) ? heading.Substring(ModelPrefix.Length).Trim()
-                    : heading; // a hand-written "## C:\x.rvt" still counts as that model
+                    : heading; // a hand-written "## C:\x.p2dx" still counts as that model
                 current = Find(sections, key);
                 if (current is null) sections.Add(current = new Section(key));
             }
@@ -65,8 +68,8 @@ internal static class MemoryNotes
         var sb = new StringBuilder();
         sb.AppendLine("# Plaxis ProMax memory");
         sb.AppendLine();
-        sb.AppendLine("What you asked Plaxis ProMax to remember in the Revit chat. Global notes go to every chat; a model's notes only to that model's chat.");
-        sb.AppendLine("Edit or delete them in the Notes tab of the Plaxis ProMax pane, or here (one \"- \" line per note).");
+        sb.AppendLine("What you asked Plaxis ProMax to remember in the chat. Global notes go to every chat; a project's notes only to that project's chats.");
+        sb.AppendLine("Edit or delete them under Menu > Notes in Plaxis ProMax, or here (one \"- \" line per note).");
         var list = sections.Where(s => s.Notes.Count > 0 || s.Key is null).OrderBy(s => s.Key is null ? 0 : 1).ToList();
         if (!list.Any(s => s.Key is null)) list.Insert(0, new Section(null));
         foreach (var s in list)
@@ -105,7 +108,7 @@ internal static class MemoryNotes
         foreach (var n in global) sb.AppendLine("- " + n);
         if (model.Count > 0)
         {
-            sb.AppendLine("For this model only:");
+            sb.AppendLine("For this project only:");
             foreach (var n in model) sb.AppendLine("- " + n);
         }
         var text = sb.ToString();
@@ -183,7 +186,7 @@ internal static class MemoryNotes
         }
     }
 
-    /// <summary>Loads, changes and saves in one step, so two Revit windows don't undo each other's notes.</summary>
+    /// <summary>Loads, changes and saves in one step, so two Plaxis windows don't undo each other's notes.</summary>
     public static T Change<T>(Func<List<Section>, T> change)
     {
         lock (Gate)

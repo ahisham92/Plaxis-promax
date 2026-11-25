@@ -244,6 +244,8 @@ internal sealed partial class Crew
         var rise = JobBudget.Rise(ref _weekSeen, week?.Used, JobBudget.NewWindow(ref _weekResets, week?.ResetsAt));
         if (rise > 0 && Run is { Active: true } active) active.WeekUsed += rise;
         _usage = PlanUsage.Merge(_usage, reported);
+        // Kept so the menu shows it (with its time) before the next answer.
+        _usage.Save(RoutinesFolder);
         if (Run is not { State: AutopilotRun.Running } run) return;
         AgentSettings settings;
         try { settings = AgentSettings.Load(); } catch (Exception) { settings = new AgentSettings(); }
