@@ -47,6 +47,10 @@ internal sealed class SettingsWindow : Window
         chatType.SelectionChanged += (_, _) => typeHint.Text = ChatTypes.Hint(ChatTypes.All[Math.Max(0, chatType.SelectedIndex)]);
         var jobLimit = new ComboBox { ItemsSource = Enumerable.Range(JobBoard.MinLimit, JobBoard.MaxLimit - JobBoard.MinLimit + 1).ToList(), SelectedItem = JobBoard.ClampLimit(s.ChatJobLimit), Width = 90 };
         var review = new CheckBox { Content = "A teammate checks each finished job in the project before it is reported", IsChecked = JobReview.Normal(s.ChatJobReview) == JobReview.Always };
+        var autoFive = new TextBox { Text = s.AutopilotFiveHourMax.ToString(System.Globalization.CultureInfo.InvariantCulture), Width = 90 };
+        var autoWeek = new TextBox { Text = s.AutopilotWeekShare.ToString(System.Globalization.CultureInfo.InvariantCulture), Width = 90 };
+        var autoJob = new TextBox { Text = s.AutopilotJobBudget.ToString(System.Globalization.CultureInfo.InvariantCulture), Width = 90 };
+        var autoWeekly = new CheckBox { Content = "Paused at the weekly limit, a run carries on by itself when it resets", IsChecked = s.AutopilotResumeWeekly };
         var budget = new TextBox { Text = s.ChatJobBudget.ToString(System.Globalization.CultureInfo.InvariantCulture), Width = 90 };
         var names = CrewNames.From(s.ChatCrewYou, s.ChatCrewCoordinator, s.ChatCrewWorkers, s.ChatCrewApplier, Environment.UserName);
         var crewYou = new TextBox { Text = names.You, Width = 220 };
@@ -142,6 +146,10 @@ internal sealed class SettingsWindow : Window
             // "Only in an Autopilot run" (set elsewhere) is kept unless the box is ticked.
             fresh.ChatJobReview = review.IsChecked == true ? JobReview.Always : JobReview.Normal(fresh.ChatJobReview) == JobReview.AutopilotOnly ? JobReview.AutopilotOnly : JobReview.Off;
             if (int.TryParse(budget.Text, out var share) && share is >= 0 and <= 100) fresh.ChatJobBudget = share;
+            if (int.TryParse(autoFive.Text, out var five) && five is >= 10 and <= 100) fresh.AutopilotFiveHourMax = five;
+            if (int.TryParse(autoWeek.Text, out var week) && week is >= 0 and <= 100) fresh.AutopilotWeekShare = week;
+            if (int.TryParse(autoJob.Text, out var jobShare) && jobShare is >= 0 and <= 100) fresh.AutopilotJobBudget = jobShare;
+            fresh.AutopilotResumeWeekly = autoWeekly.IsChecked == true;
             fresh.ChatCrewYou = crewYou.Text.Trim();
             fresh.ChatCrewCoordinator = crewCoordinator.Text.Trim();
             fresh.ChatCrewWorkers = crewWorkers.Text.Trim();
@@ -198,6 +206,12 @@ internal sealed class SettingsWindow : Window
         body.Children.Add(ChatUi.Small("Automatic picks a model and an effort for each kind of work:"));
         kindRows.Margin = new Thickness(0, 2, 0, ChatUi.S2);
         body.Children.Add(kindRows);
+        Section("Autopilot");
+        Field("Pause at this percent of the 5-hour limit", autoFive, "A run (New chat > New autopilot chat) pauses there and carries on by itself when the limit resets.");
+        Field("One run's share of the weekly limit, percent", autoWeek, "A run pauses after using this much of your week, so one night can't spend it all. 0: no share of its own.");
+        Field("A job's share of the 5-hour limit during a run, percent", autoJob, "A job that used this much pauses and reports what it did. 0: never.");
+        autoWeekly.Margin = new Thickness(0, 0, 0, ChatUi.S2);
+        body.Children.Add(autoWeekly);
         Section("Claude");
         Field("One model for every chat (empty: Automatic, as above)", model);
         body.Children.Add(Brand.ButtonRow(signIn));

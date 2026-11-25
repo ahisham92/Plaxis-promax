@@ -82,6 +82,23 @@ internal static class ChatMcpJobTests
             var read = await Call(checker.Key, "status", new { });
             check("job calls: a check may read but not change the project", readOnly.Error && readOnly.Text.Contains("only reads") && !read.Error && asker.Asked.Count == 1, readOnly.Text);
 
+            // An autopilot run: nobody is there to press Allow, so the change goes through and is kept for the report.
+            var logged = new List<string>();
+            void OnLogged(string kind, string text) { lock (logged) logged.Add(kind + ": " + text); }
+            Autopilot.Logged += OnLogged;
+            Autopilot.Here = true;
+            try
+            {
+                var away = await Call(builder.Key, "run_commands", new { commands = new[] { "point 2 2", "delete Point_2" } });
+                check("job calls: during an autopilot run a change is allowed without a card, and logged for the report",
+                    !away.Error && asker.Asked.Count == 1 && logged.Count == 1 && logged[0].StartsWith(AutopilotEntry.Allowed + ": ") && logged[0].Contains("allowed while you were away"), away.Text + " | " + string.Join(" | ", logged));
+            }
+            finally
+            {
+                Autopilot.Here = false;
+                Autopilot.Logged -= OnLogged;
+            }
+
             var fromJob = await Call(builder.Key, "chat_jobs", new { action = "start", title = "More", task = "x", single = "y" });
             var listed = await Call(builder.Key, "chat_jobs", new { action = "list" });
             check("job calls: a job may list its teammates but not start jobs", fromJob.Error && jobs.Count == 2 && !listed.Error && listed.Text.Contains("Soil layers"), fromJob.Text);

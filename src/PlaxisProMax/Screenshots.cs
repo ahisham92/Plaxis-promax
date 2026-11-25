@@ -44,6 +44,8 @@ internal static class Screenshots
         var job = new JobWindow(2);
         Shoot(job, Path.Combine(folder, "10-job.png"), w => ((JobWindow)w).ShowSample());
         Shoot(new SettingsWindow(null), Path.Combine(folder, "11-settings-crew.png"), w => ((SettingsWindow)w).ScrollTo("Crew"));
+        var auto = new ChatWindow(link, new PlaxisInstall.StartArgs(null, null, null, false), () => null!, sample: true);
+        Shoot(auto, Path.Combine(folder, "12-autopilot.png"), w => ((ChatWindow)w).ShowSampleAutopilot());
         app.Shutdown();
         return 0;
     }
