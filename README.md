@@ -16,6 +16,13 @@ In PLAXIS Input: **Expert > Python > Run script**, then pick `Documents\Plaxis P
 The chat window opens already connected to that Plaxis (port and password are passed on, never typed).
 Started from the Start menu instead, it uses the port and password in Settings.
 
+## Modeller and Viewer (no Plaxis licence)
+
+Two more shortcuts, on the desktop and in the Start menu: **Plaxis ProMax Modeller** builds a model in the five modes of
+Plaxis Input, and **Plaxis ProMax Viewer** shows the results with the views of Plaxis Output. Neither opens Plaxis or
+uses its licence. Only **Calculate in Plaxis** does: it opens Plaxis, builds and calculates the model, saves the results
+and closes Plaxis again. See [docs/MODELLER.md](docs/MODELLER.md).
+
 ## What is reused from Sketch ProMax
 
 | Part | From Sketch ProMax | New for Plaxis |
@@ -37,13 +44,14 @@ Started from the Start menu instead, it uses the port and password in Settings.
 
 ```
 dotnet run --project tests/PlaxisProMax.Tests     # C# checks (exit code = failures)
-python -m unittest discover tests/worker          # worker against a fake Plaxis
+python -m unittest discover tests/worker          # worker and Modeller builder against a fake Plaxis
+node tools/screens/shoot.js <samples> <out>       # screenshots of the Modeller and Viewer (python3 tools/sample/make_sample.py <samples> first)
 pwsh ./build.ps1                                  # self-contained win-x64 into dist/
 ```
 
 ## Status
 
-0.3.0, with everything from Sketch ProMax that applies to Plaxis. Tested against a fake Plaxis only; the field test on real PLAXIS 2D and 3D is next (the self-test report lists the steps).
+0.4.0, with everything from Sketch ProMax that applies to Plaxis, and the Modeller and Viewer. Tested against a fake Plaxis only; the field test on real PLAXIS 2D and 3D is next (the self-test report lists the steps).
 
 ## Libraries used
 

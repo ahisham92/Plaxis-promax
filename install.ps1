@@ -49,6 +49,24 @@ $link.WorkingDirectory = $appDir
 $link.Description = 'AI assistant for PLAXIS 2D and 3D'
 $link.Save()
 
+# The Modeller and the Viewer: on the desktop and in the Start menu's Plaxis ProMax folder. Neither uses Plaxis or its
+# licence; only Calculate in Plaxis does, for as long as the run takes. (The program makes them again after an update.)
+$exe = Join-Path $appDir 'PlaxisProMax.exe'
+foreach ($folder in @([Environment]::GetFolderPath('DesktopDirectory'), (Join-Path $programs 'Plaxis ProMax'))) {
+    New-Item -ItemType Directory -Force -Path $folder | Out-Null
+    foreach ($s in @(@('Plaxis ProMax Modeller', '--modeller', 'Build Plaxis models with no Plaxis open and no licence'),
+                     @('Plaxis ProMax Viewer', '--viewer', 'Open Plaxis results (.ppr) with no Plaxis and no licence'))) {
+        $l = $shell.CreateShortcut((Join-Path $folder ($s[0] + '.lnk')))
+        $l.TargetPath = $exe
+        $l.Arguments = $s[1]
+        $l.WorkingDirectory = $appDir
+        $l.Description = $s[2]
+        $l.IconLocation = "$exe,0"
+        $l.Save()
+    }
+}
+Set-Content (Join-Path $env:LOCALAPPDATA 'PlaxisProMax\shortcuts.txt') ($exe + '|2') -NoNewline
+
 # Claude Code: the chat's engine, on your Claude plan.
 $claude = @("$env:USERPROFILE\.local\bin\claude.exe", "$env:LOCALAPPDATA\Programs\claude\claude.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $claude) { $claude = (Get-Command claude.exe, claude.cmd -ErrorAction SilentlyContinue | Select-Object -First 1).Source }

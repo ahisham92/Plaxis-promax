@@ -83,11 +83,15 @@ def _input():
 def _output_for(phase):
     """Opens Output on a phase (g_i.view) and connects to it; reused while the port stays the same."""
     s_i, g_i = _input()
-    port = g_i.view(phase)
     try:
-        port = int(port)
-    except (TypeError, ValueError):
-        raise UserError("Plaxis didn't open Output for that phase (is it calculated?).")
+        port = int(g_i.view(phase))
+    except Exception as ex:
+        if _looks_disconnected(ex):
+            raise
+        # Name the phase and how it ended, not a bare "is it calculated?": Plaxis refuses a phase that has no results.
+        ended = _value_of(phase, "CalculationResult")
+        raise UserError("Plaxis didn't open Output for phase '{}' ({}). Calculate it first, or ask for a phase that ended OK{}.".format(
+            _label(phase), "it ended: {}".format(ended) if ended not in (None, "") else "not calculated", _ok_list(g_i)))
     if _state["g_o"] is None or _state["output_port"] != port:
         _state["s_o"], _state["g_o"] = _new_server(port)
         _state["output_port"] = port
@@ -523,6 +527,17 @@ def _ended_ok(phase):
     return str(v).strip().lower() in ("ok", "1")
 
 
+def _last_calculated(g_i):
+    """The last phase whose calculation ended OK, or None: the phase to open Output on when none is named."""
+    ok = [p for p in _safe(lambda: list(g_i.Phases), []) if _ended_ok(p)]
+    return ok[-1] if ok else None
+
+
+def _ok_list(g_i):
+    ok = [_label(p) for p in _safe(lambda: list(g_i.Phases), []) if _ended_ok(p)]
+    return " (these did: {})".format(", ".join(ok[:12])) if ok else " (no phase has yet)"
+
+
 def _set_stored_steps(phase, steps):
     """How many steps of a phase Plaxis keeps on disk: 1 keeps only the last, which is what a big model needs."""
     for owner in (phase, _safe(lambda: phase.Deform, None)):
@@ -752,7 +767,9 @@ def op_get_results(args):
     CSV file when asked. Result types are paths under Output's ResultTypes, like Soil.Utot or Plate.M2D.
     """
     s_i, g_i = _input()
-    phase_in = _phase(g_i, args.get("phase"))
+    # No phase named (or "last"): the last phase that has results, not the last phase of the list, which after a run
+    # that stopped at a failed phase was never calculated.
+    phase_in = (_last_calculated(g_i) if args.get("phase") in (None, "", "last") else None) or _phase(g_i, args.get("phase"))
     s_o, g_o = _output_for(phase_in)
     target = _label(phase_in)
     phase_out = None
@@ -896,6 +913,93 @@ def _hint(ex, namespace):
             names.update(_safe(lambda: dir(obj), []))
     close = sorted(n for n in names if wanted[:4] in n.lower())[:15]
     return "Close names: " + ", ".join(close) if close else None
+
+
+# ---- The Modeller: build a Modeller model in Plaxis, and read results into a results file ---------------------------
+
+
+def _ppm():
+    """The Modeller's builder (ppm_build.py), which ships beside this worker."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import ppm_build
+    return ppm_build
+
+
+def _model_arg(args):
+    model = args.get("model")
+    if model is None and args.get("path"):
+        with open(args["path"], "r", encoding="utf-8") as f:
+            model = json.load(f)
+    if not isinstance(model, dict):
+        raise UserError("No model given (model, or path to a .ppm file).")
+    return model
+
+
+def op_build_model(args):
+    """Builds a Modeller model (.ppm) in Plaxis Input: a new project unless new_project is false, then saves it to save_as."""
+    s_i, g_i = _input()
+    model = _model_arg(args)
+    is_3d = _safe(lambda: s_i.is_3d, False)
+    if (model.get("product") == "3D") != bool(is_3d):
+        raise UserError("This is a PLAXIS {} model and the open Plaxis is {}.".format(model.get("product", "2D"), "3D" if is_3d else "2D"))
+    answer, _ = _ppm().build(s_i, g_i, model, new_project=args.get("new_project", True))
+    _state["s_o"] = _state["g_o"] = _state["output_port"] = None
+    if args.get("save_as"):
+        try:
+            g_i.save(args["save_as"])
+            answer["saved"] = args["save_as"]
+        except Exception as ex:
+            answer["not_saved"] = _one_line(ex)
+    return answer
+
+
+def _phase_info(g_i):
+    out = []
+    for p in _safe(lambda: list(g_i.Phases), []):
+        row = {"name": _value_of(p, "Identification") or _label(p), "ended": "OK" if _ended_ok(p) else str(_value_of(p, "CalculationResult"))}
+        for key, path in (("calc", "DeformCalcType"), ("previous", "PreviousPhase")):
+            v = _value_of(p, path)
+            if v is not None:
+                row[key] = _label_any(v)
+        reached = _safe(lambda p=p: p.Reached, None)
+        for key in ("SumMstage", "SumMsf"):
+            v = _value_of(reached, key) if reached is not None else None
+            if v is not None:
+                row[key] = v
+        out.append(row)
+    return out
+
+
+def op_export_results(args):
+    """Reads every calculated phase from Plaxis Output into a results file (.ppr) for the Viewer."""
+    s_i, g_i = _input()
+    model = _model_arg(args)
+    path = args.get("save_as") or ""
+    if not path:
+        raise UserError("No save_as path for the results file.")
+    phases = _safe(lambda: list(g_i.Phases), [])
+    if not phases:
+        raise UserError("The project has no phases.")
+    info = _phase_info(g_i)
+    # Output is opened on the last phase that ended OK: the last phase of the list may never have been calculated (a
+    # one-by-one run stops at the first phase that fails), and opening Output on it would lose every result.
+    shown = _last_calculated(g_i)
+    if shown is None:
+        raise UserError("No phase ended OK, so there are no results to read yet. How the phases ended: {}.".format(
+            "; ".join("{}: {}".format(r["name"], r["ended"]) for r in info[:12])))
+    s_o, g_o = _output_for(shown)
+    version = "{}.{}".format(_safe(lambda: s_i.major_version, "?"), _safe(lambda: s_i.minor_version, "?"))
+    return _ppm().export(g_i, g_o, model, path, info, plaxis_version=version, most_nodes=int(args.get("most_nodes") or 200000),
+                         keep=args.get("keep") or None)
+
+
+def op_close_project(args):
+    """Closes the project in Plaxis Input (after saving it), so its licence can be given back."""
+    s_i, g_i = _input()
+    saved = _safe(lambda: g_i.save() or True, False) if args.get("save", True) else False
+    closed = _safe(lambda: s_i.close() or True, False)
+    _state["s_o"] = _state["g_o"] = _state["output_port"] = None
+    return {"saved": saved, "closed": closed}
 
 
 OPS = {name[3:]: fn for name, fn in globals().items() if name.startswith("op_") and callable(fn)}

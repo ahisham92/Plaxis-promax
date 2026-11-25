@@ -8,14 +8,19 @@
     <LangVersion>latest</LangVersion>
     <RootNamespace>PlaxisProMax</RootNamespace>
     <AssemblyName>PlaxisProMax.Core</AssemblyName>
-    <Version>0.3.1</Version>
+    <Version>0.4.0</Version>
   </PropertyGroup>
   <ItemGroup>
     <!-- The worker runs on Plaxis's own Python; it ships next to the program. -->
     <None Include="Plaxis\plaxis_worker.py" CopyToOutputDirectory="PreserveNewest" Link="plaxis_worker.py" />
+    <None Include="Plaxis\ppm_build.py" CopyToOutputDirectory="PreserveNewest" Link="ppm_build.py" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Chat\chat-prompts.json" LogicalName="PlaxisProMax.chat-prompts.json" />
+    <!-- The Modeller and Viewer pages, their builder script and the sample models: inside the program, so nothing can go missing. -->
+    <EmbeddedResource Include="Modeller\web\*.*" LogicalName="PlaxisProMax.web.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Modeller\samples\*.ppm" LogicalName="PlaxisProMax.sample.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Plaxis\ppm_build.py" LogicalName="PlaxisProMax.ppm_build.py" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="PlaxisProMax" />

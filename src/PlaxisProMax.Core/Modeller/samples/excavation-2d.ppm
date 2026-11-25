@@ -1,0 +1,428 @@
+{
+ "format": "ppm",
+ "version": 1,
+ "title": "Anchored excavation, Block B",
+ "product": "2D",
+ "model": "plane strain",
+ "elements": 15,
+ "units": {
+  "length": "m",
+  "force": "kN",
+  "time": "day"
+ },
+ "contour": {
+  "xmin": 0,
+  "xmax": 60,
+  "ymin": -30,
+  "ymax": 0
+ },
+ "materials": [
+  {
+   "id": "m_fill",
+   "kind": "soil",
+   "name": "Fill",
+   "model": "Mohr-Coulomb",
+   "drainage": "Drained",
+   "colour": "#C9A66B",
+   "gammaUnsat": 17,
+   "gammaSat": 19,
+   "E": 10000,
+   "nu": 0.3,
+   "c": 1,
+   "phi": 28,
+   "psi": 0,
+   "kx": 1,
+   "ky": 1,
+   "Rinter": 0.67
+  },
+  {
+   "id": "m_sand",
+   "kind": "soil",
+   "name": "Medium dense sand",
+   "model": "Hardening soil",
+   "drainage": "Drained",
+   "colour": "#E8C872",
+   "gammaUnsat": 18,
+   "gammaSat": 20,
+   "E50": 30000,
+   "Eoed": 30000,
+   "Eur": 90000,
+   "m": 0.5,
+   "nu": 0.2,
+   "c": 1,
+   "phi": 33,
+   "psi": 3,
+   "kx": 1,
+   "ky": 1,
+   "Rinter": 0.7
+  },
+  {
+   "id": "m_clay",
+   "kind": "soil",
+   "name": "Stiff clay",
+   "model": "Hardening soil",
+   "drainage": "Undrained A",
+   "colour": "#8FA9B8",
+   "gammaUnsat": 18,
+   "gammaSat": 19,
+   "E50": 12000,
+   "Eoed": 9000,
+   "Eur": 36000,
+   "m": 0.8,
+   "nu": 0.2,
+   "c": 8,
+   "phi": 24,
+   "psi": 0,
+   "kx": 0.0001,
+   "ky": 0.0001,
+   "Rinter": 0.6
+  },
+  {
+   "id": "m_dense",
+   "kind": "soil",
+   "name": "Dense sand",
+   "model": "HS small",
+   "drainage": "Drained",
+   "colour": "#D9A441",
+   "gammaUnsat": 19,
+   "gammaSat": 21,
+   "E50": 60000,
+   "Eoed": 60000,
+   "Eur": 180000,
+   "m": 0.5,
+   "nu": 0.2,
+   "c": 1,
+   "phi": 37,
+   "psi": 7,
+   "G0": 150000,
+   "gamma07": 0.00015,
+   "kx": 2,
+   "ky": 2,
+   "Rinter": 0.7
+  },
+  {
+   "id": "m_wall",
+   "kind": "plate",
+   "name": "Diaphragm wall 0.8 m",
+   "colour": "#5B6B7F",
+   "EA": 24000000.0,
+   "EI": 1280000.0,
+   "w": 8.0,
+   "nu": 0.15
+  },
+  {
+   "id": "m_anchor",
+   "kind": "anchor",
+   "name": "Anchor rod",
+   "colour": "#7C3AED",
+   "EA": 250000.0,
+   "Lspacing": 2.5
+  },
+  {
+   "id": "m_grout",
+   "kind": "geogrid",
+   "name": "Grout body",
+   "colour": "#0EA5E9",
+   "EA": 100000.0
+  }
+ ],
+ "boreholes": [
+  {
+   "id": "bh1",
+   "name": "BH-1",
+   "x": 0,
+   "top": 0,
+   "head": -2,
+   "layers": [
+    {
+     "bottom": -3,
+     "material": "m_fill"
+    },
+    {
+     "bottom": -12,
+     "material": "m_sand"
+    },
+    {
+     "bottom": -20,
+     "material": "m_clay"
+    },
+    {
+     "bottom": -30,
+     "material": "m_dense"
+    }
+   ]
+  },
+  {
+   "id": "bh2",
+   "name": "BH-2",
+   "x": 60,
+   "top": 0,
+   "head": -2,
+   "layers": [
+    {
+     "bottom": -3.5,
+     "material": "m_fill"
+    },
+    {
+     "bottom": -13,
+     "material": "m_sand"
+    },
+    {
+     "bottom": -21,
+     "material": "m_clay"
+    },
+    {
+     "bottom": -30,
+     "material": "m_dense"
+    }
+   ]
+  }
+ ],
+ "structures": [
+  {
+   "id": "wall",
+   "type": "plate",
+   "name": "Diaphragm wall",
+   "points": [
+    [
+     20,
+     0
+    ],
+    [
+     20,
+     -18
+    ]
+   ],
+   "material": "m_wall",
+   "interfaces": true
+  },
+  {
+   "id": "anc1",
+   "type": "anchor",
+   "name": "Anchor A1",
+   "points": [
+    [
+     20,
+     -2
+    ],
+    [
+     31,
+     -8.5
+    ]
+   ],
+   "material": "m_anchor"
+  },
+  {
+   "id": "grout1",
+   "type": "geogrid",
+   "name": "Grout A1",
+   "points": [
+    [
+     31,
+     -8.5
+    ],
+    [
+     38,
+     -12.6
+    ]
+   ],
+   "material": "m_grout"
+  },
+  {
+   "id": "exc1",
+   "type": "polygon",
+   "name": "Excavation 1",
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     20,
+     0
+    ],
+    [
+     20,
+     -3
+    ],
+    [
+     0,
+     -3
+    ]
+   ],
+   "material": null
+  },
+  {
+   "id": "exc2",
+   "type": "polygon",
+   "name": "Excavation 2",
+   "points": [
+    [
+     0,
+     -3
+    ],
+    [
+     20,
+     -3
+    ],
+    [
+     20,
+     -7
+    ],
+    [
+     0,
+     -7
+    ]
+   ],
+   "material": null
+  },
+  {
+   "id": "exc3",
+   "type": "polygon",
+   "name": "Excavation 3",
+   "points": [
+    [
+     0,
+     -7
+    ],
+    [
+     20,
+     -7
+    ],
+    [
+     20,
+     -10
+    ],
+    [
+     0,
+     -10
+    ]
+   ],
+   "material": null
+  },
+  {
+   "id": "q1",
+   "type": "lineload",
+   "name": "Traffic surcharge",
+   "points": [
+    [
+     22,
+     0
+    ],
+    [
+     32,
+     0
+    ]
+   ],
+   "qx": 0,
+   "qy": -10
+  }
+ ],
+ "waterlevels": [
+  {
+   "id": "wl1",
+   "name": "Lowered inside",
+   "points": [
+    [
+     0,
+     -11
+    ],
+    [
+     20,
+     -11
+    ],
+    [
+     20,
+     -2
+    ],
+    [
+     60,
+     -2
+    ]
+   ]
+  }
+ ],
+ "mesh": {
+  "coarseness": "Medium",
+  "refine": [
+   {
+    "object": "wall",
+    "factor": 0.5
+   }
+  ]
+ },
+ "phases": [
+  {
+   "id": "p0",
+   "name": "Initial phase",
+   "calc": "K0 procedure",
+   "parent": null,
+   "active": {
+    "wall": false,
+    "anc1": false,
+    "grout1": false,
+    "q1": false
+   }
+  },
+  {
+   "id": "p1",
+   "name": "Wall and surcharge",
+   "calc": "Plastic",
+   "parent": "p0",
+   "active": {
+    "wall": true,
+    "q1": true
+   },
+   "loads": {
+    "q1": {
+     "qy": -10
+    }
+   }
+  },
+  {
+   "id": "p2",
+   "name": "Excavate to -3.0 m",
+   "calc": "Plastic",
+   "parent": "p1",
+   "active": {
+    "exc1": false
+   }
+  },
+  {
+   "id": "p3",
+   "name": "Install and prestress anchor",
+   "calc": "Plastic",
+   "parent": "p2",
+   "active": {
+    "anc1": true,
+    "grout1": true
+   }
+  },
+  {
+   "id": "p4",
+   "name": "Excavate to -7.0 m",
+   "calc": "Plastic",
+   "parent": "p3",
+   "active": {
+    "exc2": false
+   }
+  },
+  {
+   "id": "p5",
+   "name": "Excavate to -10.0 m, lower water",
+   "calc": "Plastic",
+   "parent": "p4",
+   "active": {
+    "exc3": false
+   },
+   "water": "wl1"
+  },
+  {
+   "id": "p6",
+   "name": "Factor of safety",
+   "calc": "Safety",
+   "parent": "p5",
+   "active": {}
+  }
+ ]
+}

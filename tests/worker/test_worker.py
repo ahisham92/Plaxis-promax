@@ -186,6 +186,31 @@ class WorkerTests(unittest.TestCase):
         self.assertTrue(easy.MODEL.Phases[-1].ShouldCalculate.value)
         self.assertEqual(easy.MODEL.saves, 5)
 
+    def test_after_a_run_that_stopped_results_come_from_the_last_phase_that_ended_ok(self):
+        # CSI ProMax field test, 25 Nov 2026: a check reported results ("slab design: pass") for a model whose
+        # analysis had not run. Here a run that stopped at a failed phase must neither lose the phases that did end OK
+        # nor show the never-calculated last phase as if it had results.
+        self._three_phases()
+        call("add_phase", name="Dredge fails")
+        call("add_phase", name="Last")
+        call("calculate", one_by_one=True)
+        res = call("get_results", result_types=["Soil.Utot"])
+        self.assertTrue(res["ok"], res)
+        self.assertEqual(res["result"]["phase"], "Anchor")
+        last = call("get_results", phase="Last")
+        self.assertFalse(last["ok"])
+        self.assertIn("'Last'", last["error"])
+        self.assertIn("these did: Initial phase, Wall, Dredge, Anchor", last["error"])
+        failed = call("get_results", phase="Dredge fails")["error"]
+        self.assertIn("it ended: Failed", failed)
+
+    def test_results_file_says_plainly_when_no_phase_ended_ok(self):
+        self._three_phases()
+        answer = call("export_results", model={"product": "2D", "phases": []}, save_as="r.ppr")
+        self.assertFalse(answer["ok"])
+        self.assertIn("No phase ended OK", answer["error"])
+        self.assertIn("Wall:", answer["error"])
+
     def test_results_to_excel_one_sheet_per_phase_and_a_summary(self):
         import tempfile
         import zipfile
