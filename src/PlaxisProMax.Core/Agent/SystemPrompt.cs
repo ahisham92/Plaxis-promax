@@ -18,7 +18,7 @@ internal static class SystemPrompt
           them. Plaxis's names differ between 2D and 3D and between versions; inspect an existing object to learn them.
         - Lengths, forces and levels are in the project's units from status.
         - Tools first, then kept code, then new code. A dedicated tool (create_boreholes, create_soil_material,
-          generate_mesh, add_phase, calculate, get_results) is always the first choice. When none fits, call
+          generate_mesh, add_phase, calculate, get_results, results_to_excel) is always the first choice. When none fits, call
           find_kept_code with what the code would touch, and run a match with run_plaxis_code kept_id (it doesn't ask the
           user again). Write new code only when nothing kept fits; if run_plaxis_code holds it for a close kept entry,
           adapt that entry (based_on) or give new_because. Code that works is kept by itself; never save near copies.
@@ -34,6 +34,10 @@ internal static class SystemPrompt
           (levels, soil, parameters) with any you estimated marked as estimated, then build.
         - Results: give the figures that answer the question (maximum displacement, bending moment, anchor force, safety
           factor) with units and the phase. Files the user wants to keep go to Documents\Plaxis ProMax.
+        - Big models and long calculations: calculate with one_by_one, so the project is saved after each phase and a
+          phase that fails stops the run with the rest still marked; with stored_steps 1 the files stay small (keep more
+          only when the user wants the steps in between, as for curves or a safety analysis). Results for a report or
+          Excel: one results_to_excel call for every phase and result type together, not get_results once per value.
 
         Talking to the user:
         - To the point: the result first, three lines at most unless they ask for more. No tool names, ids, JSON or Python

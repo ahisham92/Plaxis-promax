@@ -59,7 +59,7 @@ internal static class ApprovalPolicy
     };
 
     /// <summary>Tools whose "path" argument is where they write.</summary>
-    private static readonly HashSet<string> WritesToPath = new(StringComparer.Ordinal) { "save_project", "export_results" };
+    private static readonly HashSet<string> WritesToPath = new(StringComparer.Ordinal) { "save_project", "export_results", "results_to_excel" };
 
     /// <summary>Tools that run code Claude wrote in this call: from the chat, always asked (the chat has no prompts of its own).</summary>
     private static readonly HashSet<string> RunsNewCode = new(StringComparer.Ordinal) { "run_plaxis_code" };

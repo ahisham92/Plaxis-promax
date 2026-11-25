@@ -31,6 +31,7 @@ Started from the Start menu instead, it uses the port and password in Settings.
 | The crew: coordinator, workers as parallel jobs (`chat_jobs`), a teammate checking finished work, Pause all, budgets, automatic model and effort | ported | Plaxis runs one command at a time, so the jobs think side by side and their Plaxis calls take turns; one job changes the project at a time |
 | Autopilot: a goal, a plan approved once, then the coordinator and workers carry on unattended; pauses at usage limits and carries on when they reset; a review team checks the goal before the run ends | ported | New chat > New autopilot chat. The backup is a copy of the project file and its data folder in `Backup` beside it. Not ported: sharing a run across windows, answering Revit dialogs |
 | Chat history (search, rename, pin, export, delete), notes (`memory_note`), earlier chats (`recall_chats`), routines at a set time, saved prompts, plan usage | ported | All under the Menu button. Notes are kept per project file. Ready-made routines: nightly calculation, results to Excel, model check. Not ported yet: a chat summarising itself for the next one, the home screen with prompt ideas |
+| Big models: `calculate` one phase at a time with a save after each and few stored steps; `results_to_excel` for every phase and result in one call | new for Plaxis | Not yet tried on a real Plaxis: the name of the stored-steps setting and how a failed phase reads are checked against the stand-in only |
 
 ## Build and test
 

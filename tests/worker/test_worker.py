@@ -138,6 +138,72 @@ class WorkerTests(unittest.TestCase):
         self.assertIn("ResultTypes has no", wrong["error"])
         self.assertIn("No phase named 'Nope'", call("get_results", phase="Nope")["error"])
 
+    def _three_phases(self):
+        call("create_soil_material", name="Clay")
+        call("create_boreholes", boreholes=[{"x": 0, "layers": [{"bottom": -10, "material": "Clay"}]}])
+        for name in ("Wall", "Dredge", "Anchor"):
+            call("add_phase", name=name)
+
+    def test_big_model_one_phase_at_a_time_saves_and_keeps_few_steps(self):
+        self._three_phases()
+        res = call("calculate", one_by_one=True, stored_steps=1)["result"]
+        self.assertEqual([d["phase"] for d in res["one_by_one"]], ["Initial phase", "Wall", "Dredge", "Anchor"])
+        self.assertTrue(all(d["ended"] == "OK" for d in res["one_by_one"]))
+        self.assertEqual(res["not_calculated"], [])
+        self.assertEqual(easy.MODEL.saves, 4)
+        self.assertEqual(easy.MODEL.calculations, 4)
+        # The first phase of the stand-in has no MaxStepsStored: said, not hidden.
+        self.assertEqual(res["stored_steps"]["phases"], 3)
+        self.assertIn("Initial phase", res["stored_steps"]["refused"])
+        self.assertEqual(easy.MODEL.Phases[2].MaxStepsStored.value, 1)
+
+    def test_big_model_stops_at_the_first_phase_that_fails_and_keeps_the_rest_marked(self):
+        self._three_phases()
+        call("add_phase", name="Dredge fails")
+        call("add_phase", name="Last")
+        res = call("calculate", one_by_one=True)["result"]
+        self.assertEqual(res["stopped_at"], "Dredge fails")
+        self.assertEqual(res["one_by_one"][-1]["ended"], "Failed")
+        self.assertEqual(res["not_calculated"], ["Last"])
+        self.assertTrue(easy.MODEL.Phases[-1].ShouldCalculate.value)
+        self.assertEqual(easy.MODEL.saves, 5)
+
+    def test_results_to_excel_one_sheet_per_phase_and_a_summary(self):
+        import tempfile
+        import zipfile
+        self._three_phases()
+        call("calculate")
+        path = os.path.join(tempfile.mkdtemp(), "out", "Quay wall results.xlsx")
+        res = call("results_to_excel", path=path, phases=["Wall", "Dredge"], results=["Soil.Utot", {"type": "Plate.M2D"}, {"type": "Soil.Bogus"}])
+        self.assertTrue(res["ok"], res)
+        res = res["result"]
+        self.assertEqual((res["phases"], res["columns"], res["values"]), (2, 4, 14))
+        self.assertEqual(len(res["problems"]), 2)
+        self.assertIn("Soil.Bogus", res["problems"][0])
+        self.assertEqual(res["figures"][0], {"phase": "Wall", "result": "Soil.Utot", "object": "", "location": "node", "count": 4, "min": 0.0, "max": 0.031, "max_abs": 0.031})
+        with zipfile.ZipFile(path) as z:
+            names = z.namelist()
+            book = z.read("xl/workbook.xml").decode("utf-8")
+            wall = z.read("xl/worksheets/sheet2.xml").decode("utf-8")
+        self.assertIn("xl/worksheets/sheet3.xml", names)
+        self.assertIn('name="Summary"', book)
+        self.assertIn('name="Wall"', book)
+        self.assertIn("<t xml:space=\"preserve\">Soil.Utot</t>", wall)
+        self.assertIn('<c r="B3"><v>-42.5</v></c>', wall)
+        try:
+            import openpyxl
+        except ImportError:
+            return
+        wb = openpyxl.load_workbook(path)
+        self.assertEqual(wb.sheetnames, ["Summary", "Wall", "Dredge"])
+        self.assertEqual(wb["Wall"]["A3"].value, 0.012)
+        self.assertEqual(wb["Summary"]["H3"].value, 42.5)
+
+    def test_results_to_excel_says_what_it_needs(self):
+        self.assertIn(".xlsx", call("results_to_excel", path="x.csv", results=["Soil.Utot"])["error"])
+        self.assertIn("results", call("results_to_excel", path="x.xlsx")["error"])
+        self.assertIn("No phase is calculated yet", call("results_to_excel", path="x.xlsx", results=["Soil.Utot"])["error"])
+
     def test_results_to_csv(self):
         import tempfile
         call("calculate")

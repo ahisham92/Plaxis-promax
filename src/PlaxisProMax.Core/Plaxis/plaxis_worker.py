@@ -412,7 +412,7 @@ def op_generate_mesh(args):
     return {"meshed": True, "answer": _label_any(answer), "feedback": _one_line(_safe(lambda: s_i.last_response, ""))}
 
 
-PHASE_FIELDS = ("Identification", "Name", "PreviousPhase", "DeformCalcType", "PorePresCalcType", "ShouldCalculate", "CalculationResult", "MaxCores")
+PHASE_FIELDS = ("Identification", "Name", "PreviousPhase", "DeformCalcType", "PorePresCalcType", "ShouldCalculate", "CalculationResult", "MaxCores", "MaxStepsStored")
 
 
 def op_list_phases(args):
@@ -456,22 +456,233 @@ def op_add_phase(args):
     return {"phase": _label(phase), "after": _label(previous), "refused": refused}
 
 
+def _ended_ok(phase):
+    """True when the phase's last calculation ended OK (Plaxis gives the result as a word or as its number)."""
+    v = _value_of(phase, "CalculationResult")
+    return str(v).strip().lower() in ("ok", "1")
+
+
+def _set_stored_steps(phase, steps):
+    """How many steps of a phase Plaxis keeps on disk: 1 keeps only the last, which is what a big model needs."""
+    for owner in (phase, _safe(lambda: phase.Deform, None)):
+        if owner is None:
+            continue
+        try:
+            _set(owner, "MaxStepsStored", int(steps))
+            return None
+        except Exception as ex:
+            problem = _one_line(ex)
+    return problem
+
+
 def op_calculate(args):
-    """Calculates (the named phases, or every phase set to calculate) and reads back how each phase ended."""
+    """
+    Calculates (the named phases, or every phase set to calculate) and reads back how each phase ended.
+    stored_steps: the steps kept per phase (1 for a big model: only the last step, so the files stay small).
+    one_by_one: one phase at a time, saving after each, and stopping at the first that fails, so a long run keeps
+    what it has done.
+    """
     s_i, g_i = _input()
     names = args.get("phases") or []
+    all_phases = _safe(lambda: list(g_i.Phases), [])
+    g_i.gotostages()
     if names:
         wanted = [_phase(g_i, n) for n in names]
-        for p in _safe(lambda: list(g_i.Phases), []):
+        for p in all_phases:
             try:
                 _set(p, "ShouldCalculate", p in wanted)
             except Exception:
                 pass
+    else:
+        wanted = [p for p in all_phases if _value_of(p, "ShouldCalculate")]
+    result = {}
+    if args.get("stored_steps") is not None:
+        refused = {}
+        for p in wanted:
+            problem = _set_stored_steps(p, args["stored_steps"])
+            if problem:
+                refused[_label(p)] = problem
+        result["stored_steps"] = {"steps": int(args["stored_steps"]), "phases": len(wanted) - len(refused), "refused": refused}
     started = time.time()
-    g_i.gotostages()
-    answer = g_i.calculate()
-    phases = op_list_phases({})["phases"]
-    return {"seconds": round(time.time() - started, 1), "answer": _label_any(answer), "phases": phases}
+    if args.get("one_by_one"):
+        order = [p for p in all_phases if p in wanted]
+        done = []
+        for p in order:
+            for q in order:
+                _safe(lambda q=q: _set(q, "ShouldCalculate", q is p), None)
+            began = time.time()
+            try:
+                g_i.calculate()
+            except Exception as ex:
+                done.append({"phase": _label(p), "ended": "failed", "seconds": round(time.time() - began, 1), "problem": _one_line(ex)})
+                result["stopped_at"] = _label(p)
+                break
+            ok = _ended_ok(p)
+            done.append({"phase": _label(p), "ended": "OK" if ok else str(_value_of(p, "CalculationResult")), "seconds": round(time.time() - began, 1)})
+            if args.get("save", True):
+                saved = _safe(lambda: g_i.save() or True, False)
+                if not saved:
+                    result["not_saved"] = "The project could not be saved after {} (has it a file yet?).".format(_label(p))
+            if not ok:
+                result["stopped_at"] = _label(p)
+                break
+        left = [_label(p) for p in order[len(done):]]
+        # The phases not reached stay marked, so the next run carries on from there.
+        for p in order[len(done):]:
+            _safe(lambda p=p: _set(p, "ShouldCalculate", True), None)
+        result.update({"one_by_one": done, "not_calculated": left})
+    else:
+        result["answer"] = _label_any(g_i.calculate())
+        if args.get("save"):
+            _safe(lambda: g_i.save(), None)
+    result["seconds"] = round(time.time() - started, 1)
+    result["phases"] = op_list_phases({})["phases"]
+    return result
+
+
+def _result_type(g_o, path):
+    rt = g_o.ResultTypes
+    for part in path.split("."):
+        try:
+            rt = getattr(rt, part)
+        except AttributeError:
+            raise UserError("ResultTypes has no '{}'. Inspect output:ResultTypes to see the names.".format(path))
+    return rt
+
+
+def op_results_to_excel(args):
+    """
+    Many results in one go, for a big model: every asked result type of every asked phase, read through one Output
+    connection and written to one .xlsx (a sheet per phase, a column per result, and a Summary sheet with the
+    figures). Each column is one call to Output, so it takes seconds where clicking through tables takes hours.
+    """
+    s_i, g_i = _input()
+    path = args.get("path") or ""
+    if not path.lower().endswith(".xlsx"):
+        raise UserError("Give 'path' as an .xlsx file to write.")
+    columns_in = args.get("results") or []
+    if not columns_in:
+        raise UserError("Give 'results': the result types to read, e.g. [{\"type\": \"Plate.M2D\", \"object\": \"Wall\"}, \"Soil.Utot\"].")
+    specs = []
+    for c in columns_in:
+        if isinstance(c, str):
+            c = {"type": c}
+        if not c.get("type"):
+            raise UserError("Every entry of 'results' needs a 'type' (a path under ResultTypes).")
+        specs.append({"type": c["type"], "object": c.get("object") or "", "location": c.get("location") or "node"})
+    phases_in = [_phase(g_i, n) for n in args.get("phases") or []] or [p for p in _safe(lambda: list(g_i.Phases), []) if _ended_ok(p)]
+    if not phases_in:
+        raise UserError("No phase is calculated yet. Calculate first.")
+    s_o, g_o = _output_for(phases_in[-1])
+    out_phases = _safe(lambda: list(g_o.Phases), [])
+    started = time.time()
+    sheets = []
+    summary = [["Phase", "Result", "Object", "Location", "Count", "Min", "Max", "Max abs"]]
+    problems = []
+    for phase in phases_in:
+        target = _label(phase)
+        phase_out = None
+        for p in out_phases:
+            if target in (_label(p), _value_of(p, "Identification"), _value_of(p, "Name")):
+                phase_out = p
+        if phase_out is None:
+            problems.append("{}: not in Output (calculate it first)".format(target))
+            continue
+        headers, data = [], []
+        for spec in specs:
+            title = spec["type"] + (" · " + spec["object"] if spec["object"] else "")
+            try:
+                rt = _result_type(g_o, spec["type"])
+                obj = _resolve_output_object(g_o, spec["object"])
+                raw = g_o.getresults(obj, phase_out, rt, spec["location"]) if obj is not None else g_o.getresults(phase_out, rt, spec["location"])
+                values = [float(v) for v in raw]
+            except UserError as ex:
+                problems.append("{} / {}: {}".format(target, title, ex))
+                continue
+            except Exception as ex:
+                problems.append("{} / {}: {}".format(target, title, _one_line(ex)))
+                continue
+            headers.append(title)
+            data.append(values)
+            if values:
+                summary.append([target, spec["type"], spec["object"], spec["location"], len(values), min(values), max(values), max(abs(v) for v in values)])
+            else:
+                summary.append([target, spec["type"], spec["object"], spec["location"], 0, "", "", ""])
+        rows = [headers]
+        for i in range(max((len(v) for v in data), default=0)):
+            rows.append([v[i] if i < len(v) else "" for v in data])
+        sheets.append((target, rows))
+    if len(summary) == 1:
+        raise UserError("Nothing could be read. " + "; ".join(problems[:6]))
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    _write_xlsx(path, [("Summary", summary)] + sheets)
+    return {"xlsx": path, "phases": len(sheets), "columns": len(summary) - 1, "values": sum(r[4] for r in summary[1:]),
+            "seconds": round(time.time() - started, 1), "problems": problems[:30],
+            "figures": [dict(zip(("phase", "result", "object", "location", "count", "min", "max", "max_abs"), r)) for r in summary[1:61]]}
+
+
+def _write_xlsx(path, sheets):
+    """A plain .xlsx (numbers and text) written with the standard library only: Plaxis's Python has no Excel package."""
+    import zipfile
+    from xml.sax.saxutils import escape
+
+    def col(n):
+        name = ""
+        n += 1
+        while n:
+            n, r = divmod(n - 1, 26)
+            name = chr(65 + r) + name
+        return name
+
+    def sheet_xml(rows):
+        out = ['<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+               '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>']
+        for r, row in enumerate(rows, 1):
+            cells = []
+            for c, v in enumerate(row):
+                ref = "{}{}".format(col(c), r)
+                if isinstance(v, bool) or v is None or v == "":
+                    continue
+                if isinstance(v, (int, float)):
+                    if v != v or v in (float("inf"), float("-inf")):
+                        continue
+                    cells.append('<c r="{}"><v>{}</v></c>'.format(ref, repr(float(v)) if isinstance(v, float) else v))
+                else:
+                    cells.append('<c r="{}" t="inlineStr"><is><t xml:space="preserve">{}</t></is></c>'.format(ref, escape(str(v))))
+            out.append('<row r="{}">{}</row>'.format(r, "".join(cells)))
+        out.append("</sheetData></worksheet>")
+        return "".join(out)
+
+    names = []
+    for name, _ in sheets:
+        clean = "".join("_" if ch in "[]:*?/\\" else ch for ch in str(name)).strip("'")[:31] or "Sheet"
+        base, n = clean, 2
+        while clean.lower() in (x.lower() for x in names):
+            suffix = " ({})".format(n)
+            clean = base[:31 - len(suffix)] + suffix
+            n += 1
+        names.append(clean)
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("[Content_Types].xml",
+                   '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+                   '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>'
+                   '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+                   + "".join('<Override PartName="/xl/worksheets/sheet{}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'.format(i + 1) for i in range(len(sheets)))
+                   + "</Types>")
+        z.writestr("_rels/.rels",
+                   '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                   '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>')
+        z.writestr("xl/workbook.xml",
+                   '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+                   'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>'
+                   + "".join('<sheet name="{}" sheetId="{}" r:id="rId{}"/>'.format(escape(n, {'"': "&quot;"}), i + 1, i + 1) for i, n in enumerate(names))
+                   + "</sheets></workbook>")
+        z.writestr("xl/_rels/workbook.xml.rels",
+                   '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                   + "".join('<Relationship Id="rId{}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet{}.xml"/>'.format(i + 1, i + 1) for i in range(len(sheets)))
+                   + "</Relationships>")
+        for i, (_, rows) in enumerate(sheets):
+            z.writestr("xl/worksheets/sheet{}.xml".format(i + 1), sheet_xml(rows))
 
 
 def op_get_results(args):
@@ -493,12 +704,7 @@ def op_get_results(args):
     obj = _resolve_output_object(g_o, args.get("object"))
     columns = {}
     for path in args.get("result_types") or ["Soil.Utot"]:
-        rt = g_o.ResultTypes
-        for part in path.split("."):
-            try:
-                rt = getattr(rt, part)
-            except AttributeError:
-                raise UserError("ResultTypes has no '{}'. Inspect output:ResultTypes to see the names.".format(path))
+        rt = _result_type(g_o, path)
         values = g_o.getresults(obj, phase_out, rt, location) if obj is not None else g_o.getresults(phase_out, rt, location)
         columns[path] = [float(v) for v in values]
     figures = {}
