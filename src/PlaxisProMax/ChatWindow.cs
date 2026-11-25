@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using PlaxisProMax.Chat;
+using PlaxisProMax.Licensing;
 using PlaxisProMax.Mcp;
 using PlaxisProMax.Plaxis;
 using PlaxisProMax.Settings;
@@ -18,7 +19,7 @@ namespace PlaxisProMax;
 /// names) in a window of its own, so a long Plaxis call never freezes it (Sketch ProMax bug 110). Approval cards show
 /// inline and never block: the call waits, the window doesn't (bugs 79, 80, 112).
 /// </summary>
-internal sealed class ChatWindow : Window, IApprovalAsker
+internal sealed partial class ChatWindow : Window, IApprovalAsker
 {
     private readonly PlaxisLink _link;
     private readonly PlaxisInstall.StartArgs _start;
@@ -37,10 +38,13 @@ internal sealed class ChatWindow : Window, IApprovalAsker
     private ChatEngine? _engine;
     private Conversation _conversation;
     private bool _busy;
+    private readonly bool _sample;
     private MarkdownView? _lastAnswer;
+    private readonly System.Text.StringBuilder _turnText = new();
 
-    public ChatWindow(PlaxisLink link, PlaxisInstall.StartArgs start, Func<ChatMcp> mcp)
+    public ChatWindow(PlaxisLink link, PlaxisInstall.StartArgs start, Func<ChatMcp> mcp, bool sample = false)
     {
+        _sample = sample;
         _link = link;
         _start = start;
         _mcp = mcp;
@@ -101,6 +105,9 @@ internal sealed class ChatWindow : Window, IApprovalAsker
         var sendRow = Brand.ButtonRow(attach, _send);
         DockPanel.SetDock(sendRow, Dock.Right);
         row.Children.Add(sendRow);
+        var pill = PhonePill();
+        DockPanel.SetDock(pill, Dock.Left);
+        row.Children.Add(pill);
         row.Children.Add(_working);
         _working.VerticalAlignment = VerticalAlignment.Center;
         var composer = new StackPanel { Margin = new Thickness(ChatUi.S3) };
@@ -119,7 +126,7 @@ internal sealed class ChatWindow : Window, IApprovalAsker
         Content = root;
 
         _link.ConnectionChanged += connected => Dispatcher.BeginInvoke(() => ShowPlaxis(connected));
-        Loaded += async (_, _) => await StartAsync();
+        if (!sample) Loaded += async (_, _) => await StartAsync();
         Closed += (_, _) => _engine?.KillNow();
     }
 
@@ -128,6 +135,10 @@ internal sealed class ChatWindow : Window, IApprovalAsker
     private async Task StartAsync()
     {
         _input.Focus();
+        // The owner's later changes (cancelled keys, earlier end dates), then the License window if this PC is locked.
+        _ = Task.Run(() => LicenseState.RefreshChangesAsync(CancellationToken.None));
+        LicenseWindow.BlockIfLocked();
+        StartPhone();
         await ConnectPlaxisAsync();
         await FindClaudeAsync();
     }
@@ -182,12 +193,12 @@ internal sealed class ChatWindow : Window, IApprovalAsker
     private void ShowConnectCard(int port, string error)
     {
         var portBox = new TextBox { Text = port.ToString(System.Globalization.CultureInfo.InvariantCulture), Width = 90 };
-        var password = new PasswordBox { Width = 200 };
+        var password = new PasswordBox { Width = 200, MinHeight = 30, Padding = new Thickness(6, 4, 6, 4), VerticalContentAlignment = VerticalAlignment.Center };
         var remember = new CheckBox { Content = "Remember the password on this PC", IsChecked = true, Margin = new Thickness(0, ChatUi.S1, 0, 0) };
         var connect = Brand.Button("Connect", Brand.Weight.Primary);
         var panel = new StackPanel();
         panel.Children.Add(Brand.Text("Connect to Plaxis", Brand.K.Text, 14, bold: true));
-        panel.Children.Add(ChatUi.Small(error.Length > 0 ? error : "In Plaxis Input, open Expert > Configure remote scripting server, start the server, and enter its port and password here. Started from Plaxis's Expert menu, this happens by itself."));
+        panel.Children.Add(Wrapped(ChatUi.Small(error.Length > 0 ? error : "In Plaxis Input, open Expert > Configure remote scripting server, start the server, and enter its port and password here. Started from Plaxis's Expert menu, this happens by itself.")));
         var fields = new WrapPanel { Margin = new Thickness(0, ChatUi.S2, 0, 0) };
         fields.Children.Add(Labelled("Port", portBox));
         fields.Children.Add(Labelled("Password", password));
@@ -247,7 +258,7 @@ internal sealed class ChatWindow : Window, IApprovalAsker
     {
         var panel = new StackPanel();
         panel.Children.Add(Brand.Text(title, Brand.K.Text, 14, bold: true));
-        panel.Children.Add(ChatUi.Small(text));
+        panel.Children.Add(Wrapped(ChatUi.Small(text)));
         panel.Children.Add(Brand.ButtonRow(buttons));
         var card = Card(panel);
         _messages.Children.Add(card);
@@ -259,18 +270,32 @@ internal sealed class ChatWindow : Window, IApprovalAsker
     private void SendOrStop()
     {
         if (_busy) { Stop(); return; }
-        var text = _input.Text.Trim();
-        if (text.Length == 0 && _attached.Count == 0) return;
+        Send(_input.Text.Trim(), typed: true);
+    }
+
+    /// <summary>Sends <paramref name="text"/> with the attached files (typed here, or written on the phone).</summary>
+    private void Send(string text, bool typed)
+    {
+        if (text.Length == 0 && (!typed || _attached.Count == 0)) return;
+        // A PC without a valid key: the License window, and nothing is sent (as in Sketch ProMax).
+        if (LicenseWindow.BlockIfLocked())
+        {
+            Note("Plaxis ProMax needs a license for this PC. Send the PC code in the License window to get a key.");
+            return;
+        }
         if (_claude is null)
         {
             Note("Claude Code isn't ready yet: install it or sign in with the card above.");
             return;
         }
-        if (_attached.Count > 0)
-            text += "\n\nAttached files:\n" + string.Join("\n", _attached.Select(f => "- " + f));
-        _input.Clear();
-        _attached.Clear();
-        _attachments.Children.Clear();
+        if (typed)
+        {
+            if (_attached.Count > 0)
+                text += "\n\nAttached files:\n" + string.Join("\n", _attached.Select(f => "- " + f));
+            _input.Clear();
+            _attached.Clear();
+            _attachments.Children.Clear();
+        }
         AddItem(new ChatItem { Kind = "user", Text = text, Time = DateTime.UtcNow });
         if (_conversation.Items.Count(i => i.Kind == "user") == 1) _conversation.Name = ChatHistory.AutoTitle(text);
         _mcp().NewTask();
@@ -349,6 +374,7 @@ internal sealed class ChatWindow : Window, IApprovalAsker
                 break;
             case AssistantTextEvent text:
                 AddAnswer(text.Text);
+                _turnText.Append(text.Text).Append("\n\n");
                 break;
             case ToolUseEvent use:
                 Step(use.Id, use.Name, use.InputJson);
@@ -373,7 +399,10 @@ internal sealed class ChatWindow : Window, IApprovalAsker
         // Keep the streamed answer as one item in the saved chat.
         foreach (var view in _streams.Values)
             if (view.Tag is string { Length: > 0 } text)
+            {
                 _conversation.Items.Add(new ChatItem { Kind = "assistant", Text = text, Time = DateTime.UtcNow });
+                _turnText.Append(text).Append("\n\n");
+            }
         _streams.Clear();
         if (result.SessionId.Length > 0) _conversation.SessionId = result.SessionId;
         if (result.IsError && result.Subtype != "success")
@@ -387,6 +416,9 @@ internal sealed class ChatWindow : Window, IApprovalAsker
         SetBusy(false);
         ChatUi.FlashIfAway(this);
         Save();
+        ReplyToPhone(_turnText.ToString());
+        _turnText.Clear();
+        SendQueuedFromPhone();
     }
 
     private void OnExited(string errors)
@@ -528,7 +560,7 @@ internal sealed class ChatWindow : Window, IApprovalAsker
 
     private void AddNote(string text, string key)
     {
-        var note = ChatUi.Small(text, key);
+        var note = Wrapped(ChatUi.Small(text, key));
         note.TextWrapping = TextWrapping.Wrap;
         note.Margin = new Thickness(0, ChatUi.S2, 0, ChatUi.S2);
         _messages.Children.Add(note);
@@ -550,6 +582,14 @@ internal sealed class ChatWindow : Window, IApprovalAsker
         return panel;
     }
 
+    /// <summary>A small text that wraps instead of being cut with "…" (cards, notes, errors).</summary>
+    internal static TextBlock Wrapped(TextBlock text)
+    {
+        text.TextWrapping = TextWrapping.Wrap;
+        text.TextTrimming = TextTrimming.None;
+        return text;
+    }
+
     private void ScrollToEnd() => Dispatcher.BeginInvoke(DispatcherPriority.Background, () => _scroll.ScrollToEnd());
 
     // ---- Approval cards --------------------------------------------------------------------------------------------
@@ -565,7 +605,7 @@ internal sealed class ChatWindow : Window, IApprovalAsker
         {
             var panel = new StackPanel();
             panel.Children.Add(Brand.Text(request.Title, Brand.K.Text, 14, bold: true));
-            var reason = ChatUi.Small(request.Reason, Brand.K.Text);
+            var reason = Wrapped(ChatUi.Small(request.Reason, Brand.K.Text));
             reason.TextWrapping = TextWrapping.Wrap;
             panel.Children.Add(reason);
             if (request.Details.Length > 0)
@@ -582,19 +622,28 @@ internal sealed class ChatWindow : Window, IApprovalAsker
             var task = Brand.Button("Allow the rest of this task");
             var never = Brand.Button("Don't ask again");
             var deny = Brand.Button("Don't allow");
-            var buttons = request.CanSilence ? Brand.ButtonRow(allow, task, never, deny) : Brand.ButtonRow(allow, task, deny);
+            // A wrap panel: four buttons don't fit a narrow window in one row, and a row would cut off Allow.
+            var buttons = new WrapPanel { Margin = new Thickness(0, ChatUi.S3, 0, 0) };
+            foreach (var b in request.CanSilence ? new[] { allow, task, never, deny } : new[] { allow, task, deny })
+            {
+                b.Margin = new Thickness(0, 0, ChatUi.S2, ChatUi.S2);
+                buttons.Children.Add(b);
+            }
             panel.Children.Add(buttons);
             var card = Card(panel);
             card.SetResourceReference(Border.BorderBrushProperty, Brand.K.Accent);
             _messages.Children.Add(card);
             ScrollToEnd();
             ChatUi.FlashIfAway(this);
+            long phoneId = 0;
             void Answer(ApprovalAnswer a, string said)
             {
                 if (!answer.TrySetResult(a)) return;
                 buttons.IsEnabled = false;
                 panel.Children.Add(ChatUi.Small(said));
+                SettleOnPhone(ref phoneId, said);
             }
+            AskOnPhone(request, id => phoneId = id, (a, said) => Answer(a, said + " (on your phone)"));
             allow.Click += (_, _) => Answer(ApprovalAnswer.Allow, "Allowed.");
             task.Click += (_, _) => Answer(ApprovalAnswer.AllowRestOfTask, "Allowed for the rest of this task.");
             never.Click += (_, _) => Answer(ApprovalAnswer.DontAskAgain, "Allowed; it won't ask again for this (Settings can undo that).");

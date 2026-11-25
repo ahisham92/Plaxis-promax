@@ -22,4 +22,7 @@
     <EmbeddedResource Include="..\..\assets\logo\plaxis-promax-64.png" LogicalName="PlaxisProMax.logo-64.png" />
     <EmbeddedResource Include="..\..\assets\logo\plaxis-promax.ico" LogicalName="PlaxisProMax.plaxis-promax.ico" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="QRCoder" Version="1.6.0" />
+  </ItemGroup>
 </Project>

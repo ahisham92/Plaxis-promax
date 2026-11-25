@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using PlaxisProMax.Licensing;
 using PlaxisProMax.Mcp;
 using PlaxisProMax.Plaxis;
 using PlaxisProMax.Settings;
@@ -74,6 +75,12 @@ internal static class ChatMcpTests
             check("chat mcp: the tool list has the Plaxis tools", tools.Contains("status") && tools.Contains("create_boreholes") && tools.Contains("run_plaxis_code")
                 && tools.Contains("find_kept_code") && tools.Count == ToolRegistry.CreateDefault().All.Count, string.Join(",", tools));
 
+            // A PC without a valid key runs no tools; the owner's PC (as for the rest of these checks) runs them.
+            var owner = LicenseState.Override;
+            LicenseState.Override = () => new LicenseState.Status(LicenseState.Kind.Locked, "PPM-TEST-0000-ABCD", null, LicenseKey.Check.Invalid, null);
+            var locked = await Call("status", new { });
+            LicenseState.Override = owner;
+            check("chat mcp: no tools run on a PC without a key", locked.Error && locked.Text.Contains("isn't licensed") && asker.Asked.Count == 0, locked.Text);
             var status = await Call("status", new { });
             check("chat mcp: status reaches Plaxis and asks nothing", !status.Error && status.Text.Contains("PLAXIS 2D") && asker.Asked.Count == 0, status.Text);
 

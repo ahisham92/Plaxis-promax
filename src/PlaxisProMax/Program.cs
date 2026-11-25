@@ -19,6 +19,7 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        if (args.Length == 2 && args[0] == "--screenshots") return Screenshots.Run(args[1]);
         var start = PlaxisInstall.Parse(args, Environment.GetEnvironmentVariable);
         // The password was for this process only: no child (Claude Code, its tools) inherits it.
         Environment.SetEnvironmentVariable("PLAXISPROMAX_PASSWORD", null);

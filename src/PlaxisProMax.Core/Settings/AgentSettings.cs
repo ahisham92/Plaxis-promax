@@ -74,4 +74,10 @@ public sealed class AgentSettings
         Directory.CreateDirectory(Folder);
         SafeFile.Write(FilePath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
     }
+
+    /// <summary>
+    /// The user's names for projects on the phone, "HBR = Harbour, TWR = Tower" (Phone/PhoneProjects.Renamed, as in Sketch
+    /// ProMax): each project has its own chat there.
+    /// </summary>
+    public string PhoneProjectNames { get; set; } = "";
 }

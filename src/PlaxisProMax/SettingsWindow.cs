@@ -1,13 +1,14 @@
 using System.Windows;
 using System.Windows.Controls;
 using PlaxisProMax.Chat;
+using PlaxisProMax.Licensing;
 using PlaxisProMax.Settings;
 using PlaxisProMax.Tools;
 using PlaxisProMax.UI;
 
 namespace PlaxisProMax;
 
-/// <summary>Settings: when to ask, the standing rules, the Plaxis connection, Plaxis's Python, the model, and Claude's sign-in.</summary>
+/// <summary>Settings: when to ask, the standing rules, the Plaxis connection, Plaxis's Python, the model, Claude's sign-in, and the license.</summary>
 internal sealed class SettingsWindow : Window
 {
     public SettingsWindow(ClaudeCli.Install? claude)
@@ -23,17 +24,17 @@ internal sealed class SettingsWindow : Window
 
         var s = AgentSettings.Load();
         var level = new ComboBox { ItemsSource = ApprovalPolicy.Levels.Select(ApprovalPolicy.Label).ToList(), SelectedIndex = Array.IndexOf(ApprovalPolicy.Levels, s.Approvals) };
-        var hint = ChatUi.Small(ApprovalPolicy.Hint(s.Approvals));
+        var hint = ChatWindow.Wrapped(ChatUi.Small(ApprovalPolicy.Hint(s.Approvals)));
         level.SelectionChanged += (_, _) => hint.Text = ApprovalPolicy.Hint(ApprovalPolicy.Levels[Math.Max(0, level.SelectedIndex)]);
         var silenced = s.NoAskTools ?? [];
         var askAgain = Brand.Button("Ask again");
         askAgain.IsEnabled = silenced.Count > 0;
-        var silencedText = ChatUi.Small(silenced.Count == 0 ? "Nothing is set to not ask." : "Not asked about: " + string.Join(", ", silenced.Select(ApprovalPolicy.Friendly)));
+        var silencedText = ChatWindow.Wrapped(ChatUi.Small(silenced.Count == 0 ? "Nothing is set to not ask." : "Not asked about: " + string.Join(", ", silenced.Select(ApprovalPolicy.Friendly))));
         askAgain.Click += (_, _) => { silenced = []; silencedText.Text = "Nothing is set to not ask."; askAgain.IsEnabled = false; };
 
         var rules = new TextBox { Text = s.ProjectRules, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 90, MaxHeight = 200, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         var port = new TextBox { Text = s.InputPort.ToString(System.Globalization.CultureInfo.InvariantCulture), Width = 90 };
-        var password = new PasswordBox { Password = s.ServerPassword, Width = 200 };
+        var password = new PasswordBox { Password = s.ServerPassword, Width = 200, MinHeight = 30, Padding = new Thickness(6, 4, 6, 4), VerticalContentAlignment = VerticalAlignment.Center };
         var python = new TextBox { Text = s.PlaxisPython };
         var model = new ComboBox { IsEditable = true, ItemsSource = new[] { "", "sonnet", "opus", "haiku", "fable" }, Text = s.ChatModel };
         var timeout = new TextBox { Text = s.CallTimeoutSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture), Width = 90 };
@@ -42,6 +43,8 @@ internal sealed class SettingsWindow : Window
         signIn.IsEnabled = claude is not null;
         signIn.Click += (_, _) => { if (claude is not null) ClaudeCli.StartSignIn(claude); };
 
+        var license = Brand.Button("License");
+        license.Click += (_, _) => LicenseWindow.Command();
         var save = Brand.Button("Save", Brand.Weight.Primary);
         var cancel = Brand.Button("Cancel");
         cancel.Click += (_, _) => Close();
@@ -85,10 +88,24 @@ internal sealed class SettingsWindow : Window
         Section("Claude");
         Field("Model (empty: Claude Code's default)", model);
         body.Children.Add(Brand.ButtonRow(signIn));
+        Section("License");
+        body.Children.Add(ChatWindow.Wrapped(ChatUi.Small(LicenseText())));
+        body.Children.Add(Brand.ButtonRow(license));
         var buttons = Brand.ButtonRow(save, cancel);
         buttons.HorizontalAlignment = HorizontalAlignment.Right;
         buttons.Margin = new Thickness(0, ChatUi.S4, 0, 0);
         body.Children.Add(buttons);
         Content = new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = SystemParameters.WorkArea.Height - 80 };
+    }
+
+    private static string LicenseText()
+    {
+        var s = LicenseState.Current;
+        return s.Kind switch
+        {
+            LicenseState.Kind.Owner => "This is the owner's PC: no key is needed. Keys for other PCs come from Sketch ProMax's License manager, with Plaxis ProMax ticked.",
+            LicenseState.Kind.Licensed => $"Licensed to {s.License!.Name}" + (s.Ends is { } e ? $" until {e:d MMM yyyy}." : ", with no end date."),
+            _ => "This PC has no valid key yet.",
+        };
     }
 }
