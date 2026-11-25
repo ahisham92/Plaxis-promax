@@ -65,6 +65,16 @@ internal static class DrawingTests
             var text = File.Exists(csvFile) ? File.ReadAllText(csvFile) : "";
             check("make_document: a CSV table with quoted commas and no live formulas",
                 !csv.IsError && text.Contains("Phase,M max (kNm/m),Note") && text.Contains("Excavate to -2 m,85.4,\"ok, small\"") && text.Contains("412.75,'@check"), csv.Text + text);
+            var word = MakeDocumentTool.Make(Args("""{"format": "word", "title": "GIR summary", "content": "# Ground\n\nSoft clay to -7.5 m, cu = 25 kPa.\n\n| Layer | Top |\n|---|---|\n| Clay | -1.8 |"}"""), dir);
+            var docx = Path.Combine(dir, "GIR summary.docx");
+            var note = PlaxisProMax.Chat.Attachments.Note([docx, file, dwg, Path.Combine(dir, "gone.pdf"), csvFile], Path.Combine(dir, "read"));
+            check("attachments: a Word file's text comes with the message, a DXF and a DWG say how to read them",
+                !word.IsError && note.Contains("Word document; its text is below") && note.Contains("cu = 25 kPa") && note.Contains("read_drawing_file")
+                && note.Contains("save it as DXF") && note.Contains("not found on this PC") && note.Contains("Wall moments.csv (text; read it with the Read tool)"), note);
+            var longDoc = MakeDocumentTool.Make(Args(JsonSerializer.Serialize(new { format = "word", title = "Long report", content = string.Join("\n\n", Enumerable.Range(1, 900).Select(i => $"Paragraph {i} about the ground at borehole {i}.")) })), dir);
+            var longNote = PlaxisProMax.Chat.Attachments.Note([Path.Combine(dir, "Long report.docx")], Path.Combine(dir, "read"));
+            check("attachments: a long document's text goes to a file the note names",
+                !longDoc.IsError && longNote.Contains("its text is long") && Directory.GetFiles(Path.Combine(dir, "read"), "Long report*text.txt").Length == 1 && !longNote.Contains("Paragraph 500"), longNote.Substring(0, Math.Min(400, longNote.Length)));
             check("chat files: a DXF and a CSV show as cards", PlaxisProMax.Chat.ChatFiles.Find(made.Text).Count == 1 && PlaxisProMax.Chat.ChatFiles.Find(csv.Text).Count == 1, "");
         }
         finally { try { Directory.Delete(dir, true); } catch (IOException) { } }
