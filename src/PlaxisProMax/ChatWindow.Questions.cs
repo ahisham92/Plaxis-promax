@@ -24,7 +24,7 @@ namespace PlaxisProMax;
 /// </summary>
 internal sealed partial class ChatWindow
 {
-    private readonly StackPanel _questionList = new() { Margin = new Thickness(ChatUi.S3, ChatUi.S2, ChatUi.S3, ChatUi.S4) };
+    private readonly StackPanel _questionList = new() { Margin = new Thickness(ChatUi.S3, ChatUi.S2, ChatUi.S3, ChatUi.S4), MaxWidth = 880 };
     private readonly TextBlock _questionsLabel = new() { FontSize = ChatUi.SmallSize, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _awayLabel = new() { FontSize = ChatUi.SmallSize, VerticalAlignment = VerticalAlignment.Center };
     private readonly Ellipse _awayDot = new() { Width = 7, Height = 7, Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center };
