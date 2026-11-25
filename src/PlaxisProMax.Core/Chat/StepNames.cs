@@ -19,6 +19,7 @@ internal static class StepNames
         ["over_to_you"] = "Over to you",
         ["run_self_test"] = "Self-test",
         ["ask_user"] = "Ask you on your phone",
+        ["read_pdf_part"] = "Read a part of a large PDF",
         ["kept_code"] = "Look at the kept code",
         ["work_progress"] = "Keep the plan and progress",
         ["save_recipe"] = "Save a recipe",

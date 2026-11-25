@@ -31,7 +31,7 @@ internal static class Attachments
             else if (OfficeText.IsOffice(path)) kind = Office(path, folder, contents);
             else kind = ext switch
             {
-                ".pdf" => Pdf(path),
+                ".pdf" => Pdf(path, folder),
                 ".dxf" => "CAD drawing (DXF): read its layers and geometry with read_drawing_file",
                 ".dwg" => "CAD drawing (DWG): read its layers and geometry with read_drawing_file",
                 ".doc" or ".ppt" => "older Word or PowerPoint file, which can't be read here. Ask the user to save it as .docx or .pptx (File > Save As) and attach that",
@@ -46,15 +46,36 @@ internal static class Attachments
         return "\n\nAttached files (full paths on this PC):\n" + notes.ToString().TrimEnd() + contents.ToString().TrimEnd();
     }
 
-    private static string Pdf(string path)
+    /// <summary>
+    /// A PDF: small enough, it is read with the Read tool. Too large or too long (PdfAttachment's limits), it is split into
+    /// parts that helpers read whole (read_pdf_part), with its text page by page beside them, as Sketch ProMax does.
+    /// </summary>
+    private static string Pdf(string path, string folder)
     {
         try
         {
-            var check = PdfAttachment.Assess(Tools.SharedRead.AllBytes(path));
-            var pages = check.Pages > 0 ? $" of {check.Pages} page{(check.Pages == 1 ? "" : "s")}" : "";
-            return check.Verdict == PdfAttachment.Verdict.NotPdf
-                ? "named .pdf but not a PDF file: ask the user to export it again"
-                : $"PDF{pages}; read it with the Read tool, a range of pages at a time when it is long (pages: \"1-20\")";
+            var bytes = Tools.SharedRead.AllBytes(path);
+            var check = PdfAttachment.Assess(bytes, 0, 0, bytes.Length <= PdfAttachment.MaxBytes ? Tools.PdfFiles.PageCount(bytes) : null);
+            if (check.Verdict == PdfAttachment.Verdict.NotPdf) return "named .pdf but not a PDF file: ask the user to export it again";
+            if (check.Verdict == PdfAttachment.Verdict.Send)
+            {
+                var pages = check.Pages > 0 ? $" of {check.Pages} page{(check.Pages == 1 ? "" : "s")}" : "";
+                return $"PDF{pages}; read it with the Read tool, a range of pages at a time when it is long (pages: \"1-20\")";
+            }
+            if (check.Verdict != PdfAttachment.Verdict.Locked)
+            {
+                try
+                {
+                    var ready = Tools.PdfFiles.ForChat(path, folder, PdfAttachment.MaxBytes);
+                    if (ready.Parts.Count > 0)
+                        return PdfAttachment.PartsNote(check, ready.Parts.Select(p => (p.File, p.FirstPage, p.LastPage)).ToList(), ready.Pages, ready.TextFile);
+                }
+                catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or InvalidOperationException) { /* its text below instead */ }
+            }
+            Directory.CreateDirectory(folder);
+            var target = Path.Combine(folder, Path.GetFileNameWithoutExtension(path) + " - text.txt");
+            var result = Tools.PdfFiles.WriteText(path, target);
+            return PdfAttachment.Note(check, result.Error is null ? target : null, result.MostlyPictures);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return "PDF that couldn't be opened: " + ex.Message; }
     }
