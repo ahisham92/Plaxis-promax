@@ -8,7 +8,7 @@
     <LangVersion>latest</LangVersion>
     <RootNamespace>PlaxisProMax</RootNamespace>
     <AssemblyName>PlaxisProMax.Core</AssemblyName>
-    <Version>0.2.0</Version>
+    <Version>0.3.0</Version>
   </PropertyGroup>
   <ItemGroup>
     <!-- The worker runs on Plaxis's own Python; it ships next to the program. -->
