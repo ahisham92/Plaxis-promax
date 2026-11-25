@@ -112,6 +112,7 @@ internal sealed partial class ChatWindow
         _chatName.Text = name.Length > 0 && (_sample || _conversation.Items.Count > 0) ? name : "Plaxis ProMax";
         _chatName.ToolTip = _chatName.Text;
         _typeLabel.Text = ChatTypes.Label(ChatTypes.Of(_conversation));
+        ShowPickers();
         ShowUsage();
     }
 
@@ -265,8 +266,8 @@ internal sealed partial class ChatWindow
         input.ToolTip = "Type here. Enter sends. Shift+Enter: new line.";
         input.PreviewKeyDown += (_, e) =>
         {
-            if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.None) { e.Handled = true; if (!_busy) SendOrStop(); }
-            else if (e.Key == Key.Escape && _busy) { e.Handled = true; SendOrStop(); }
+            if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.None) { e.Handled = true; if (!_busy || _input.Text.Trim().Length > 0) SendOrStop(); }
+            else if (e.Key == Key.Escape && _busy) { e.Handled = true; StopNow(); }
         };
         return input;
     }
@@ -307,7 +308,7 @@ internal sealed partial class ChatWindow
         _send.Click += (_, _) => SendOrStop();
         _stop.SetResourceReference(StyleProperty, "SpmChatStop");
         AutomationProperties.SetName(_stop, "Stop the answer");
-        _stop.Click += (_, _) => SendOrStop();
+        _stop.Click += (_, _) => StopNow();
         DockPanel.SetDock(_send, Dock.Right);
         DockPanel.SetDock(_stop, Dock.Right);
         DockPanel.SetDock(attach, Dock.Left);
@@ -316,7 +317,12 @@ internal sealed partial class ChatWindow
         buttons.Children.Add(_stop);
         buttons.Children.Add(attach);
         buttons.Children.Add(prompts);
-        buttons.Children.Add(new Border()); // fills the middle
+        // The chat's model and effort, by Send.
+        var (modelPick, effortPick) = BuildPickers();
+        var picks = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, ChatUi.S1, 0) };
+        picks.Children.Add(modelPick);
+        picks.Children.Add(effortPick);
+        buttons.Children.Add(picks); // fills the middle, on the right
 
         var inside = new StackPanel();
         _attachments.Margin = new Thickness(ChatUi.S3, ChatUi.S3, ChatUi.S3, 0);
@@ -343,11 +349,7 @@ internal sealed partial class ChatWindow
         _usagePill.Click += (_, _) => ShowMenu(_usagePill);
         DockPanel.SetDock(_usagePill, Dock.Right);
         under.Children.Add(_usagePill);
-        var type = new Button { Content = _typeLabel, Padding = new Thickness(ChatUi.S2, ChatUi.S1, ChatUi.S2, ChatUi.S1), Margin = new Thickness(0, 0, ChatUi.S1, 0), VerticalAlignment = VerticalAlignment.Center,
-            ToolTip = "This chat's type. With coordinator: bigger requests are split into jobs for the workers. Simple chat: one chat does all the work. Click for a new chat of either type." };
-        type.SetResourceReference(StyleProperty, "SpmChatGhost");
-        AutomationProperties.SetName(type, "Chat type");
-        type.Click += (_, _) => NewChatMenu(type);
+        var type = TypePill();
         var pickers = new WrapPanel();
         pickers.Children.Add(type);
         pickers.Children.Add(QuestionsPill());

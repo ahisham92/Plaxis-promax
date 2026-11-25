@@ -194,26 +194,25 @@ internal static class PromptBriefs
 
     /// <summary>The planning run's instructions (added to Claude Code's own system prompt).</summary>
     public const string PlannerInstructions = """
-        You prepare a brief before Plaxis ProMax works on a Revit model, so the user can check it before anything runs.
-        You can only read the model now. Nothing you do may change it, and you must not do the task itself.
+        You prepare a brief before Plaxis ProMax works on a PLAXIS project, so the user can check it before anything runs.
+        You can only read the project now. Nothing you do may change it, and you must not do the task itself.
 
-        1. Start from what the message already gives you: the conversation so far, what this chat remembers, and the
-           model note (what changed since the last answer, the active view, the selected elements with their ids). Don't
-           read again what they already say. Read only what is missing with the read-only Revit tools (get_model_context,
-           list_types, list_views_and_sheets, query_elements, list_view_templates ...) to find the exact levels, types,
-           views, sheets and element counts the request is about: at most three calls, none for a follow-up that only
-           finishes or repeats earlier work. The Revit tools are listed by name only: load the ones you use with
-           ToolSearch in one call (select:mcp__sketch-promax__get_model_context,mcp__sketch-promax__query_elements).
+        1. Start from what the message already gives you: the conversation so far and what this chat remembers. Don't
+           read again what they already say. Read only what is missing with the read-only Plaxis tools (status,
+           list_model, inspect, list_phases, get_results, find_kept_code) to find the exact boreholes, layers, materials,
+           structures and phases the request is about: at most three calls, none for a follow-up that only
+           finishes or repeats earlier work. The Plaxis tools are listed by name only: load the ones you use with
+           ToolSearch in one call (select:mcp__plaxis-promax__status,mcp__plaxis-promax__list_model).
         2. Answer with ONE JSON object and nothing else (no prose, no code fence):
-           {"kind":"change","brief":"...","scope":[{"label":"Levels","value":"Level 1 (0 mm), Level 2 (3500 mm)"}],
-            "units":"mm","tools":["create_walls"],"assumptions":["..."],
+           {"kind":"change","brief":"...","scope":[{"label":"Phases","value":"Excavate to -2 m, Excavate to -4 m"}],
+            "units":"m, kN","tools":["add_phase"],"assumptions":["..."],
             "questions":[{"id":"q1","question":"...","options":["...","..."],"recommended":0}]}
-           - kind: "change" when the task would change the model (create, place, modify, delete, tag, dimension, rename,
-             load ...), "multi_step" when it needs several steps but changes nothing, "read_only" for a question or a
+           - kind: "change" when the task would change the project (create, set, mesh, add phases, calculate, delete,
+             rename ...), "multi_step" when it needs several steps but changes nothing, "read_only" for a question or a
              report, "unsure" when you can't tell.
            - brief: the request rewritten as a precise instruction for the assistant that will do it, using the exact names,
-             counts and units from the model. Write {q1} where the answer to question q1 goes.
-           - scope: what is in scope, each with exact names and counts (levels, types, views, sheets, element counts).
+             counts and units from the project. Write {q1} where the answer to question q1 goes.
+           - scope: what is in scope, each with exact names and counts (boreholes, layers, materials, structures, phases).
            - tools: the Plaxis ProMax tool names you expect to be used.
            - assumptions: every assumption you made, one short line each.
            - questions: only what is genuinely ambiguous and would change the result (0 to 4), each with 2 to 4 short
@@ -481,7 +480,7 @@ internal static class PromptBriefs
     {
         var (removed, added) = Diff(brief, edited);
         var sb = new StringBuilder();
-        sb.Append("A Revit user asked: ").Append(Shorten(request, 500)).Append('\n');
+        sb.Append("A PLAXIS user asked: ").Append(Shorten(request, 500)).Append('\n');
         sb.Append("Before running it, they edited the brief that was written for it.\n");
         if (removed.Count > 0) sb.Append("Lines they removed or changed:\n").Append(string.Join("\n", removed.Take(12).Select(l => "- " + Shorten(l, 200)))).Append('\n');
         if (added.Count > 0) sb.Append("Lines they wrote instead:\n").Append(string.Join("\n", added.Take(12).Select(l => "- " + Shorten(l, 200)))).Append('\n');

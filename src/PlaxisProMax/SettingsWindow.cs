@@ -86,7 +86,23 @@ internal sealed class SettingsWindow : Window
 
         var signIn = Brand.Button("Sign in to Claude again");
         signIn.IsEnabled = claude is not null;
-        signIn.Click += (_, _) => { if (claude is not null) ClaudeCli.StartSignIn(claude); };
+        signIn.ToolTip = "Opens the browser to sign in with your Claude account; no console window. This window can stay open meanwhile.";
+        signIn.Click += (_, _) =>
+        {
+            if (claude is null) return;
+            // Hidden, with the browser (Sketch ProMax's SignInFlow); the console way stays as the fallback.
+            try { SignInFlow.Start(claude); signIn.Content = "Finish signing in in your browser…"; }
+            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or System.IO.IOException) { ClaudeCli.StartSignIn(claude); }
+        };
+        void SignInChanged() => Dispatcher.BeginInvoke(() => signIn.Content = SignInFlow.Now switch
+        {
+            SignInFlow.State.Waiting => "Finish signing in in your browser…",
+            SignInFlow.State.Done => "Signed in",
+            SignInFlow.State.Failed => "Sign in to Claude again (the last try didn't finish)",
+            _ => "Sign in to Claude again",
+        });
+        SignInFlow.Changed += SignInChanged;
+        Closed += (_, _) => SignInFlow.Changed -= SignInChanged;
 
         // Updates (Sketch ProMax's Update button): what is installed and found, Check for updates, Restart to update.
         var autoUpdate = new CheckBox { Content = "Download updates by themselves", IsChecked = s.AutoUpdate };

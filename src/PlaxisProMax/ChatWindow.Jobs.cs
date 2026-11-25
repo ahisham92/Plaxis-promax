@@ -115,6 +115,10 @@ internal sealed partial class ChatWindow
         _crew = null;
         _drafts.Clear();
         _phoneQuestions.Clear();
+        _lastPick = null;
+        _restartEngine = false;
+        _typedMeanwhile.Clear();
+        _asides.Clear();
         if (_questionsShown) HideQuestions(focus: false);
         _follow = true;
         ShowTitle();

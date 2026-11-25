@@ -154,7 +154,7 @@ internal static class ChatUi
         catch (Exception ex)
         {
             StylesError = ex.Message;
-            System.Diagnostics.Trace.WriteLine("Sketch ProMax chat styles: " + ex.Message);
+            System.Diagnostics.Trace.WriteLine("Plaxis ProMax chat styles: " + ex.Message);
             // The same look without motion, press scaling or shadows; only if that fails too, plain Windows buttons.
             try { styles = (ResourceDictionary)XamlReader.Parse(ChatStyles.Xaml(RadiusSmall, Radius, animate: false, plain: true)); }
             catch (Exception ex2)
@@ -259,7 +259,7 @@ internal static class ChatUi
         mark.Children.Add(tile);
         mark.Children.Add(block);
         mark.Children.Add(spark);
-        AutomationProperties.SetName(mark, "Sketch ProMax");
+        AutomationProperties.SetName(mark, "Plaxis ProMax");
         return mark;
     }
 
