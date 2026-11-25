@@ -43,4 +43,4 @@ pwsh ./build.ps1                                  # self-contained win-x64 into 
 
 ## Status
 
-0.1.1, the first full version. Tested against a fake Plaxis only; the field test on real PLAXIS 2D and 3D is next.
+0.2.0, with everything from Sketch ProMax that applies to Plaxis. Tested against a fake Plaxis only; the field test on real PLAXIS 2D and 3D is next (the self-test report lists the steps).

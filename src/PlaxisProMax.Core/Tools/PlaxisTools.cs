@@ -259,7 +259,7 @@ public sealed class ToolRegistry
         new WorkerTool("open_project", "Opens a Plaxis project file (.p2dx / .p3d).", """{"path":{"type":"string"}}""", ["path"], true, 600),
         new WorkerTool("save_project", "Saves the project, under path when given.", """{"path":{"type":"string"}}""", [], true, 600),
         // Reuse and rules
-        new FindKeptCodeTool(),
+        new FindKeptCodeTool(), new KeptCodeTool(),
         new RunPlaxisCodeTool(),
         new RememberRuleTool(),
         // Help (as in Sketch ProMax): bug reports, the activity log, and the chats-and-bugs export

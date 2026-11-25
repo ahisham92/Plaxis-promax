@@ -88,3 +88,37 @@ internal sealed class WorkProgressTool : IPlaxisTool
         }
     }
 }
+
+/// <summary>kept_code: lists everything kept, or deletes an entry the user no longer wants (Sketch ProMax's list and delete of learned tools).</summary>
+internal sealed class KeptCodeTool : IPlaxisTool
+{
+    public string Name => "kept_code";
+    public string Description =>
+        "The kept code as a whole. action=list (default): every kept entry with what it does, its inputs, how often it ran and when it " +
+        "was last used, most used first; use it when the user asks what Plaxis ProMax has learned or kept. action=delete with id removes " +
+        "an entry; only when the user asks. To find code for a task use find_kept_code.";
+    public string PropertiesJson => """
+    {
+      "action": {"type": "string", "enum": ["list", "delete"], "description": "Default list."},
+      "id": {"type": "string", "description": "delete: the kept code's id."}
+    }
+    """;
+    public string[] Required => [];
+    public bool ModifiesModel => false;
+
+    public Task<ToolResult> ExecuteAsync(ToolContext context, ToolArgs args, CancellationToken ct)
+    {
+        if ((args.OptString("action") ?? "list") == "delete")
+        {
+            var id = args.OptString("id") ?? throw new ArgumentException("delete needs the id.");
+            return Task.FromResult(context.Library.Delete(id) ? ToolResult.Ok(new { deleted = id }) : ToolResult.Error($"No kept code {id}. Call kept_code to list them."));
+        }
+        var all = context.Library.All.OrderByDescending(e => e.Uses).ThenByDescending(e => e.LastUsed).ToList();
+        return Task.FromResult(ToolResult.Ok(new
+        {
+            kept = all.Count,
+            folder = context.Library.Folder,
+            entries = all.Take(200).Select(e => new { e.Id, e.Description, e.Inputs, e.Uses, e.Revision, last_used = e.LastUsed.ToString("yyyy-MM-dd"), runs_without_asking = e.Allowed }),
+        }));
+    }
+}

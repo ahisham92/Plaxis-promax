@@ -89,6 +89,13 @@ internal static class RecipeTests
             check("work_progress clear", Call("work_progress", """{"action":"clear"}""").Text.Contains("cleared") && Call("work_progress", """{"action":"get"}""").Text.Contains("No saved plan"), "");
             WorkProgressTool.FolderOverride = null;
 
+            // kept_code: the whole list, and deleting one entry.
+            var keptEntry = context.Library.Keep("g_i.gotostages()\nprint(len(g_i.Phases))", "Count the phases", null, "PLAXIS 2D", "2024.2", allowed: true);
+            var keptList = Call("kept_code", "{}");
+            check("kept_code lists what is kept", keptList.Text.Contains("Count the phases") && keptList.Text.Contains(keptEntry.Id), keptList.Text);
+            check("kept_code deletes an entry", !Call("kept_code", $$"""{"action":"delete","id":"{{keptEntry.Id}}"}""").IsError && context.Library.Get(keptEntry.Id) is null, "");
+            check("kept_code: deleting an unknown one says so", Call("kept_code", """{"action":"delete","id":"nope"}""").IsError, "");
+
             check("delete_recipe deletes", !Call("delete_recipe", """{"name":"Stage: excavate"}""").IsError && Directory.GetFiles(Recipes.Folder, "*.json").Length == 0, "");
             check("delete_recipe: an unknown one says so", Call("delete_recipe", """{"name":"Stage: excavate"}""").IsError, "");
         }
