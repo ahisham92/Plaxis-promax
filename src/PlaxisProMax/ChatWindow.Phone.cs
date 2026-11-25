@@ -163,6 +163,12 @@ internal sealed partial class ChatWindow
             {
                 var text = m.Text.Trim();
                 if (m.Error.Length > 0) continue;
+                // A Questions tab question or an "Over to you" card answered on the phone.
+                if (m.Kind == "answer" && m.ReplyTo is { } asked && _phoneAsks.Remove(asked, out var act))
+                {
+                    act(text);
+                    continue;
+                }
                 if (m.Kind == "answer" && m.ReplyTo is { } to && _phoneCards.TryGetValue(to, out var answer))
                 {
                     _phoneCards.Remove(to);

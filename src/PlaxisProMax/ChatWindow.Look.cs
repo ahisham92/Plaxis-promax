@@ -350,7 +350,9 @@ internal sealed partial class ChatWindow
         type.Click += (_, _) => NewChatMenu(type);
         var pickers = new WrapPanel();
         pickers.Children.Add(type);
+        pickers.Children.Add(QuestionsPill());
         pickers.Children.Add(PhonePill());
+        pickers.Children.Add(AwayPill());
         under.Children.Add(pickers);
 
         var composer = new StackPanel { Margin = new Thickness(ChatUi.S3, ChatUi.S2, ChatUi.S3, ChatUi.S3) };

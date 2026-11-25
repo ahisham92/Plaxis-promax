@@ -90,6 +90,16 @@ internal static class ChatMcpTests
             check("chat mcp: new code shows a card with the code, and a decline stops it",
                 denied.Error && denied.Text.Contains("declined") && asker.Asked.Last().Details == code && !asker.Asked.Last().CanSilence, denied.Text);
 
+            // Away mode: nothing pops up, so a step that needs the user's OK is left and listed for them.
+            PlaxisProMax.Chat.Away.Reset();
+            PlaxisProMax.Chat.Away.Set(true, DateTime.UtcNow);
+            var asksAway = asker.Asked.Count;
+            var whileAway = await Call("run_plaxis_code", new { code, description = "Largest horizontal displacement of the last phase" });
+            var waited = PlaxisProMax.Chat.Away.Take();
+            PlaxisProMax.Chat.Away.Reset();
+            check("chat mcp: while away no card is shown; the step waits and is listed",
+                whileAway.Error && whileAway.Text.Contains("is away") && asker.Asked.Count == asksAway && waited.Contains("needs your OK"), whileAway.Text + " | " + waited);
+
             asker.Next = ApprovalAnswer.Allow;
             await Call("calculate", new { });
             var ran = await Call("run_plaxis_code", new { code, description = "Largest horizontal displacement of the last phase" });

@@ -113,6 +113,9 @@ internal sealed partial class ChatWindow
         _strip.Clear();
         _crew?.Dispose();
         _crew = null;
+        _drafts.Clear();
+        _phoneQuestions.Clear();
+        if (_questionsShown) HideQuestions(focus: false);
         _follow = true;
         ShowTitle();
         if (_sample) return;
@@ -218,6 +221,7 @@ internal sealed partial class ChatWindow
             _jobClock.Start();
         }
         else _jobClock?.Stop();
+        QuestionsChanged();
     }
 
     /// <summary>While jobs run, their cards' clocks move.</summary>

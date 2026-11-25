@@ -81,9 +81,15 @@ internal sealed class ChatMcp : IDisposable
             var answer = ChatJobsTool.Answer(new ToolArgs(new Dictionary<string, JsonElement>(raw ?? new Dictionary<string, JsonElement>(), StringComparer.Ordinal)), coordinator: !isJob, session.Job);
             return new McpResult(answer.Text, answer.IsError);
         }
+        // The Questions tab is answered here too: the coordinator's and the jobs' questions to the user.
+        if (name == ChatQuestionsTool.ToolName)
+        {
+            var answer = ChatQuestionsTool.Answer(new ToolArgs(new Dictionary<string, JsonElement>(raw ?? new Dictionary<string, JsonElement>(), StringComparer.Ordinal)), fromChat: true, session.Job);
+            return new McpResult(answer.Text, answer.IsError);
+        }
         var args = new Dictionary<string, JsonElement>(raw ?? new Dictionary<string, JsonElement>(), StringComparer.Ordinal);
         var settings = AgentSettings.Load();
-        var context = new ToolContext(_context.Link, _context.Library, _context.Settings) { Chat = session.Id };
+        var context = new ToolContext(_context.Link, _context.Library, _context.Settings) { Chat = session.Id, Job = isJob ? jobKey : null };
         if (name == RunPlaxisCodeTool.ToolName && RunPlaxisCodeTool.Held(context, new ToolArgs(args)) is { } held)
             return new McpResult(held.Text, false);
 
@@ -118,6 +124,13 @@ internal sealed class ChatMcp : IDisposable
         if (decision.Ask && Autopilot.Unattended)
         {
             Autopilot.Log(AutopilotEntry.Allowed, $"{ApprovalPolicy.Friendly(name)}: {Autopilot.Allows(decision.Reason).Why}");
+        }
+        else if (decision.Ask && Away.On && !Phone.PhoneLink.Active)
+        {
+            // Away mode without the phone: nothing pops up, so a change that needs the user's OK waits for them.
+            Away.Note($"{ApprovalPolicy.Friendly(name)} was not done, it needs your OK ({decision.Reason})");
+            return new McpResult("The user is away and this step needs their OK, so it was not done. Leave it, carry on with the work that doesn't " +
+                                 "depend on it, and say in your answer that it waits for them.", true);
         }
         else if (decision.Ask)
         {

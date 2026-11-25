@@ -30,8 +30,8 @@ internal static class AwayTests
             Away.Asked("why does the popup menu show lines") is null && Away.Asked("raise the approach slab by 100 mm") is null && Away.Asked("") is null, "");
         var now = new DateTime(2026, 11, 19, 11, 44, 0, DateTimeKind.Utc);
         var note = Away.Heard(said, now, t => t.AddHours(2));
-        check("away: the chat says until when (his clock) and what happens meanwhile", note is not null && note.Contains("until 14:44") && note.Contains("Cancel, else No, else OK")
-            && note.Contains("risky changes (deletes) wait for you"), note ?? "null");
+        check("away: the chat says until when (his clock) and what happens meanwhile", note is not null && note.Contains("until 14:44") && note.Contains("wait for you")
+            && note.Contains("reach your phone"), note ?? "null");
         Away.Note("Plaxis asked \"Delete the phase?\": answered Cancel.");
         Away.Note("Skipped a step only you can do (cut_slab): finish the sketch");
         var list = Away.Take();

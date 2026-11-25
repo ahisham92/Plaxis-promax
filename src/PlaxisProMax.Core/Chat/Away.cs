@@ -5,13 +5,10 @@ namespace PlaxisProMax.Chat;
 /// <summary>
 /// "No need to pop up anything, I will not be available for the next hour" (19 Nov 2026): the user is away and nothing
 /// may wait on a click. Said in a chat message, it holds for the time said (an hour when none is said, at most 12) or
-/// until the user says they are back. Meanwhile, as in an Autopilot run: Revit's dialogs during Plaxis ProMax's own work
-/// are answered (Cancel, else No, else OK; Revit.UnattendedDialogs), a step only the user can do is skipped and listed
-/// (Handoff), a normal change isn't asked about, and a risky one (a delete, a big change) is not made but left for the
-/// user. What was answered or skipped is said in the chat when the user writes next. The user's own commands' dialogs are
-/// never touched, except a command left open with nobody at Revit: when Revit has taken no work for two minutes while
-/// the user is away, Esc ends it (RevitBlock.EndCommandNow; "if there is an order like that, skip it", 19 Nov 2026,
-/// after a Spot Elevation left open held the jobs for 16 minutes). No Revit or WPF here (the tests compile it).
+/// until the user says they are back. Meanwhile nothing pops up: a change that needs the user's OK is not made and is
+/// listed for them (it still goes to the phone while the phone is on), a step only the user can do (Tools.Handoff) is
+/// left and listed, and the questions wait in the Questions tab. The user gets the list when they are back. No WPF here
+/// (the tests compile it).
 /// </summary>
 internal static class Away
 {
@@ -121,7 +118,7 @@ internal static class Away
         get { lock (Gate) return _until; }
     }
 
-    // Any way of saying "I'm not at Revit": I (will|'ll|won't|am|'m|am going to|'ll be|might) be + away/out/off/not around/
+    // Any way of saying "I'm not at the PC": I (will|'ll|won't|am|'m|am going to|'ll be|might) be + away/out/off/not around/
     // unavailable/busy/in a meeting/asleep..., going home/out/to sleep, leaving, back in an hour, don't wait for me, carry
     // on without me, afk. The owner, 19 Nov 2026: "I won't be available, I will be away, everything I say regarding this".
     private const string Me = @"(i|i\s*['’]?\s*m|i\s*['’]?\s*ll|i\s+am|i\s+will|i\s+shall|i\s+(might|may|could|would)|i\s*['’]?\s*m\s+going\s+to|i\s+am\s+going\s+to|i\s*['’]?\s*m\s+gonna|i\s+have\s+to|i\s+need\s+to|i\s+must)";
@@ -185,8 +182,8 @@ internal static class Away
                 _until = now + span;
                 Write();
                 var end = (local ?? (t => t.ToLocalTime()))(_until);
-                note = $"Away mode until {end:HH:mm}: nothing pops up. Revit's pop-ups during the jobs' work are answered (Cancel, else No, else OK), " +
-                       "steps only you can do are skipped, and risky changes (deletes) wait for you. You get the list when you write next.";
+                note = $"Away mode until {end:HH:mm}: nothing pops up. Changes that need your OK and steps only you can do wait for you " +
+                       "(approvals still reach your phone while it is on), and the rest of the work carries on. You get the list when you write next.";
             }
             else if (_until != default && (IsBack(text) || now >= _until))
             {

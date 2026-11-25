@@ -31,6 +31,7 @@ internal sealed partial class ChatWindow : IHistoryHost
     private Grid Center()
     {
         _center.Children.Add(_scroll);
+        _center.Children.Add(QuestionsView());
         _center.Children.Add(_jump);
         _scrim.MouseLeftButtonDown += (_, _) => CloseDrawer();
         _center.Children.Add(_scrim);
