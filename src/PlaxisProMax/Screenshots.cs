@@ -47,6 +47,8 @@ internal static class Screenshots
         var auto = new ChatWindow(link, new PlaxisInstall.StartArgs(null, null, null, false), () => null!, sample: true);
         Shoot(auto, Path.Combine(folder, "12-autopilot.png"), w => ((ChatWindow)w).ShowSampleAutopilot());
         More(link, folder);
+        var files = new ChatWindow(link, new PlaxisInstall.StartArgs(null, null, null, false), () => null!, sample: true);
+        Shoot(files, Path.Combine(folder, "18-files.png"), w => ((ChatWindow)w).ShowSampleFiles(Path.Combine(Path.GetTempPath(), "ppm-made-" + Guid.NewGuid().ToString("N"))));
         var home = new ChatWindow(link, new PlaxisInstall.StartArgs(null, null, null, false), () => null!, sample: true);
         Shoot(home, Path.Combine(folder, "17-home.png"), w => ((ChatWindow)w).ShowSampleHome());
         app.Shutdown();
@@ -176,6 +178,28 @@ internal sealed partial class ChatWindow
     {
         _plaxisState.Text = "PLAXIS 2D 2024.2 · Harbour wall";
         ShowTitle();
+    }
+
+    /// <summary>Files in and out: a report and a drawing attached, a Word report and an Excel workbook made, shown as cards.</summary>
+    internal void ShowSampleFiles(string folder)
+    {
+        _plaxisState.Text = "PLAXIS 2D 2024.2 · Harbour wall";
+        _conversation.Name = "Report for the wall";
+        ShowTitle();
+        ShowItem(new ChatItem { Kind = "user", Text = "Write the calculation report in Word and the results per phase in Excel. The design basis and the section drawing are attached." });
+        ShowItem(new ChatItem { Kind = "tool", Name = "read_drawing_file", Text = "Read a drawing: Section A.dxf", State = "done" });
+        ShowItem(new ChatItem { Kind = "tool", Name = "results_to_excel", Text = "Results to Excel: 6 phases", State = "done" });
+        ShowItem(new ChatItem { Kind = "tool", Name = "make_document", Text = "Make a Word document: Harbour wall calculation report", State = "done" });
+        Directory.CreateDirectory(folder);
+        var word = Path.Combine(folder, "Harbour wall calculation report.docx");
+        var excel = Path.Combine(folder, "Harbour wall results.xlsx");
+        File.WriteAllBytes(word, new byte[48 * 1024]);
+        File.WriteAllBytes(excel, new byte[23 * 1024]);
+        ShowItem(new ChatItem { Kind = "file", Name = "make_document", Files = [word, excel] });
+        ShowItem(new ChatItem { Kind = "assistant", Text = "Both files are ready. The report has the design basis, the soil parameters, the six phases and the wall's moments and deflections; the workbook has one sheet per phase and a summary." });
+        _attached.Add(@"C:\Jobs\Harbour wall\Design basis rev B.pdf");
+        _attached.Add(@"C:\Jobs\Harbour wall\Section A.dxf");
+        ShowChips();
     }
 
     /// <summary>A sample approval card: new code, shown before it runs.</summary>

@@ -322,6 +322,7 @@ internal sealed partial class ChatWindow
         inside.Children.Add(_field);
         inside.Children.Add(buttons);
         var card = ChatUi.Elevated(inside, out var frame);
+        HookDropAndPaste();
         // A click on the card's empty parts puts the caret in the box, as in a text field.
         frame.AddHandler(MouseDownEvent, new MouseButtonEventHandler((_, e) =>
         {

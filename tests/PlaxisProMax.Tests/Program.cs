@@ -58,6 +58,8 @@ Section("prompt library", PromptLibraryTests.Run);
 Section("recall", ChatRecallTests.Run);
 Section("plan usage", PlanUsageTests.Run);
 Section("notes, earlier chats and routines", MoreTests.Run);
+Section("documents", DocumentTests.Run);
+Section("drawings and tables", DrawingTests.Run);
 
 try { Directory.Delete(scratch, true); } catch (Exception) { }
 Console.WriteLine(failures == 0 ? "All checks passed." : $"{failures} check(s) failed.");

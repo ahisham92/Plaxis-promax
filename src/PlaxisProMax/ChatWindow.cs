@@ -281,7 +281,11 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         if (typed)
         {
             if (_attached.Count > 0)
-                text += "\n\nAttached files:\n" + string.Join("\n", _attached.Select(f => "- " + f));
+            {
+                // Word, Excel and PowerPoint files are read here (Claude Code's Read can't open them); the rest by path.
+                try { text += Attachments.Note(_attached.ToList(), ClaudeCli.AttachmentsFolder); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { text += "\n\nAttached files:\n" + string.Join("\n", _attached.Select(f => "- " + f)); }
+            }
             _input.Clear();
             _attached.Clear();
             ShowChips();
@@ -477,7 +481,11 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
 
     private void Attach()
     {
-        var pick = new OpenFileDialog { Multiselect = true, Title = "Attach files (borehole logs, reports, pictures)" };
+        var pick = new OpenFileDialog
+        {
+            Multiselect = true, Title = "Attach files (borehole logs, reports, drawings, spreadsheets, pictures)",
+            Filter = "All files (*.*)|*.*|Documents (PDF, Word, Excel, PowerPoint, text)|*.pdf;*.docx;*.xlsx;*.xlsm;*.pptx;*.csv;*.txt;*.ags|CAD drawings (DXF)|*.dxf|Pictures|*.png;*.jpg;*.jpeg;*.gif;*.webp;*.bmp",
+        };
         if (pick.ShowDialog(this) != true) return;
         foreach (var file in pick.FileNames)
             if (!_attached.Contains(file)) _attached.Add(file);
@@ -494,6 +502,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
             case "assistant": AddAnswer(item.Text, save: false, item); break;
             case "tool": AddStepRow(item.Name, item.Text, item.State, item.Result); break;
             case "pjob": _messages.Children.Add(ParallelJobCardFor(item)); break;
+            case "file": _messages.Children.Add(FileCard(item)); break;
             case "error": AddNote(item.Text, Brand.K.DangerText); break;
             case "note" when item.Name == Crew.ApproveNote: _messages.Children.Add(ApproveCard(item)); break;
             default: AddNote(item.Text, Brand.K.Muted); break;
@@ -534,6 +543,14 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         SetStep(step, failed ? "failed" : "done", result, pop: true);
         _conversation.Items.Add(new ChatItem { Kind = "tool", Name = step.Tool, Text = step.Line.Text, State = failed ? "failed" : "done", Result = result.Length > 2000 ? result.Substring(0, 2000) : result, Time = DateTime.UtcNow });
         _working.Text = _busy ? "Working…" : "";
+        // A file the step made (a report, a workbook, a drawing): its card, saved with the chat.
+        if (!failed && FilesItem(step.Tool, result) is { } files)
+        {
+            files.Time = DateTime.UtcNow;
+            _conversation.Items.Add(files);
+            _messages.Children.Add(FileCard(files));
+            ScrollToEnd();
+        }
     }
 
     private static Border Card(UIElement content)

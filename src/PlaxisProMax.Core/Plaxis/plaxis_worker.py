@@ -616,7 +616,7 @@ def op_results_to_excel(args):
         raise UserError("Nothing could be read. " + "; ".join(problems[:6]))
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     _write_xlsx(path, [("Summary", summary)] + sheets)
-    return {"xlsx": path, "phases": len(sheets), "columns": len(summary) - 1, "values": sum(r[4] for r in summary[1:]),
+    return {"file": path, "xlsx": path, "phases": len(sheets), "columns": len(summary) - 1, "values": sum(r[4] for r in summary[1:]),
             "seconds": round(time.time() - started, 1), "problems": problems[:30],
             "figures": [dict(zip(("phase", "result", "object", "location", "count", "min", "max", "max_abs"), r)) for r in summary[1:61]]}
 

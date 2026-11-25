@@ -23,6 +23,10 @@ internal static class StepNames
         ["list_phases"] = "Read the phases",
         ["get_results"] = "Read results",
         ["results_to_excel"] = "Results to Excel",
+        ["make_document"] = "Make a file",
+        ["make_drawing"] = "Make a drawing",
+        ["read_document_text"] = "Read a document",
+        ["read_drawing_file"] = "Read a drawing",
         ["run_commands"] = "Run Plaxis commands",
         ["go_to_mode"] = "Switch mode",
         ["soil_contour"] = "Set the soil contour",
@@ -144,13 +148,28 @@ internal static class StepNames
     public static bool ReadOnly(string tool)
     {
         tool = Short(tool);
-        return tool is "status" or "inspect" or "remember_rule" or "chat_jobs" or "memory_note" or "recall_chats"
+        return tool is "status" or "inspect" or "remember_rule" or "chat_jobs" or "memory_note" or "recall_chats" or "make_document" or "make_drawing"
                    or "Read" or "Glob" or "Grep" or "LS" or "TodoWrite" or "TaskCreate" or "TaskUpdate" or "WebFetch" or "WebSearch" or "ToolSearch"
                || tool.StartsWith("get_", StringComparison.Ordinal) || tool.StartsWith("list_", StringComparison.Ordinal)
                || tool.StartsWith("find_", StringComparison.Ordinal) || tool.StartsWith("read_", StringComparison.Ordinal);
     }
 
     /// <summary>"Start a job: Sheets for levels 1-5", "Message job 2", "Stop job 2", "List the jobs".</summary>
+    private static string DocumentLine(JsonElement root)
+    {
+        string Str(string key) => root.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String ? OneLine(v.GetString()) : "";
+        var kind = Str("format").ToLowerInvariant() switch
+        {
+            "excel" or "xlsx" => "an Excel workbook",
+            "word" or "docx" => "a Word document",
+            "powerpoint" or "pptx" => "a PowerPoint presentation",
+            "pdf" => "a PDF",
+            "csv" => "a CSV table",
+            _ => "a file",
+        };
+        return "Make " + kind + (Str("title") is { Length: > 0 } title ? ": " + title : "");
+    }
+
     private static string JobsLine(JsonElement root)
     {
         string Str(string key) => root.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String ? OneLine(v.GetString()) : "";
@@ -165,20 +184,6 @@ internal static class StepNames
     }
 
     /// <summary>"Make an Excel workbook: Bill of quantities", "Make a PDF".</summary>
-    private static string DocumentLine(JsonElement root)
-    {
-        string Str(string key) => root.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String ? OneLine(v.GetString()) : "";
-        var kind = Str("format").ToLowerInvariant() switch
-        {
-            "excel" or "xlsx" => "an Excel workbook",
-            "word" or "docx" => "a Word document",
-            "powerpoint" or "pptx" => "a PowerPoint presentation",
-            "pdf" => "a PDF",
-            _ => "a file",
-        };
-        return "Make " + kind + (Str("title") is { Length: > 0 } title ? ": " + title : "");
-    }
-
     private static string Short(string tool)
     {
         if (!tool.StartsWith("mcp__", StringComparison.Ordinal)) return tool;
