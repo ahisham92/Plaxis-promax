@@ -71,11 +71,7 @@ internal static class PromptBriefs
     /// The only Plaxis ProMax tools the planning run may call: they read the model and write nothing (no files, no
     /// selection). Anything else is denied, because the planning run allows these alone and never asks.
     /// </summary>
-    public static readonly string[] PlannerTools =
-    [
-        "get_model_context", "query_elements", "get_element_parameters", "list_views_and_sheets", "list_types",
-        "list_view_templates", "list_view_filters", "list_revisions", "list_title_blocks", "list_worksets", "read_schedule",
-    ];
+    public static readonly string[] PlannerTools = ["status", "list_model", "inspect", "list_phases", "get_results", "find_kept_code"];
 
     // ---- When to make a brief ------------------------------------------------------------------------------------------
 

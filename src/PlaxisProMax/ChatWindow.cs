@@ -219,6 +219,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
             return (install, signIn: install is null ? ClaudeCli.SignIn.Unknown : ClaudeCli.CheckSignIn(install).State);
         });
         _claude = found.install;
+        if (_claude is not null && found.signIn != ClaudeCli.SignIn.SignedOut) RememberLeftOver();
         if (_claude is null)
         {
             var install = Brand.Button("Install Claude Code", Brand.Weight.Primary);
@@ -312,7 +313,21 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
     {
         try
         {
-            var line = StreamInput.UserMessage(text, []);
+            // A new chat starts knowing the chat just left: its summary is waited for (a little).
+            if (_conversation.SessionId.Length == 0) await WaitForMemory();
+            await SendLineAsync(StreamInput.UserMessage(text, []), text);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or System.ComponentModel.Win32Exception)
+        {
+            Error("The chat couldn't start: " + ex.Message);
+            SetBusy(false);
+        }
+    }
+
+    /// <summary>Sends one input line to the chat's Claude Code, starting it (resumed) when it isn't running.</summary>
+    private async Task SendLineAsync(string line, string text)
+    {
+        {
             if (_engine is null || !_engine.IsAlive)
             {
                 _engine?.Dispose();
@@ -330,11 +345,6 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
                 await _engine.StartAsync(line);
             }
             else await _engine.SendAsync(line);
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or IOException or System.ComponentModel.Win32Exception)
-        {
-            Error("The chat couldn't start: " + ex.Message);
-            SetBusy(false);
         }
     }
 
@@ -368,6 +378,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         _stop.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         _working.Text = busy ? "Working…" : "";
         ShowWorking(busy);
+        ShowShrink();
     }
 
     private void OnEvent(ChatEvent e)
@@ -405,6 +416,12 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
             case NoticeEvent notice:
                 Note(notice.Text);
                 break;
+            case ContextEvent context:
+                ContextNow(context.Tokens);
+                break;
+            case CompactedEvent compacted:
+                Compacted(compacted);
+                break;
             case UsageEvent usage:
                 _crew?.OnUsage(usage.Usage);
                 break;
@@ -416,6 +433,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
 
     private void EndTurn(ResultEvent result)
     {
+        if (ShrinkEnded(result)) return;
         // Keep the streamed answer as one item in the saved chat.
         foreach (var view in _streams.Values)
             if (view.Tag is string { Length: > 0 } text)
@@ -447,6 +465,7 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         // A run in this chat: the plan waits for Approve, the run carries on, or its goal is reviewed.
         if (lost.Length > 0 && Autopilot.LostAccess(lost)) _crew?.AutopilotLostAccess(lost);
         else _crew?.AutopilotTurnEnded(stopped, !failed);
+        ShrinkIfLong(stopped, failed);
     }
 
     private void OnExited(string errors)
@@ -472,6 +491,8 @@ internal sealed partial class ChatWindow : Window, IApprovalAsker
         if (_busy) Stop();
         _engine?.Dispose();
         _engine = null;
+        Remember(_conversation);
+        _contextTokens = 0;
         _conversation = ChatStore.New(_conversation.Key, _conversation.Title);
         _messages.Children.Clear();
         AttachCrew();

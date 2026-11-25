@@ -41,6 +41,7 @@ internal sealed partial class ChatWindow : IHistoryHost
         Closed += (_, _) =>
         {
             _routineTimer?.Stop();
+            Remember(_conversation);
             if (_notes is not null) _notes.Close();
             _routines?.Close();
             if (ReferenceEquals(_shownWindow, this)) _shownWindow = null;
@@ -160,6 +161,8 @@ internal sealed partial class ChatWindow : IHistoryHost
     {
         _engine?.Dispose();
         _engine = null;
+        Remember(_conversation);
+        _contextTokens = 0;
         _conversation = conv;
         _messages.Children.Clear();
         AttachCrew();

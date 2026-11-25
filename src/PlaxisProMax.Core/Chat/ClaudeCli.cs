@@ -253,6 +253,34 @@ internal static class ClaudeCli
     }
 
     /// <summary>
+    /// A one-shot Claude Code (-p) that answers one message from its input and ends: the prompt enhancer's planning run
+    /// (<paramref name="readTools"/>: the read-only Plaxis tools) and the short runs that write a chat's summary or
+    /// distil a lesson (no tools at all).
+    /// </summary>
+    public static ProcessStartInfo OneShotStart(Install install, string instructions, bool readTools, string? model)
+    {
+        Directory.CreateDirectory(WorkFolder);
+        var engine = Path.Combine(Folder, "engine");
+        Directory.CreateDirectory(engine);
+        var pid = Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var promptFile = Path.Combine(engine, (readTools ? "brief-" : "distil-") + pid + ".md");
+        File.WriteAllText(promptFile, instructions + Notes(), new UTF8Encoding(false));
+        var args = new List<string> { "-p", "--output-format", "json", "--append-system-prompt-file", promptFile, "--tools", readTools ? "ToolSearch" : "", "--permission-mode", "dontAsk" };
+        if (readTools)
+        {
+            args.AddRange(new[] { "--mcp-config", WriteMcpConfig(engine, pid, model, "mcp-brief-"), "--strict-mcp-config", "--max-turns", "12" });
+            args.Add("--allowedTools");
+            args.Add(string.Join(",", PromptBriefs.PlannerTools.Select(t => $"mcp__{ServerName}__{t}")));
+        }
+        else
+        {
+            args.AddRange(new[] { "--strict-mcp-config", "--max-turns", "1" });
+        }
+        if (!string.IsNullOrEmpty(model)) { args.Add("--model"); args.Add(model!); }
+        return CliStart(install, args);
+    }
+
+    /// <summary>
     /// The built-in tools the chat gets: Read, Glob and Grep for files, and ToolSearch, so Claude Code lists the Plaxis
     /// tools by name and loads a tool's description only when it is used (Sketch ProMax: without it every message carried
     /// all the tool descriptions, about 130k tokens, and the chat was shrunk after every answer).
